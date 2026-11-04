@@ -21,6 +21,8 @@ ALPHA = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
 MIGRATIONS = [
     'ALTER TABLE users ADD COLUMN recovery_hash TEXT',      # 2026-11-04 복구 코드(검수 3)
     'ALTER TABLE users ADD COLUMN comments_seen TEXT',      # 2026-11-04 새 댓글 배지(검수 22)
+    "ALTER TABLE posts ADD COLUMN age TEXT NOT NULL DEFAULT ''",   # 2026-11-04 아이 나이 칸(UI 3안 '아이 나이 길')
+    'CREATE INDEX IF NOT EXISTS posts_age ON posts (age, deleted, id)',
     # 검색 색인(검수 27): trigram이라 한국어 조사가 붙어도 세 글자 조각으로 찾는다. 글을 넣고·고치고·지울 때 트리거가 따라간다. 이미 있으면 그대로.
     "CREATE VIRTUAL TABLE IF NOT EXISTS posts_fts USING fts5(title, body, content='posts', content_rowid='id', tokenize='trigram')",
     'CREATE TRIGGER IF NOT EXISTS posts_ai AFTER INSERT ON posts BEGIN INSERT INTO posts_fts(rowid, title, body) VALUES (new.id, new.title, new.body); END',

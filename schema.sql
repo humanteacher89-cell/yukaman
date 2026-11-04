@@ -50,7 +50,8 @@ CREATE INDEX IF NOT EXISTS applications_user ON applications (user_id, id);
 CREATE TABLE IF NOT EXISTS posts (
   id            INTEGER PRIMARY KEY,
   user_id       INTEGER NOT NULL,
-  cat           TEXT NOT NULL,            -- question·tip·daily·leave·play·gear (public/app.js CATS와 같게)
+  cat           TEXT NOT NULL,            -- question·tip·daily·leave·play·school·gear (public/app.js CATS와 같게)
+  age           TEXT NOT NULL DEFAULT '', -- 아이 나이 칸: expect·baby·kid·low·high·teen, 비면 없음(public/app.js AGES와 같게, 11-04 UI 3안). 기존 표에는 MIGRATIONS로 더함
   title         TEXT NOT NULL,
   body          TEXT NOT NULL,
   created       TEXT NOT NULL,
@@ -59,6 +60,7 @@ CREATE TABLE IF NOT EXISTS posts (
 );
 CREATE INDEX IF NOT EXISTS posts_list ON posts (deleted, id);
 CREATE INDEX IF NOT EXISTS posts_cat  ON posts (cat, deleted, id);
+CREATE INDEX IF NOT EXISTS posts_age  ON posts (age, deleted, id);
 CREATE INDEX IF NOT EXISTS posts_user ON posts (user_id);
 
 -- 댓글(한 단계, 답글 없음 — 1판). 지운 댓글은 deleted에 시각, body는 빈 글자.

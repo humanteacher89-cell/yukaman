@@ -31,6 +31,7 @@
 //   횟수 제한용 기기 주소(IP)는 해시 16자로 짧게(가입·코드·복구 시도에만, 이틀 안에 지움). 지운 글·댓글은 내용을 비우고 시각만 남긴다. 탈퇴하면 계정 줄을 지운다.
 
 const CATS = ['question', 'tip', 'daily', 'leave', 'play', 'school', 'gear'];           // public/app.js CATS와 같게('school' = 학교·학습, 검수 23)
+const AGES = ['expect', 'baby', 'kid', 'low', 'high', 'teen'];   // 아이 나이 칸(public/app.js AGES와 같게). 글에 붙이면 또래 아빠들 글로 거른다(11-04 UI 3안 '아이 나이 길')
 const STAGES = ['raising', 'expecting'];
 const LIM = { nick: [2, 12], title: [2, 60], body: [1, 3000], comment: [1, 1000], answer: [20, 500], list: 20, listMax: 50 };
 const RATE = {                                        // [횟수, 기간 ms]
@@ -154,7 +155,7 @@ const ipKey = async request => 'ip:' + (await sha256('ip|' + (request.headers.ge
 
 const BADGE = "CASE WHEN u.role = 'official' THEN 'official' WHEN u.role = 'admin' THEN 'admin' WHEN u.verified = 1 THEN 'dad' ELSE '' END AS badge";
 const badgeOf = u => (u.role === 'official' ? 'official' : u.role === 'admin' ? 'admin' : u.verified === 1 ? 'dad' : '');
-const rowPost = r => ({ id: r.id, cat: r.cat, title: r.title, preview: r.preview, created: r.created, comments: r.comment_count, nick: r.nick, uid: r.uid, badge: r.badge || '' });
+const rowPost = r => ({ id: r.id, cat: r.cat, age: r.age || '', title: r.title, preview: r.preview, created: r.created, comments: r.comment_count, nick: r.nick, uid: r.uid, badge: r.badge || '' });
 const pubUser = u => ({ id: u.id, nick: u.nick, created: u.created, verified: u.verified === 1 && !u.blocked, role: u.role, how: u.verified_how || '', blocked: !!u.blocked });
 
 // ----- 글 -----
@@ -162,14 +163,15 @@ async function listPosts(request, env, sp) {
   const a = await reader(request, env.DB);
   if (a.err) return a.err;
   const db = env.DB;
-  const cat = str(sp.get('cat'), 20), q = str(sp.get('q'), 60), before = +sp.get('before') || 0;
+  const cat = str(sp.get('cat'), 20), age = str(sp.get('age'), 10), q = str(sp.get('q'), 60), before = +sp.get('before') || 0;
   const limit = Math.min(Math.max(+sp.get('limit') || LIM.list, 1), LIM.listMax);
   // 자료실 계정 글은 가이드 Q&A·정보에 있으니 커뮤니티 목록·검색에는 아빠들 글만(검수 15)
   const where = ['p.deleted IS NULL', "u.role != 'official'"], args = [];
   if (cat && CATS.includes(cat)) { where.push('p.cat = ?'); args.push(cat); }
+  if (age && AGES.includes(age)) { where.push('p.age = ?'); args.push(age); }
   const words = q ? q.split(/\s+/).filter(Boolean).slice(0, 5) : [];
   if (before) { where.push('p.id < ?'); args.push(before); }
-  const head = 'SELECT p.id, p.cat, p.title, substr(p.body, 1, 140) AS preview, p.created, p.comment_count, u.nick, u.id AS uid, ' + BADGE + ' FROM posts p JOIN users u ON u.id = p.user_id WHERE ';
+  const head = 'SELECT p.id, p.cat, p.age, p.title, substr(p.body, 1, 140) AS preview, p.created, p.comment_count, u.nick, u.id AS uid, ' + BADGE + ' FROM posts p JOIN users u ON u.id = p.user_id WHERE ';
   const tail = ' ORDER BY p.id DESC LIMIT ?';
   let rows = null;
   // 검색 색인(FTS5 trigram, 검수 27): 세 글자 이상인 낱말은 색인으로, 짧은 낱말이나 색인이 없을 때는 LIKE로(글 전체를 훑음)
@@ -199,13 +201,13 @@ async function getPost(request, env, id) {
   const a = await reader(request, env.DB);
   if (a.err) return a.err;
   const db = env.DB;
-  const p = await db.prepare('SELECT p.id, p.cat, p.title, p.body, p.created, p.comment_count, u.nick, u.id AS uid, ' + BADGE + ' '
+  const p = await db.prepare('SELECT p.id, p.cat, p.age, p.title, p.body, p.created, p.comment_count, u.nick, u.id AS uid, ' + BADGE + ' '
     + 'FROM posts p JOIN users u ON u.id = p.user_id WHERE p.id = ?1 AND p.deleted IS NULL').bind(id).first();
   if (!p) return no('not_found', 404);
   const cs = await db.prepare('SELECT c.id, c.body, c.created, u.nick, u.id AS uid, ' + BADGE + ' FROM comments c JOIN users u ON u.id = c.user_id '
     + 'WHERE c.post_id = ?1 AND c.deleted IS NULL ORDER BY c.id').bind(id).all();
   return json({ ok: true,
-    post: { id: p.id, cat: p.cat, title: p.title, body: p.body, created: p.created, comments: p.comment_count, nick: p.nick, uid: p.uid, badge: p.badge || '' },
+    post: { id: p.id, cat: p.cat, age: p.age || '', title: p.title, body: p.body, created: p.created, comments: p.comment_count, nick: p.nick, uid: p.uid, badge: p.badge || '' },
     comments: (cs.results || []).map(c => ({ id: c.id, body: c.body, created: c.created, nick: c.nick, uid: c.uid, badge: c.badge || '' })) });
 }
 
@@ -215,16 +217,17 @@ async function createPost(request, env) {
   if (!canWrite(a.user)) return no(a.user.blocked ? 'blocked' : 'verify', 403);
   const b = await readJson(request);
   if (!b) return no('bad_json');
-  const cat = str(b.cat, 20), title = str(b.title, 200), text = str(b.body, 5000);
+  const cat = str(b.cat, 20), age = str(b.age, 10), title = str(b.title, 200), text = str(b.body, 5000);
   if (!CATS.includes(cat)) return no('cat');
+  if (age && !AGES.includes(age)) return no('age');
   if (len(title) < LIM.title[0] || len(title) > LIM.title[1]) return no('title_len');
   if (len(text) < LIM.body[0] || len(text) > LIM.body[1]) return no('body_len');
   if (!isAdmin(a.user) && !(await allow(env.DB, 'u:' + a.user.id, 'post'))) return no('limit', 429);
   const created = nowIso();
-  const r = await env.DB.prepare('INSERT INTO posts (user_id, cat, title, body, created) VALUES (?1, ?2, ?3, ?4, ?5)')
-    .bind(a.user.id, cat, title, text, created).run();
+  const r = await env.DB.prepare('INSERT INTO posts (user_id, cat, age, title, body, created) VALUES (?1, ?2, ?3, ?4, ?5, ?6)')
+    .bind(a.user.id, cat, age, title, text, created).run();
   const id = r.meta && r.meta.last_row_id;
-  return json({ ok: true, id, post: { id, cat, title, body: text, created, comments: 0, nick: a.user.nick, uid: a.user.id, badge: badgeOf(a.user) } });
+  return json({ ok: true, id, post: { id, cat, age, title, body: text, created, comments: 0, nick: a.user.nick, uid: a.user.id, badge: badgeOf(a.user) } });
 }
 
 async function deletePost(request, env, id) {
@@ -528,7 +531,7 @@ async function me(request, env) {
   if (a.err) return a.err;
   const db = env.DB, uid = a.user.id;
   const [ps, cs, ap] = await db.batch([
-    db.prepare('SELECT id, cat, title, substr(body, 1, 140) AS preview, created, comment_count FROM posts WHERE user_id = ?1 AND deleted IS NULL ORDER BY id DESC LIMIT 100').bind(uid),
+    db.prepare('SELECT id, cat, age, title, substr(body, 1, 140) AS preview, created, comment_count FROM posts WHERE user_id = ?1 AND deleted IS NULL ORDER BY id DESC LIMIT 100').bind(uid),
     db.prepare('SELECT c.id, c.body, c.created, c.post_id, p.title AS post_title FROM comments c JOIN posts p ON p.id = c.post_id '
       + 'WHERE c.user_id = ?1 AND c.deleted IS NULL AND p.deleted IS NULL ORDER BY c.id DESC LIMIT 100').bind(uid),
     db.prepare('SELECT status, created FROM applications WHERE user_id = ?1 ORDER BY id DESC LIMIT 1').bind(uid),

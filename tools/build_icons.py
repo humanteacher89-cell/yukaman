@@ -1,78 +1,62 @@
-# 아이콘 + 공유 그림 만들기(2026-11-04 검수 13·26). 아빠가 아이를 목마 태운 모습. public/icons/logo.svg, public/app.js LOGO와 같은 모양으로 맞춘다.
-#   python -X utf8 tools/build_icons.py
-import os
-from PIL import Image, ImageDraw, ImageFont
+# 아이콘 + 공유 그림 만들기(2026-11-04 띠 로고 1판). tools/make_logo.py가 구운 선(tools/logo-paths.json)을 크롬 headless로 찍는다 — 화면의 logo.svg · app.js LOGO와 같은 모양.
+#   python -X utf8 tools/build_icons.py            (크롬 경로는 환경 변수 CHROME, 없으면 Program Files의 Chrome → Edge)
+# 만드는 것: icon-192 · icon-512(모서리 둥근 타일, 바깥 투명) · apple-touch-icon 180(꽉 찬 네모) · maskable-512(안전 영역 안에 글자) · og.png 1200×630
+import json, os, shutil, subprocess, sys, tempfile
 
 HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT = os.path.join(HERE, 'public', 'icons')
-BLUE, YEL, WHITE = (37, 99, 235), (255, 209, 102), (255, 255, 255)
-SS = 4
+P = json.load(open(os.path.join(HERE, 'tools', 'logo-paths.json'), encoding='utf-8'))
+BG, INK, SUB = '#FBF6F0', '#2B2118', '#6B5F55'      # 색감 3(토마토와 먹색)의 바탕·글자색
 
 
-def figure(d, s, ox=0, oy=0):
-    """viewBox 64 기준 그림. s = 배율"""
-    def c(x, y, r, col):
-        d.ellipse([(ox + (x - r) * s), (oy + (y - r) * s), (ox + (x + r) * s), (oy + (y + r) * s)], fill=col)
-    def line(x1, y1, x2, y2, w, col):
-        d.line([(ox + x1 * s, oy + y1 * s), (ox + x2 * s, oy + y2 * s)], fill=col, width=int(w * s))
-        c(x1, y1, w / 2, col); c(x2, y2, w / 2, col)
-    # 아이(뒤): 머리, 몸, 만세 한 두 팔
-    c(32, 9.5, 6, YEL)
-    line(32, 17, 32, 24, 11, YEL)
-    line(27, 18, 18.5, 9.5, 4.2, YEL)
-    line(37, 18, 45.5, 9.5, 4.2, YEL)
-    line(24, 25, 40, 25, 4.4, YEL)      # 엉덩이(머리 뒤로 지나간다)
-    # 아빠: 머리, 몸
-    c(32, 30.5, 7.5, WHITE)
-    d.pieslice([ox + 12 * s, oy + 39.5 * s, ox + 52 * s, oy + 79.5 * s], 180, 360, fill=WHITE)
-    # 아이 다리(앞): 아빠 어깨로 내려온다
-    line(24, 25, 21.5, 42, 4.4, YEL)
-    line(40, 25, 42.5, 42, 4.4, YEL)
+def chrome():
+    c = os.environ.get('CHROME')
+    cands = [c] if c else []
+    for base in (os.environ.get('ProgramFiles', ''), os.environ.get('ProgramFiles(x86)', ''), os.environ.get('LOCALAPPDATA', '')):
+        if base:
+            cands += [os.path.join(base, 'Google', 'Chrome', 'Application', 'chrome.exe'), os.path.join(base, 'Microsoft', 'Edge', 'Application', 'msedge.exe')]
+    for x in cands:
+        if x and os.path.exists(x):
+            return x
+    sys.exit('크롬(또는 엣지)을 못 찾았어요. 환경 변수 CHROME에 경로를 넣어 주세요.')
 
 
-def icon(size, radius, inset=1.0):
-    n = size * SS
-    img = Image.new('RGBA', (n, n), (0, 0, 0, 0))
-    d = ImageDraw.Draw(img)
-    if radius:
-        d.rounded_rectangle([0, 0, n - 1, n - 1], radius=radius * n / 64, fill=BLUE)
-    else:
-        d.rectangle([0, 0, n, n], fill=BLUE)
-    s = n / 64 * inset
-    figure(d, s, (n - 64 * s) / 2, (n - 64 * s) / 2)
-    return img.resize((size, size), Image.LANCZOS)
+def shoot(exe, html, w, h, out, transparent, tmp):
+    page = os.path.join(tmp, os.path.basename(out) + '.html')
+    open(page, 'w', encoding='utf-8').write(html)
+    args = [exe, '--headless=new', '--disable-gpu', '--hide-scrollbars', '--force-device-scale-factor=1', '--user-data-dir=' + os.path.join(tmp, 'prof'),
+            '--window-size=%d,%d' % (w, h), '--virtual-time-budget=6000', '--screenshot=' + out]
+    if transparent:
+        args.append('--default-background-color=00000000')
+    args.append('file:///' + page.replace('\\', '/'))
+    r = subprocess.run(args, capture_output=True, text=True)
+    if not os.path.exists(out):
+        sys.exit('못 찍음: ' + out + '\n' + r.stderr[-800:])
 
 
-def og():
-    W, H = 1200, 630
-    img = Image.new('RGB', (W, H), BLUE)
-    px = img.load()
-    for y in range(H):
-        for x in range(0, W):
-            t = (x / W + y / H) / 2
-            px[x, y] = (int(37 + (79 - 37) * t), int(99 + (139 - 99) * t), int(235 + (255 - 235) * t))
-    big = Image.new('RGBA', (W * 2, H * 2), (0, 0, 0, 0))
-    d = ImageDraw.Draw(big)
-    d.rounded_rectangle([140, 400, 140 + 480, 400 + 480], radius=130, fill=(255, 255, 255, 40))
-    figure(d, 480 / 64, 140, 400)
-    big = big.resize((W, H), Image.LANCZOS)
-    img.paste(big, (0, 0), big)
-    d = ImageDraw.Draw(img)
-    f = lambda n, bold=True: ImageFont.truetype(r'C:\Windows\Fonts\malgunbd.ttf' if bold else r'C:\Windows\Fonts\malgun.ttf', n)
-    d.text((340, 150), '육아맨', font=f(112), fill=WHITE)
-    d.text((340, 292), '육아하는 아빠들의 동네', font=f(50), fill=WHITE)
-    d.text((340, 386), '육아휴직 급여 바로 계산', font=f(36, False), fill=(232, 239, 255))
-    d.text((340, 438), '제도 안내 · 아빠끼리 솔직하게', font=f(36, False), fill=(232, 239, 255))
-    img.save(os.path.join(OUT, 'og.png'), optimize=True)
+def svg_sized(svg, n):
+    return svg.replace('viewBox', 'width="%d" height="%d" viewBox' % (n, n), 1)
 
 
 def main():
-    icon(192, 18).save(os.path.join(OUT, 'icon-192.png'))
-    icon(512, 18).save(os.path.join(OUT, 'icon-512.png'))
-    icon(180, 0).convert('RGB').save(os.path.join(OUT, 'apple-touch-icon.png'))
-    icon(512, 0, 0.78).save(os.path.join(OUT, 'maskable-512.png'))     # 안전 영역 안으로
-    og()
-    print('아이콘 5장 →', OUT)
+    exe = chrome()
+    tmp = tempfile.mkdtemp(prefix='yk-icons-')
+    try:
+        shell = '<!doctype html><meta charset="utf-8"><body style="margin:0;width:%dpx;height:%dpx;overflow:hidden;background:%s">%s</body>'
+        for n in (192, 512):
+            shoot(exe, shell % (n, n, 'transparent', svg_sized(P['tile'], n)), n, n, os.path.join(OUT, 'icon-%d.png' % n), True, tmp)
+        shoot(exe, shell % (180, 180, '#14213D', svg_sized(P['square'], 180)), 180, 180, os.path.join(OUT, 'apple-touch-icon.png'), False, tmp)
+        shoot(exe, shell % (512, 512, '#14213D', svg_sized(P['maskable'], 512)), 512, 512, os.path.join(OUT, 'maskable-512.png'), False, tmp)
+        word = P['wordmark'].replace('<svg ', '<svg height="150" ', 1)
+        og = ('<!doctype html><meta charset="utf-8"><link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@500;700&display=swap" rel="stylesheet">'
+              '<body style="margin:0;width:1200px;height:630px;overflow:hidden;background:%s;--bg:%s;color:%s;font-family:\'Noto Sans KR\',\'Malgun Gothic\',sans-serif;display:flex;align-items:center;gap:72px;padding:0 96px;box-sizing:border-box">'
+              '<div style="flex:none;width:300px;height:300px">%s</div><div>%s'
+              '<p style="margin:30px 0 0;font-size:42px;font-weight:700;letter-spacing:-.02em">육아하는 아빠들의 동네</p>'
+              '<p style="margin:12px 0 0;font-size:25px;font-weight:500;color:%s;white-space:nowrap">육아휴직 급여 바로 계산 · 제도 안내 · 아빠끼리 솔직하게</p></div></body>') % (BG, BG, INK, svg_sized(P['tile'], 300), word, SUB)
+        shoot(exe, og, 1200, 630, os.path.join(OUT, 'og.png'), False, tmp)
+        print('아이콘 5장 →', OUT)
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
 
 
 if __name__ == '__main__':
