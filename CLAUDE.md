@@ -5,10 +5,10 @@
 이 파일은 공개 파일이다 — 비밀 값·개인 정보·PC 경로를 적지 않는다. 경로는 모두 이 저장소 루트 기준.
 
 ## 짜임
-- `public/` 화면 그대로 올라간다(만드는 단계 없음). `index.html` 틀 · `style.css` · `app.js`(화면 전부, 해시 주소) · `calc.js`(계산, 법령 기준) · `guide-data.js`(가이드 글) · `data/library.json`(자료실, 만들어지는 파일) · `config.js` · `sample-data.js`(서버 없을 때 시험 모드 견본) · `manifest.json` · `sw.js` · `icons/`.
+- `public/` 화면 그대로 올라간다(만드는 단계 없음). `index.html` 틀 · `style.css` · `app.js`(화면 전부, 해시 주소) · `calc.js`(계산, 법령 기준) · `guide-data.js`(가이드 글) · `official-data.js`(가이드 Q&A·정보, 만들어지는 파일) · `data/library.json`(자료실, 만들어지는 파일) · `config.js` · `sample-data.js`(서버 없을 때 시험 모드 견본) · `manifest.json` · `sw.js` · `icons/`.
 - `functions/api/[[path]].js` → `server/app.js`: Cloudflare Pages Functions 서버. 맨 위 주석에 API 약속.
 - `schema.sql` D1 표(users · invites · applications · posts · comments · acts).
-- `seed/official-posts.json` → `tools/build_seed.py` → `seed/official.sql`: 자료실 계정의 글(공개 D1에도 넣음).
+- `seed/official-posts.json` → `tools/build_seed.py` → `seed/official.sql`(자료실 계정의 글, 공개 D1에도 넣음) + `public/official-data.js`(같은 글을 가이드 'Q&A·정보'로, 인증 전에도 보임).
 - `data-src/*.json` → `tools/build_library.py` → `public/data/library.json`: 자료실. `verdicts.json`은 재검증 결과.
 - `wrangler.toml` Pages `humanssaem-yukaman` + D1 `yukaman`. `deploy.py` 미리 보기·올리기.
 
@@ -29,5 +29,5 @@
 
 ## 지금 상태와 남은 일
 - 2026-11-04: 시험 주소 공개판 전 단계. 홈 · 가이드 21편 · 계산기 4종(육아휴직·단축근무·배우자 출산휴가·내 아이 날짜) · 자료실 · 커뮤니티(글·댓글·키워드 검색) · 아빠 인증(초대 코드·신청서·관리자 화면) · 자료실 글 24편.
-- 2026-11-04: 아빠 인증은 초대 코드 + 신청서로 확정(휴먼쌤). 커뮤니티 읽기도 인증 아빠만으로 닫음(휴먼쌤, 자료실 계정 글 포함, 서버에서 막고 화면은 잠금). 저장소 공개, Cloudflare Pages는 `deploy.py deploy`로 직접 올린다.
+- 2026-11-04: 아빠 인증은 초대 코드 + 신청서로 확정(휴먼쌤). 커뮤니티 읽기도 인증 아빠만으로 닫음(휴먼쌤, 서버에서 막고 화면은 잠금). 가이드는 전부 열어 둠(휴먼쌤): 자료실 계정 글 24편은 가이드 'Q&A·정보'에서 누구나 보고, 댓글은 커뮤니티에서 인증 아빠끼리. 저장소 공개, Cloudflare Pages는 `deploy.py deploy`로 직접 올린다.
 - 남은 일: 공개 결정(이용약관·개인정보 처리방침 먼저) → 2차 후보(신고, 답글, 모임 탭, 휴대폰 본인인증, 검색 색인).

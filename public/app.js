@@ -363,7 +363,8 @@
     const c = GCAT[g.cat] || {};
     bar(backBtn('#/guide/' + g.cat) + '<div class="fill atitle">아빠 가이드 · ' + esc(c.name || '') + '</div>');
     const note = g.status === '공식 근거' ? '<div class="draft"><span>✅</span><span>' + esc(dot(g.updated)) + '에 법령 원문·고용노동부 자료로 확인했어요. 법률 자문은 아니니 내 경우는 1350이나 고용센터에서 확인해 주세요.</span></div>'
-      : g.status === '일반 조언' ? '<div class="draft"><span>✍️</span><span>육아맨이 정리한 일반적인 조언이에요. 집마다 다를 수 있어요.</span></div>' : '';
+      : g.status === '일반 조언' ? '<div class="draft"><span>✍️</span><span>육아맨이 정리한 일반적인 조언이에요. 집마다 다를 수 있어요.</span></div>'
+      : g.status === '자료 정리' ? '<div class="draft"><span>🗂️</span><span>육아맨 자료실이 출처가 있는 자료로 ' + esc(dot(g.updated)) + '에 정리한 글이에요. 법률 자문은 아니니 내 경우는 1350이나 고용센터에서 확인해 주세요.</span></div>' : '';
     view.innerHTML = '<section class="pad"><article class="garticle">'
       + '<div class="meta"><span class="badge c-etc">' + esc(c.e || '') + ' ' + esc(c.name || '') + '</span>' + (g.tag ? '<span class="tag ' + tagCls(g.tag) + '">' + esc(g.tag) + '</span>' : '') + '</div>'
       + '<h1>' + esc(g.title) + '</h1><p class="gsub">' + esc(g.sub) + '</p>' + note
@@ -582,6 +583,7 @@
       + '<div class="sec"><h2>인증 전에도 볼 수 있어요</h2></div>'
       + '<div class="glist" style="margin-top:0">'
       + '<a class="grow" href="#/guide"><span class="ge">📚</span><span class="tx"><b>아빠 가이드</b><small>육아휴직 · 놀이 · 심리 · 정책</small></span></a>'
+      + '<a class="grow" href="#/guide/faq"><span class="ge">🙋</span><span class="tx"><b>Q&amp;A·정보</b><small>자주 묻는 질문 · 지원금 · 복직 준비</small></span></a>'
       + '<a class="grow" href="#/calc"><span class="ge">💰</span><span class="tx"><b>계산기</b><small>육아휴직 · 단축근무 · 출산휴가 · 아이 날짜</small></span></a>'
       + '<a class="grow" href="#/library"><span class="ge">🗂️</span><span class="tx"><b>자료실</b><small>법령 · 통계 · 연구 · 판례 · 경험담</small></span></a>'
       + '</div></section>';
