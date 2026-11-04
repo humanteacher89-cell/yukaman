@@ -60,7 +60,7 @@ CREATE TABLE IF NOT EXISTS posts (
 );
 CREATE INDEX IF NOT EXISTS posts_list ON posts (deleted, id);
 CREATE INDEX IF NOT EXISTS posts_cat  ON posts (cat, deleted, id);
-CREATE INDEX IF NOT EXISTS posts_age  ON posts (age, deleted, id);
+-- posts_age 색인은 deploy.py MIGRATIONS에서 만든다. 여기 두면 이미 있는 표에 age 칸이 생기기 전에 돌아 오류가 난다(11-04)
 CREATE INDEX IF NOT EXISTS posts_user ON posts (user_id);
 
 -- 댓글(한 단계, 답글 없음 — 1판). 지운 댓글은 deleted에 시각, body는 빈 글자.
