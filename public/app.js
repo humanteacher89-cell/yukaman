@@ -88,6 +88,8 @@
   const LOGO = '<svg aria-hidden="true" viewBox="0 0 64 64"><rect width="64" height="64" rx="18" fill="#14213D"/><path transform="translate(4.5086 36.9683) scale(0.0208)" d="M678 -464H204Q121 -464 72.5 -508.5Q24 -553 24 -642Q24 -746 72 -786Q120 -826 204 -827H678Q767 -827 812.5 -786.5Q858 -746 858 -642Q858 -552 811 -507.5Q764 -463 678 -464ZM581 -653H301Q296 -653 294 -652Q292 -651 292 -644Q292 -637 294 -636Q296 -635 301 -635H581Q586 -635 588 -636Q590 -637 590 -644Q590 -651 588 -652Q586 -653 581 -653ZM869 -442V-244H743V-212H842V42H563V-1H32V-212H140V-244H14V-442ZM383 -212H500V-244H383Z M1692 -583H1755V-304H1692V42H1422V-822H1692ZM1395 -620V-199Q1396 -110 1336 -55.5Q1276 -1 1148 -1Q1065 -1 1008 -27Q951 -53 921.5 -97.5Q892 -142 891 -197V-617Q891 -671 920 -715.5Q949 -760 1006.5 -786Q1064 -812 1148 -812Q1232 -812 1286 -787Q1340 -762 1366.5 -719Q1393 -676 1395 -620ZM1157 -285V-528Q1157 -532 1155.5 -537Q1154 -542 1143 -542Q1133 -542 1131.5 -537Q1130 -532 1130 -528V-285Q1130 -282 1131.5 -277Q1133 -272 1143 -272Q1154 -272 1155.5 -277Q1157 -282 1157 -285Z M2439 -426H2408V-246H2237V-813H2408V-669H2439V-822H2619V-228H2439ZM1782 -795H2214V-313H1782ZM1989 -476H2007V-632H1989ZM2106 -286V-196H2628V42H1818V-286Z" fill="#FFFFFF" stroke="#14213D" stroke-width="33.3" stroke-linejoin="round"/><rect y="41.6" width="64" height="7.04" fill="#FFC914"/></svg>';   // 띠 로고 1(11-04 휴먼쌤 확정): 남색 타일 + 육아맨(Gasoek One, 두께 10% 줄임) + 노란 밑줄 띠. tools/make_logo.py가 구운 선 — icons/logo.svg · tools/build_icons.py와 같게
   const WORDMARK = '<svg aria-hidden="true" viewBox="0 0 308.8055 134"><path transform="translate(2.389 95.1669) scale(0.1151)" d="M678 -464H204Q121 -464 72.5 -508.5Q24 -553 24 -642Q24 -746 72 -786Q120 -826 204 -827H678Q767 -827 812.5 -786.5Q858 -746 858 -642Q858 -552 811 -507.5Q764 -463 678 -464ZM581 -653H301Q296 -653 294 -652Q292 -651 292 -644Q292 -637 294 -636Q296 -635 301 -635H581Q586 -635 588 -636Q590 -637 590 -644Q590 -651 588 -652Q586 -653 581 -653ZM869 -442V-244H743V-212H842V42H563V-1H32V-212H140V-244H14V-442ZM383 -212H500V-244H383Z M1692 -583H1755V-304H1692V42H1422V-822H1692ZM1395 -620V-199Q1396 -110 1336 -55.5Q1276 -1 1148 -1Q1065 -1 1008 -27Q951 -53 921.5 -97.5Q892 -142 891 -197V-617Q891 -671 920 -715.5Q949 -760 1006.5 -786Q1064 -812 1148 -812Q1232 -812 1286 -787Q1340 -762 1366.5 -719Q1393 -676 1395 -620ZM1157 -285V-528Q1157 -532 1155.5 -537Q1154 -542 1143 -542Q1133 -542 1131.5 -537Q1130 -532 1130 -528V-285Q1130 -282 1131.5 -277Q1133 -272 1143 -272Q1154 -272 1155.5 -277Q1157 -282 1157 -285Z M2439 -426H2408V-246H2237V-813H2408V-669H2439V-822H2619V-228H2439ZM1782 -795H2214V-313H1782ZM1989 -476H2007V-632H1989ZM2106 -286V-196H2628V42H1818V-286Z" fill="currentColor" style="stroke:var(--bg,#fff)" stroke-width="33.3" stroke-linejoin="round"/><rect y="110" width="308.8055" height="24" fill="#FFC914"/></svg>';   // 앱 바 글자 로고. 글자색은 currentColor, 깎는 선은 바탕색(--bg)
 
+  // 앱 바 그림(11-04 휴먼쌤 "로고도 글씨니까 이상해서 … 아이 안고있는 행복한 아빠 이모지 같은걸로"). 글자 이모지는 기기마다 달라 직접 그렸다. 홈 화면 아이콘은 띠 로고 그대로
+  const DAD = '<svg viewBox="0 0 64 64" aria-hidden="true"><path d="M3 64v-6c0-11 8-18 19-18h6c11 0 19 7 19 18v6z" fill="#2F6FE0"/><circle cx="25" cy="22" r="15.5" fill="#FFD3A8"/><path d="M9.700 21c-.6-10 6.300-15.500 15.300-15.500 8.500 0 15.800 5.200 15.300 15.300-2.700-.2-4.800-3.800-5.700-6.300-3.600 2.800-13.300 3.300-19 1.700-1.400 1.700-3.300 4-5.900 4.800z" fill="#3B2A20"/><path d="M15.500 23.500c1.300-2 4-2 5.300 0M29.300 23.500c1.300-2 4-2 5.300 0" fill="none" stroke="#3B2A20" stroke-width="2" stroke-linecap="round"/><path d="M18.500 28c1.300 4.800 11.700 4.800 13 0z" fill="#fff" stroke="#3B2A20" stroke-width="1.600" stroke-linejoin="round"/><circle cx="14.500" cy="28" r="2.300" fill="#FFB199"/><circle cx="35.500" cy="28" r="2.300" fill="#FFB199"/><path d="M26 64c0-10 6-17 15-17h4c9 0 15 7 15 17z" fill="#FFD66B"/><circle cx="44" cy="39" r="11" fill="#FFE2C4"/><path d="M37 33.500c1.500-4.500 5.200-6 8-5.500-1 1.500-.6 3 .7 4-3 1.200-6 1.800-8.700 1.500z" fill="#3B2A20"/><path d="M38.800 39.500c.8-1.300 2.400-1.300 3.200 0M46 39.500c.8-1.300 2.400-1.300 3.200 0" fill="none" stroke="#3B2A20" stroke-width="1.700" stroke-linecap="round"/><path d="M41.300 43.500c1.300 2 4.100 2 5.400 0" fill="none" stroke="#3B2A20" stroke-width="1.600" stroke-linecap="round"/><path d="M20 64c1-5 8-8.500 16-8 5 .3 9.500 1.500 12 4.500 1.500 1.800-.3 3.500-2.200 3.500z" fill="#FFD3A8"/></svg>';
   // 글꼴은 화면을 막지 않게(index.html media=print → 여기서 all)
   (function () { const f = document.getElementById('fontcss'); if (f) requestAnimationFrame(() => { f.media = 'all'; }); })();
   // 다크 모드: 저장값 auto(기기 따름) · light · dark. <html data-theme>로 CSS가 바뀐다(검수 25)
@@ -278,7 +280,7 @@
   // ----- 화면 틀 -----
   const view = $('#view'), appbar = $('#appbar'), app = $('#app'), fab = $('#fab');
   const bar = h => { appbar.innerHTML = h; };
-  const brandBar = (right) => '<div class="brand"><span class="logo">' + LOGO + '</span><span class="wm" role="img" aria-label="육아맨">' + WORDMARK + '</span></div><div class="fill"></div>' + (right || '');
+  const brandBar = (right) => '<div class="brand"><span class="logo">' + DAD + '</span><span class="wm" role="img" aria-label="육아맨">' + WORDMARK + '</span></div><div class="fill"></div>' + (right || '');
   const backBtn = to => '<button class="circ" data-back="' + esc(to) + '" aria-label="뒤로">' + ICON.back + '</button>';
   function setTab(name) { $$('.tab').forEach(t => t.classList.toggle('on', t.dataset.tab === name)); }
   function go(h, replace) { if (replace) { if (location.hash !== h) navReplace = true; location.replace(h); } else location.hash = h; }
@@ -341,7 +343,9 @@
   const todayStr = () => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
   // 기본 시작일: 회사 신청 기한(30일 전)이 아직 남은 가장 가까운 1일(11-04 검수 9 — 다음 달 1일로 두면 이미 지난 기한을 챙기라고 한다)
   function nextFirst() { const d = new Date(); let t = new Date(d.getFullYear(), d.getMonth() + 1, 1); if ((t - d) / 86400000 < 31) t = new Date(d.getFullYear(), d.getMonth() + 2, 1); return t.getFullYear() + '-' + String(t.getMonth() + 1).padStart(2, '0') + '-01'; }
-  const calcS = Object.assign({ pay: 350, start: nextFirst(), months: 12, end: '', mode: 'general', spouseMonths: 6, spouseInsured: true, spousePay: '', company: '', birth: '', due: '', before: 40, after: 30, rMonths: 12, priority: true, days: 20 }, store.get('calc', {}));
+  const calcS = Object.assign({ job: '', pay: 350, start: nextFirst(), months: 12, end: '', mode: 'general', spouseMonths: 6, used: 0, spousePay: '', company: '', birth: '', due: '', before: 40, after: 30, rMonths: 12, priority: true, days: 20 }, store.get('calc', {}));
+  if (!calcS.spouseJob) calcS.spouseJob = calcS.spouseInsured === false ? 'none' : 'worker';   // 옛 저장값(고용보험 가입 여부) 옮기기
+  delete calcS.spouseInsured;
   if (!K.parse(calcS.start)) calcS.start = nextFirst();
   if (!K.parse(calcS.end)) calcS.end = K.addDays(K.addMonths(calcS.start, 12), -1);
   const saveCalc = () => store.set('calc', calcS);
@@ -349,6 +353,27 @@
 
   // 홈·가이드의 계산기 카드: 월급만 넣으면 바로 계산된다(일반 12개월). 자세히는 #/calc/leave
   function quickCalc(man) { const s = '2027-01-01'; return K.leaveBenefit({ ordinary: toWon(man), start: s, end: K.addDays(K.addMonths(s, 12), -1) }); }
+  // 직종(11-04 재검토 "다양한 직종이 있어서 헷갈리진 않는지"): 이 계산기는 고용보험 근로자용이다. 고르기 전과 다른 직종에는 금액을 보여 주지 않는다
+  const JOBS = [
+    { key: 'worker', name: '회사원·계약직·공무직' },
+    { key: 'civil', name: '공무원·국공립 교원' },
+    { key: 'private', name: '사립학교 교직원' },
+    { key: 'self', name: '자영업·프리랜서' },
+    { key: 'unknown', name: '잘 모르겠어요' }
+  ];
+  const JOB_NOTE = {
+    civil: { t: '공무원·국공립 교원은 이 계산기가 맞지 않아요', p: '고용보험이 아니라 수당 규정을 따라요. 기준도 통상임금이 아니라 월봉급액(수당을 뺀 봉급)이에요. 첫 6개월은 월봉급액, 7개월째부터 80%이고, 상한은 1~3개월 250만원, 4~6개월 200만원, 7개월째부터 160만원이에요. 수당은 1년까지(요건이 맞으면 1년 6개월까지) 나와요. 자녀 기준은 일반 공무원 12세·초6 이하, 교사 만 8세·초2 이하예요. 내 금액은 소속 기관에 확인해 주세요.' },
+    private: { t: '사립학교 교직원은 이 계산기가 맞지 않아요', p: '사학연금을 적용받으면 고용보험 대상이 아니에요(고용보험법 제10조). 교원은 국공립 교원의 수당 규정을 준용해요(사립학교법 시행령 제24조의9). 행정직원은 법령에 정한 금액이 없고 학교법인 내부 규정을 따라요. 학교 행정실에 확인해 주세요.' },
+    self: { t: '자영업·프리랜서는 육아휴직 급여 대상이 아니에요', p: '육아휴직 급여는 고용보험에 가입한 근로자의 제도예요. 자영업자·예술인·노무제공자로 가입한 기간은 180일에 들어가지 않아요. 계약은 프리랜서인데 실제로 회사 지시를 받고 일했다면 1350에 물어보세요.' },
+    unknown: { t: '급여명세서로 확인할 수 있어요', p: '고용보험료가 빠져 있으면 "회사원·계약직·공무직"을 고르세요. 공기업·공공기관 직원도 공무원이 아니면 여기예요. 공무원연금이면 공무원, 사학연금이면 사립학교 교직원이에요. 세금 3.3%만 떼면 프리랜서 계약일 수 있어요. 고용24 마이페이지에서 고용보험 가입 이력을 볼 수 있고, 그래도 모르면 1350에 물어보세요.' }
+  };
+  function jobBox() {
+    if (calcS.job === 'worker') return '<div class="jobline"><span>회사원 등 <b>고용보험 근로자</b> 기준이에요</span><button type="button" data-job="">바꾸기</button></div>';
+    const n = JOB_NOTE[calcS.job];
+    return '<div class="jobs"><b>어떻게 일하세요?</b><small>직종마다 제도가 달라요. 고르면 맞는 안내를 보여 드려요.</small>'
+      + '<div class="catpick" role="group" aria-label="직종">' + JOBS.map(j => '<button type="button" class="chip' + (j.key === calcS.job ? ' on' : '') + '" data-job="' + j.key + '" aria-pressed="' + (j.key === calcS.job) + '">' + esc(j.name) + '</button>').join('') + '</div>'
+      + (n ? '<div class="jobnote"><b>' + esc(n.t) + '</b><p>' + esc(n.p) + '</p><a class="lk2" href="#/g/leave-job">직종별 안내 보기</a></div>' : '') + '</div>';
+  }
   // 달마다 받는 돈을 함께 보여 준다. 월 250만원을 넘으면 상한에 걸려 총액이 같으니, 고장처럼 보이지 않게 까닭을 적는다
   function quickNote(man) {
     if (!toWon(man)) return '월 통상임금을 넣으면 바로 계산돼요.';
@@ -356,12 +381,17 @@
     return '1~3개월 월 ' + won(m[0]) + ' · 4~6개월 월 ' + won(m[1]) + ' · 7개월부터 월 ' + won(m[2]) + (toWon(man) >= 2500000 ? '<br>법정 상한에 걸려 월급이 더 많아도 금액이 같아요.' : '');
   }
   const quickTotal = man => (toWon(man) ? won(quickCalc(man).total) : '—');     // 0원이면 하한 70만원으로 계산된 840만원이 나와 버리니 비워 둔다
+  const W24_SIM = 'https://m.work24.go.kr/cm/c/f/1100/selecSimulate12.do?systClId=SC00000251&systId=SI00000402';
   function calcCard() {
-    return '<div class="gcalc" id="qcalc"><div class="top"><b>💰 육아휴직 급여 계산기</b><a class="fold" href="#/calc/leave">자세히</a></div>'
-      + '<div class="big"><label class="qpay">내 월 통상임금 <input id="qPay" type="number" inputmode="decimal" min="0" max="3000" step="10" value="' + esc(calcS.pay) + '" aria-label="월 통상임금(만원)"> 만원</label>'
-      + '<strong id="qTotal">' + quickTotal(calcS.pay) + '</strong><em>12개월 쉬면 받는 돈(일반 기준)</em><small class="qnote" id="qNote">' + quickNote(calcS.pay) + '</small></div></div>';
+    const head = '<div class="gcalc" id="qcalc"><div class="top"><b>💰 육아휴직 급여 계산기</b>' + (calcS.job === 'worker' ? '<a class="fold" href="#/calc/leave">자세히</a>' : '') + '</div>';
+    if (calcS.job !== 'worker') return head + '<div class="big">' + jobBox() + '</div></div>';
+    return head + '<div class="big">' + jobBox() + '<label class="qpay">내 월 통상임금 <input id="qPay" type="number" inputmode="decimal" min="0" max="3000" step="10" value="' + esc(calcS.pay) + '" aria-label="월 통상임금(만원)"> 만원</label>'
+      + '<strong id="qTotal">' + quickTotal(calcS.pay) + '</strong><em>부부 중 한 사람만 12개월 쉴 때 어림</em><small class="qnote" id="qNote">' + quickNote(calcS.pay) + '</small>'
+      + '<small class="qnote">고용보험 180일 이상이어야 받아요. 실제 금액은 고용센터가 정해요. <a href="' + W24_SIM + '" target="_blank" rel="noopener">고용24 공식 계산기</a></small></div></div>';
   }
   function bindCalcCard() {
+    const box = $('#qcalc'); if (!box) return;
+    box.addEventListener('click', ev => { const b = ev.target.closest('[data-job]'); if (!b) return; calcS.job = b.dataset.job; saveCalc(); box.outerHTML = calcCard(); bindCalcCard(); });
     const p = $('#qPay'); if (!p) return;
     p.addEventListener('input', () => { calcS.pay = parseFloat(p.value) || 0; saveCalc(); $('#qTotal').textContent = quickTotal(calcS.pay); $('#qNote').innerHTML = quickNote(calcS.pay); });
   }
@@ -370,11 +400,11 @@
   // 내 아이 나이로 보기(검수 11). 고른 값은 이 기기에만. ids = 지금 쓸 수 있는 글
   const AGES = [
     { key: 'expect', name: '곧 태어나요', note: '배우자 출산휴가는 예정일 50일 전부터, 위험이 있으면 임신 중에도 육아휴직을 쓸 수 있어요.', ids: ['policy-pregnancy', 'policy-paternity', 'leave-66', 'leave-apply', 'ivf-leave'] },
-    { key: 'baby', name: '0~18개월', note: '6+6은 부모 모두 고용보험 가입자이고 생후 18개월 안에 시작할 때만이에요. 지금이 기회일 수 있어요.', ids: ['birth-2weeks', 'policy-paternity', 'leave-66', 'leave-apply', 'policy-shorter-hours', 'baby-care', 'mind-dad-blues', 'play-0-12'] },
-    { key: 'kid', name: '미취학', note: '육아휴직과 단축근무 모두 쓸 수 있어요. 어린이집이 쉬는 날에는 단기 육아휴직과 가족돌봄휴가가 있어요.', ids: ['leave-apply', 'leave-short', 'policy-shorter-hours', 'family-care', 'play-weekend', 'mind-anger'] },
+    { key: 'baby', name: '0~18개월', note: '6+6은 아이가 생후 18개월 안일 때 부모가 모두 육아휴직을 시작해야 해요. 지금이 기회일 수 있어요. 배우자가 공무원·교원이어도 근로자인 쪽은 받아요.', ids: ['birth-2weeks', 'policy-paternity', 'leave-66', 'leave-apply', 'policy-shorter-hours', 'baby-care', 'mind-dad-blues', 'play-0-12'] },
+    { key: 'kid', name: '미취학', note: '육아휴직과 단축근무 모두 쓸 수 있어요. 어린이집이 오래 쉬거나 방학일 때는 단기 육아휴직(1주 또는 2주), 하루 이틀은 가족돌봄휴가가 있어요.', ids: ['leave-apply', 'leave-short', 'policy-shorter-hours', 'family-care', 'play-weekend', 'mind-anger'] },
     { key: 'low', name: '초1~2', note: '육아휴직은 초2까지(또는 만 8세 이하)예요. 방학에는 단기 육아휴직 1~2주를 쓸 수 있어요.', ids: ['leave-apply', 'leave-short', 'policy-shorter-hours', 'family-care', 'play-school'] },
     { key: 'high', name: '초3~6', note: '육아휴직은 만 9세 생일 전까지만 돼요. 주로 쓰는 것은 단축근무(초6 또는 만 12세까지)와 가족돌봄휴가예요.', ids: ['policy-shorter-hours', 'family-care', 'play-school', 'mind-anger', 'leave-rights'] },
-    { key: 'teen', name: '중학생~', note: '단축근무는 만 13세 생일 전까지만 돼요. 아이가 아플 때는 나이 제한 없는 가족돌봄휴가가 있어요.', ids: ['family-care', 'policy-shorter-hours', 'mind-couple'] }
+    { key: 'teen', name: '중학생~', note: '단축근무는 만 13세 생일 전까지만 돼요. 아이가 아플 때는 가족돌봄휴가가 있어요.', ids: ['family-care', 'policy-shorter-hours', 'mind-couple'] }
   ];
   const AGE = {}; AGES.forEach(a => { AGE[a.key] = a; });
   // 홈 '아이 나이 길'(UI 3안, 11-04 휴먼쌤 선택): 계산기 '내 아이 날짜'에 넣은 생일·예정일(이 기기에만)로 나이 칸을 맞추고, 직접 고른 값이 있으면 그것을 쓴다
@@ -426,15 +456,15 @@
   function tlItems(key, d) {
     const L = {
       expect: [
-        { t: '배우자 출산휴가 신청 가능', s: '20일 유급. 예정일 50일 전부터 쓸 수 있어요(3번까지 나눠서)', by: d.paternityFrom, from: true, lab: '예정일 50일 전부터', h: '#/g/policy-paternity' },
+        { t: '배우자 출산휴가 신청 가능', s: '20일 유급. 예정일 50일 전부터 쓸 수 있어요(네 번까지 나눠서)', by: d.paternityFrom, from: true, lab: '예정일 50일 전부터', h: '#/g/policy-paternity' },
         { t: '임신 중 육아휴직', s: '유산·조산 위험이 있으면 임신 중에도 쓸 수 있어요', lab: '임신 중', h: '#/g/policy-pregnancy' },
         { t: '태어나고 2주 안에 할 일', s: '출생신고 1개월 · 부모급여 60일 · 첫만남이용권', lab: '출생 뒤', h: '#/g/birth-2weeks' },
         { t: '6+6 시작 기한', s: '부모 모두 생후 18개월 안에 시작해야 첫 6개월 상한이 올라가요', by: d.bothStartBy, lab: '생후 18개월 안', h: '#/calc/leave', go: '우리 집 금액 계산하기' }
       ],
       baby: [
-        { t: '배우자 출산휴가 마지막 날', s: '출산 후 120일 안에 20일을 다 써야 해요(3번까지 나눠서)', by: d.paternityTo, lab: '출생 후 120일 안', h: '#/g/policy-paternity' },
+        { t: '배우자 출산휴가 마지막 날', s: '출산 후 120일 안에 20일을 다 써야 해요(네 번까지 나눠서)', by: d.paternityTo, lab: '출생 후 120일 안', h: '#/g/policy-paternity' },
         { t: '출생신고', s: '출생 후 1개월 안. 늦으면 과태료', by: d.birthReportBy, lab: '출생 후 1개월 안', h: '#/g/birth-2weeks' },
-        { t: '부모급여 신청', s: '60일 안에 신청하면 태어난 달부터 받아요', by: d.parentPayBy, lab: '출생 후 60일 안', h: '#/g/birth-2weeks' },
+        { t: '부모급여 신청', s: '태어난 날을 포함해 60일 안에 신청하면 태어난 달부터 받아요', by: d.parentPayBy, lab: '출생일 포함 60일 안', h: '#/g/birth-2weeks' },
         { t: '6+6 시작 기한', s: '부모 모두 생후 18개월 안에 시작해야 첫 6개월 상한이 월 최대 450만원까지 올라가요', by: d.bothStartBy, lab: '생후 18개월 안', h: '#/calc/leave', go: '우리 집 금액 계산하기' },
         { t: '육아휴직 급여 신청', s: '휴직 시작 1개월 뒤부터, 끝난 뒤 12개월 안에 고용24에서', lab: '휴직 뒤 12개월 안', h: '#/g/leave-apply' },
         { t: '첫만남이용권', s: '2024년 이후 출생아는 2년 안에 신청·사용', by: d.firstVoucherBy, lab: '2년 안', h: '#/g/birth-2weeks' },
@@ -442,9 +472,9 @@
       ],
       kid: [
         { t: '육아휴직 시작 기한', s: '만 8세 이하 또는 초2 이하, 늦은 날까지 시작하면 돼요', by: d.leaveStartBy, lab: '만 8세 또는 초2까지', h: '#/g/leave-apply' },
-        { t: '단기 육아휴직 1~2주', s: '어린이집이 쉬는 날, 방학에 짧게', lab: '휴원·방학에', h: '#/g/leave-short' },
+        { t: '단기 육아휴직 1주 또는 2주', s: '어린이집 휴원·방학, 아이 입원 때. 해마다 한 번이에요', lab: '휴원·방학·입원', h: '#/g/leave-short' },
         { t: '육아기 근로시간 단축', s: '주 15~35시간, 휴직 안 쓴 기간은 2배로', by: d.reduceStartBy, lab: '만 12세 또는 초6까지', h: '#/g/policy-shorter-hours' },
-        { t: '가족돌봄휴가', s: '어린이집이 쉬는 날, 아이가 아픈 날', lab: '해마다 10일', h: '#/g/family-care' }
+        { t: '가족돌봄휴가', s: '어린이집이 쉬는 하루, 아이가 아픈 날. 보통 무급이에요', lab: '해마다 10일', h: '#/g/family-care' }
       ],
       high: [
         { t: '육아휴직', s: '만 8세 이하 또는 초2 이하까지만 시작할 수 있어요', by: d.leaveStartBy, lab: '초2까지', h: '#/g/leave-apply' },
@@ -454,7 +484,7 @@
       ],
       teen: [
         { t: '육아기 근로시간 단축', s: '만 13세 생일 전까지만 시작할 수 있어요', by: d.reduceStartBy, lab: '만 13세 전', h: '#/g/policy-shorter-hours' },
-        { t: '가족돌봄휴가', s: '나이 제한 없이, 아이가 아플 때', lab: '해마다 10일', h: '#/g/family-care' },
+        { t: '가족돌봄휴가', s: '아이가 아프거나 다쳤을 때. 보통 무급이에요', lab: '해마다 10일', h: '#/g/family-care' },
         { t: '부부가 같이 버티는 법', s: '사춘기 아이 앞에서 부부 역할 나누기', lab: '마음', h: '#/g/mind-couple' }
       ]
     };
@@ -494,6 +524,7 @@
       + agesRow(key)
       + kidCard()
       + '<div class="sec"><h2>' + (a ? esc(a.name) + ', 지금 챙길 것' : '지금 챙길 것, 순서대로') + '</h2>' + (a ? '<span>순서대로</span>' : '') + '</div>'
+      + (calcS.job === 'worker' ? '' : '<a class="notice vcta" href="#/g/leave-job" style="margin:0 0 8px"><span>아래는 회사원 등 고용보험 근로자 기준이에요. 공무원·교원·프리랜서는 제도가 달라요. <b>직종별 안내</b></span></a>')
       + timeline(key, d)
       + (a ? '<p class="agenote">' + esc(a.note) + '</p>' : '')
       + '<div class="sec"><h2>' + (a ? '이 나이에 맞는 글 ' + picks.length + '편' : '아빠 가이드') + '</h2><a class="all" href="#/guide">전체 보기 →</a></div>'
@@ -599,14 +630,23 @@
     setTab('guide');
     bar(backBtn('#/guide/leave') + '<div class="fill atitle">계산기</div>');
     const chips = '<div class="chips">' + CALC_TABS.map(t => '<a class="chip' + (t.key === tab ? ' on' : '') + '" href="#/calc/' + t.key + '"><span class="e">' + t.e + '</span>' + esc(t.name) + '</a>').join('') + '</div>';
-    view.innerHTML = '<section class="pad">' + chips + '<div id="calcForm"></div><div id="calcOut"></div></section>';
+    view.innerHTML = '<section class="pad">' + chips + '<div id="calcJob"></div><div id="calcForm"></div><div id="calcOut"></div></section>';
     window.scrollTo(0, 0);
-    ({ leave: calcLeave, reduce: calcReduce, paternity: calcPaternity, dates: calcDates })[tab]();
+    const fill = ({ leave: calcLeave, reduce: calcReduce, paternity: calcPaternity, dates: calcDates })[tab];
+    // 육아휴직·단축·출산휴가 금액은 고용보험 근로자만 계산한다. 다른 직종은 안내만 보여 준다. 날짜 칸은 누구나
+    const paint = () => {
+      if (tab === 'dates') { fill(); return; }
+      $('#calcJob').innerHTML = '<div class="about jobwrap">' + jobBox() + '</div>';
+      if (calcS.job === 'worker') fill(); else { $('#calcForm').innerHTML = ''; $('#calcOut').innerHTML = ''; }
+    };
+    $('#calcJob').addEventListener('click', ev => { const b = ev.target.closest('[data-job]'); if (!b) return; calcS.job = b.dataset.job; saveCalc(); paint(); });
+    paint();
   }
   const manField = (id, label, val, hint) => '<label class="lbl" for="' + id + '">' + esc(label) + '</label><div class="unit"><input class="inp" id="' + id + '" type="number" inputmode="decimal" min="0" step="1" value="' + esc(val) + '"><span>만원</span></div>' + (hint ? '<small class="hint">' + esc(hint) + '</small>' : '');
   const dateField = (id, label, val) => '<label class="dfield"><span>' + esc(label) + '</span><input class="inp" id="' + id + '" type="date" value="' + esc(val) + '"></label>';
-  const ORD_HELP = '<details class="dt"><summary>통상임금이 뭔가요?</summary><p>일한 대가로 매달 똑같이 받는 돈이에요. 기본급에 매달 고정으로 나오는 수당을 더해요. 성과급·초과근무수당처럼 달마다 달라지는 돈은 보통 빠져요. 정확한 금액은 회사 인사팀에 물어보세요.</p>'
-    + '<div class="two"><label class="dfield"><span>기본급(만원)</span><input class="inp" id="ordBase" type="number" inputmode="decimal"></label><label class="dfield"><span>고정 수당 합(만원)</span><input class="inp" id="ordFix" type="number" inputmode="decimal"></label></div><button type="button" class="btn line small" id="ordAdd">더해서 넣기</button></details>';
+  // 2024-12-19 대법원 전원합의체(2020다247190, 2023다302838)로 '고정성' 요건이 없어졌다. "매달 똑같이 받는 돈"은 옛 설명이다
+  const ORD_HELP = '<details class="dt"><summary>통상임금이 뭔가요?</summary><p>정해진 일의 대가로 정기적·일률적으로 주기로 한 돈이에요. 기본급과 고정 수당이 대표적이에요. 정기상여금도 들어갈 수 있어요. 2024년 12월 대법원이 "지급일에 재직 중이어야 준다"는 조건만으로는 빠지지 않는다고 판단했어요. 초과근무수당과 실적에 따라 달라지는 성과급은 보통 빠져요. 휴직 시작일 기준이고, 정확한 금액은 회사 인사팀에 물어보세요.</p>'
+    + '<div class="two"><label class="dfield"><span>기본급(만원)</span><input class="inp" id="ordBase" type="number" inputmode="decimal"></label><label class="dfield"><span>고정 수당·정기상여 월 환산(만원)</span><input class="inp" id="ordFix" type="number" inputmode="decimal"></label></div><button type="button" class="btn line small" id="ordAdd">더해서 넣기</button></details>';
   function bindOrd(onChange) {
     const b = $('#ordAdd'); if (!b) return;
     b.addEventListener('click', () => { const v = (parseFloat($('#ordBase').value) || 0) + (parseFloat($('#ordFix').value) || 0); const p = $('#cPay'); p.value = v; calcS.pay = v; saveCalc(); onChange(); toast('더해서 넣었어요'); });
@@ -621,7 +661,8 @@
     over12: '12개월을 넘는 기간은 부모가 각각 3개월 이상 쓰거나, 한부모·중증 장애아동의 부모일 때 쓸 수 있어요.',
     over18: '육아휴직은 가장 길어도 18개월이에요. 끝나는 날을 앞당겨 주세요.',
     noCommon: '6+6은 부모가 모두 써야 적용돼요. 배우자 사용 기간이 없으면 일반 기준으로 계산돼요.',
-    spouseNotInsured: '6+6은 부모가 모두 고용보험에 가입한 근로자일 때만 적용돼요(시행령 제95조의3). 배우자가 공무원·교사·자영업자·전업주부면 일반 기준이라 그렇게 계산했어요.',
+    spouseNoLeave: '배우자가 육아휴직을 쓸 수 없으면(자영업·프리랜서·전업) 부모가 모두 쓰는 경우가 아니라서 일반 기준으로 계산했어요.',
+    needBirth: '6+6은 아이가 생후 18개월 안일 때 부모가 모두 휴직을 시작해야 해요. 아이가 태어난 날이나 출산 예정일을 넣으면 계산해 드려요.',
     hours: '단축 후 시간이 단축 전보다 짧아야 해요.',
     range: '단축 후 근로시간은 주 15시간 이상 35시간 이하여야 해요.',
     over36: '단축근무는 기본 1년에, 육아휴직을 안 쓴 기간의 두 배를 더해 가장 길어도 3년이에요.'
@@ -637,38 +678,46 @@
       + manField('cPay', '내 월 통상임금', calcS.pay) + ORD_HELP
       + '<span class="lbl">휴직 기간</span><div class="two">' + dateField('cStart', '시작일', calcS.start) + dateField('cEnd', '끝나는 날', calcS.end) + '</div>'
       + '<div class="quick" id="cQuick">' + [3, 6, 12, 18].map(m => '<button type="button" class="chip" data-m="' + m + '">' + m + '개월</button>').join('') + '</div>'
+      + '<label class="lbl" for="cUsed">이 아이로 이미 쓴 육아휴직</label><div class="unit"><input class="inp" id="cUsed" type="number" inputmode="numeric" min="0" max="18" value="' + esc(calcS.used || 0) + '"><span>개월</span></div><small class="hint">처음이면 0이에요. 나눠 쓰면 앞서 쓴 달에 이어서 계산해요(시행령 제95조 제2항).</small>'
       + '<span class="lbl">내 상황</span><div class="seg" id="cMode"><button type="button" data-m="general">일반</button><button type="button" data-m="both">부모 모두(6+6)</button><button type="button" data-m="single">한부모</button></div>'
-      + '<div id="bothBox" hidden><span class="lbl">배우자의 고용보험</span><div class="seg" id="cIns"><button type="button" data-i="1">가입한 근로자</button><button type="button" data-i="0">아니에요</button></div>'
-      + '<small class="hint">6+6은 부모가 모두 고용보험 피보험자일 때만이에요(시행령 제95조의3). 배우자가 공무원·교사·자영업자·프리랜서·전업주부면 "아니에요"를 골라 주세요. 그러면 일반 기준으로 계산해요.</small>'
+      + '<div id="bothBox" hidden><span class="lbl">배우자는</span><div class="seg" id="cIns"><button type="button" data-s="worker">회사원 등 근로자</button><button type="button" data-s="civil">공무원·국공립 교원</button><button type="button" data-s="none">자영업·프리랜서·전업</button></div>'
+      + '<small class="hint">배우자가 공무원·교원이어도 근로자인 나는 6+6을 받아요. 신청할 때 배우자의 휴직 경력을 증빙해요(고용노동부 답변). 배우자가 자영업·프리랜서·전업이면 육아휴직이 없어 일반 기준이에요. 사립학교 교직원 배우자는 답변을 찾지 못했으니 1350에 먼저 물어보세요.</small>'
       + '<label class="lbl" for="cSpouse">배우자가 쓰는 기간</label><div class="unit"><input class="inp" id="cSpouse" type="number" inputmode="numeric" min="0" max="18" value="' + esc(calcS.spouseMonths) + '"><span>개월</span></div>'
-      + manField('cSpousePay', '배우자 월 통상임금 (선택)', calcS.spousePay, '넣으면 우리 집 합계도 보여 드려요.')
-      + '<div style="margin-top:12px">' + dateField('cBirth', '아이 태어난 날 (선택)', calcS.birth) + '</div><small class="hint">넣으면 6+6으로 시작할 수 있는 마지막 날을 확인해요. 저장은 이 기기에만 돼요.</small></div>'
+      + '<div id="spousePayBox">' + manField('cSpousePay', '배우자 월 통상임금 (선택)', calcS.spousePay, '넣으면 우리 집 합계도 보여 드려요.') + '</div>'
+      + '<span class="lbl">아이 날짜(6+6은 꼭 필요해요)</span><div class="two">' + dateField('cBirth', '태어난 날', calcS.birth) + dateField('cDue', '출산 예정일', calcS.due) + '</div><small class="hint">생후 18개월 안에 시작하는지 확인해요. 저장은 이 기기에만 돼요.</small></div>'
       + '<div id="singleBox" hidden><small class="hint">한부모는 한부모가족지원법에 따라 지원 대상으로 인정된 모 또는 부예요. 별거 중이거나 혼자 키운다는 것만으로는 아니에요(시행령 제95조의3 제3항).</small></div>'
       + '<details class="dt"><summary>휴직 중에 회사에서 돈을 받나요?</summary><p>회사에서 받는 돈과 급여를 합해 통상임금을 넘으면, 넘는 만큼 급여에서 빠져요.</p>' + manField('cCompany', '매달 받는 금액', calcS.company) + '</details>'
       + '</div>';
     const out = () => {
-      const insured = calcS.spouseInsured !== false;
-      const r = K.leaveBenefit({ ordinary: toWon(calcS.pay), start: calcS.start, end: calcS.end, mode: calcS.mode, spouseMonths: calcS.spouseMonths, spouseInsured: insured, companyPay: toWon(calcS.company) });
+      const sj = calcS.spouseJob;
+      // 6+6: 아이 날짜를 모르면 금액을 보여 주지 않고, 생후 18개월을 넘겨 시작하면 일반 기준으로 계산한다(11-04 재검토)
+      const kid = K.childDates({ birth: calcS.birth, due: calcS.due });
+      const needBirth = calcS.mode === 'both' && !kid.bothStartBy;
+      const past18 = calcS.mode === 'both' && kid.bothStartBy && calcS.start > kid.bothStartBy;
+      const r = K.leaveBenefit({ ordinary: toWon(calcS.pay), start: calcS.start, end: calcS.end, mode: past18 ? 'general' : calcS.mode, spouseMonths: calcS.spouseMonths, spouseLeave: sj !== 'none', usedMonths: calcS.used, companyPay: toWon(calcS.company) });
+      if (needBirth) r.warnings.push('needBirth');
       const noPay = r.warnings.includes('pay');
       $$('#cMode button').forEach(b => b.classList.toggle('on', b.dataset.m === calcS.mode));
       $('#bothBox').hidden = calcS.mode !== 'both';
       $('#singleBox').hidden = calcS.mode !== 'single';
-      $$('#cIns button').forEach(b => b.classList.toggle('on', (b.dataset.i === '1') === insured));
+      $('#spousePayBox').hidden = sj !== 'worker';
+      $$('#cIns button').forEach(b => b.classList.toggle('on', b.dataset.s === sj));
       let compare = '', house = '', birthNote = '';
-      if (calcS.mode !== 'general' && r.rows.length && !noPay) {
-        const g = K.leaveBenefit({ ordinary: toWon(calcS.pay), start: calcS.start, end: calcS.end, companyPay: toWon(calcS.company) });
+      if (calcS.mode !== 'general' && !past18 && r.rows.length && !noPay) {
+        const g = K.leaveBenefit({ ordinary: toWon(calcS.pay), start: calcS.start, end: calcS.end, usedMonths: calcS.used, companyPay: toWon(calcS.company) });
         if (r.total > g.total) compare = '<p class="cline">일반 기준보다 <b>' + won(r.total - g.total) + '</b> 더 받아요.</p>';
       }
-      if (calcS.mode === 'both' && insured && toWon(calcS.spousePay) > 0 && +calcS.spouseMonths > 0) {
+      if (calcS.mode === 'both' && sj === 'worker' && !past18 && toWon(calcS.spousePay) > 0 && +calcS.spouseMonths > 0) {
         const sEnd = K.addDays(K.addMonths(calcS.start, Math.min(18, +calcS.spouseMonths)), -1);
-        const s = K.leaveBenefit({ ordinary: toWon(calcS.spousePay), start: calcS.start, end: sEnd, mode: 'both', spouseMonths: r.fullMonths });
+        const s = K.leaveBenefit({ ordinary: toWon(calcS.spousePay), start: calcS.start, end: sEnd, mode: 'both', spouseMonths: r.used + r.fullMonths });
         house = '<p class="cline">배우자 ' + s.months + '개월 <b>' + won(s.total) + '</b> · 우리 집 합계 <b>' + won(r.total + s.total) + '</b></p>';
       }
-      if (calcS.mode === 'both' && K.parse(calcS.birth)) {
-        const d = K.childDates({ birth: calcS.birth });
-        birthNote = calcS.start > d.bothStartBy
-          ? '<div class="warn">⚠️ 시작일이 생후 18개월(' + dot(d.bothStartBy) + ')을 넘어요. 부모 모두 그날까지 휴직을 시작해야 6+6이 돼요.</div>'
-          : '<p class="cline ok">시작일이 생후 18개월(' + dot(d.bothStartBy) + ') 안이에요. 배우자도 그날까지 시작해야 해요.</p>';
+      if (calcS.mode === 'both' && sj === 'civil' && r.common) house = '<p class="cline">배우자는 공무원 수당 규정으로 따로 받아요. 나는 급여 신청 때 배우자의 휴직 경력을 증빙해요.</p>';
+      if (kid.bothStartBy && calcS.mode === 'both') {
+        const d = kid;
+        birthNote = past18
+          ? '<div class="warn">⚠️ 시작일이 생후 18개월(' + dot(d.bothStartBy) + ')을 넘어요. 부모 모두 그날까지 휴직을 시작해야 6+6이 돼요. 그래서 일반 기준으로 계산했어요.' + (+calcS.used ? ' 나눠 쓰는 뒤 기간이 6+6에 드는지는 고용센터에 확인해 주세요.' : '') + '</div>'
+          : '<p class="cline ok">시작일이 생후 18개월(' + dot(d.bothStartBy) + ') 안이에요. 배우자도 그날까지 시작해야 해요. 내가 먼저 쓰면 일단 일반 기준으로 받고, 배우자가 쉰 뒤 차액을 더 받아요.</p>';
       }
       const tbl = groupRows(r.rows).map(g => '<tr><td>' + (g.full ? (g.from === g.to ? g.from + '개월째' : g.from + '~' + g.to + '개월째') : g.from + '개월째 ' + g.days + '일') + (g.special ? ' <span class="six">6+6</span>' : '') + '<small>' + Math.round(g.rate * 100) + '% · 상한 ' + (g.cap / 10000) + '만원' + (g.cut ? ' · ' + won(g.cut) + ' 감액' : '') + '</small></td><td>' + (g.full ? '월 ' : '') + won(g.paid) + '</td></tr>').join('');
       // 회사 신청 기한(시작 30일 전)이 이미 지났으면 "그날까지"가 아니라 지금 할 수 있는 일을 알려 준다(시행령 제11조 제7항: 기한 뒤 신청도 30일 안에 시작일을 정해 허용)
@@ -677,17 +726,17 @@
         + (late ? '<li>회사 신청 기한(시작 30일 전, <b>' + dot(r.applyBy) + '</b>)은 지났어요. 회사와 협의하면 지금도 신청할 수 있고, 기한을 넘겨 신청하면 회사는 신청일부터 30일 안에 시작일을 정해 허용해야 해요.</li>'
           : '<li>회사에 신청: <b>' + dot(r.applyBy) + '</b>까지(시작 30일 전)</li>')
         + '<li>급여 신청: <b>' + dot(r.claimFrom) + '</b>부터 <b>' + dot(r.claimTo) + '</b>까지 고용24에서</li></ul></div>';
-      $('#calcOut').innerHTML = warnBox(r.warnings) + birthNote + (r.rows.length && !noPay ? '<div class="result"><small>' + r.months + '개월 받는 돈' + (calcS.mode === 'both' && r.common ? ' · 6+6 ' + r.common + '개월' : '') + '</small><strong>' + won(r.total) + '</strong>' + compare + house + '<table class="calctbl">' + tbl + '</table></div>' + dates : '')
-        + basis('고용보험법 시행령 제95조·제95조의3·제98조(시행 2026.9.18.)', 'https://m.work24.go.kr/cm/c/f/1100/selecSimulate12.do?systClId=SC00000251&systId=SI00000402', '시작 전 같은 회사 6개월 이상 근무, 고용보험 피보험 단위기간 180일 이상이어야 해요. 실제 금액은 고용센터가 정해요.');
+      $('#calcOut').innerHTML = warnBox(r.warnings) + birthNote + (r.rows.length && !noPay && !needBirth ? '<div class="result"><small>' + r.months + '개월 받는 돈(어림)' + (r.mode === 'both' && r.common ? ' · 6+6 ' + r.common + '개월' : '') + '</small><strong>' + won(r.total) + '</strong>' + compare + house + '<table class="calctbl">' + tbl + '</table></div>' + dates : '')
+        + basis('고용보험법 시행령 제95조·제95조의3·제98조(시행 2026.9.18.), 고용노동부 답변', W24_SIM, '급여는 시작 전 고용보험 가입 기간(피보험 단위기간)이 180일 이상이어야 해요. 지난 직장 기간도 합쳐요(공백이 3년 이상이면 그 전은 빠지고, 실업급여를 받았으면 그 전은 빠져요). 그 회사에서 일한 기간이 6개월 미만이면 회사가 휴직을 거부할 수 있어요. 실제 금액은 고용센터가 정해요.');
     };
     const setMonths = m => { calcS.end = K.addDays(K.addMonths(calcS.start, m), -1); $('#cEnd').value = calcS.end; saveCalc(); out(); };
     bindInputs({
       cPay: el => { calcS.pay = parseFloat(el.value) || 0; }, cStart: el => { if (K.parse(el.value)) calcS.start = el.value; }, cEnd: el => { if (K.parse(el.value)) calcS.end = el.value; },
-      cSpouse: el => { calcS.spouseMonths = parseInt(el.value, 10) || 0; }, cSpousePay: el => { calcS.spousePay = el.value; }, cBirth: el => { calcS.birth = el.value; }, cCompany: el => { calcS.company = el.value; }
+      cUsed: el => { calcS.used = parseInt(el.value, 10) || 0; }, cSpouse: el => { calcS.spouseMonths = parseInt(el.value, 10) || 0; }, cSpousePay: el => { calcS.spousePay = el.value; }, cBirth: el => { calcS.birth = el.value; }, cDue: el => { calcS.due = el.value; }, cCompany: el => { calcS.company = el.value; }
     }, out);
     $('#cQuick').addEventListener('click', ev => { const b = ev.target.closest('[data-m]'); if (b) setMonths(+b.dataset.m); });
     $('#cMode').addEventListener('click', ev => { const b = ev.target.closest('[data-m]'); if (b) { calcS.mode = b.dataset.m; saveCalc(); out(); } });
-    $('#cIns').addEventListener('click', ev => { const b = ev.target.closest('[data-i]'); if (b) { calcS.spouseInsured = b.dataset.i === '1'; saveCalc(); out(); } });
+    $('#cIns').addEventListener('click', ev => { const b = ev.target.closest('[data-s]'); if (b) { calcS.spouseJob = b.dataset.s; saveCalc(); out(); } });
     bindOrd(out);
     out();
   }
@@ -700,7 +749,7 @@
       + '<div class="quick" id="cHours">' + [35, 30, 25, 20, 15].map(h => '<button type="button" class="chip" data-h="' + h + '">주 ' + h + '시간</button>').join('') + '</div>'
       + '<span class="lbl">하교 시간에 맞춰 퇴근 시각으로 고르기</span><div class="quick" id="cOut">' + [[14, 20], [15, 25], [16, 30], [17, 35]].map(x => '<button type="button" class="chip" data-h="' + x[1] + '">오후 ' + (x[0] - 12) + '시 퇴근</button>').join('') + '</div><small class="hint">9시 출근, 점심 1시간, 주 5일로 계산했어요. 오후 3시 퇴근이면 주 25시간이에요.</small>'
       + '<label class="lbl" for="cMonths">단축 기간</label><div class="unit"><input class="inp" id="cMonths" type="number" inputmode="numeric" min="1" max="36" value="' + esc(calcS.rMonths) + '"><span>개월</span></div>'
-      + '<details class="dt"><summary>마지막 달이 한 달을 못 채우나요?</summary><p>못 채운 달의 급여는 일수에 비례해 줄어요. 그 달에 쓰는 일수를 넣으면 합계에 반영해요.</p><div class="unit"><input class="inp" id="cLast" type="number" inputmode="numeric" min="0" max="30" value="' + esc(calcS.rLast || '') + '" aria-label="마지막 달 일수"><span>일</span></div></details></div>';
+      + '<details class="dt"><summary>마지막 달이 한 달을 못 채우나요?</summary><p>못 채운 달의 급여는 그 달의 일수에 비례해 줄어요. 그 달에 쓰는 일수를 넣으면 31일 달 기준으로 어림해서 합계에 반영해요.</p><div class="unit"><input class="inp" id="cLast" type="number" inputmode="numeric" min="0" max="30" value="' + esc(calcS.rLast || '') + '" aria-label="마지막 달 일수"><span>일</span></div></details></div>';
     const out = () => {
       const r = K.reduceBenefit({ ordinary: toWon(calcS.pay), before: calcS.before, after: calcS.after, months: calcS.rMonths, lastDays: calcS.rLast });
       $('#calcOut').innerHTML = warnBox(r.warnings) + (r.cut > 0 && !r.warnings.includes('pay') ? '<div class="result"><small>단축근무 중 한 달 수입(어림)</small><strong>' + won(r.monthly) + '</strong>'
@@ -730,7 +779,7 @@
       $('#calcOut').innerHTML = warnBox(r.warnings) + (r.warnings.length ? '' : '<div class="result"><small>20일 동안 받는 돈(통상임금 기준)</small><strong>' + won(r.total) + '</strong>'
         + '<table class="calctbl"><tr><td>정부 급여<small>' + (calcS.priority ? '20일 상한 ' + won(r.capAll) + ' · 하한 최저임금' : '우선지원대상기업이 아니면 없음') + '</small></td><td>' + won(r.gov) + '</td></tr>'
         + '<tr><td>회사가 주는 몫<small>유급 휴가라 나머지는 회사 몫</small></td><td>' + won(r.company) + '</td></tr></table></div>')
-        + (d.paternityFrom ? '<div class="about"><b>쓸 수 있는 기간</b><ul><li><b>' + dot(d.paternityFrom) + '</b>부터 <b>' + dot(d.paternityTo) + '</b>까지</li><li>20일을 3번까지 나눠 쓸 수 있어요.</li><li>날짜를 적은 문서로 회사에 알려요.</li></ul></div>' : '<div class="about">출산 예정일이나 태어난 날을 넣으면 쓸 수 있는 기간을 알려 드려요.</div>')
+        + (d.paternityTo ? '<div class="about"><b>쓸 수 있는 기간</b><ul><li>' + (d.paternityFrom ? '<b>' + dot(d.paternityFrom) + '</b>부터' : '출산 예정일 50일 전부터') + ' <b>' + dot(d.paternityTo) + '</b>까지' + (d.birth ? '' : '(예정일 기준 어림)') + '. 마지막 날이 토·일·공휴일이면 다음 날까지예요.</li><li>20일을 네 번까지 나눠 쓸 수 있어요.</li><li>날짜를 적은 문서로 회사에 알려요.</li></ul></div>' : '<div class="about">출산 예정일이나 태어난 날을 넣으면 쓸 수 있는 기간을 알려 드려요.</div>')
         + basis('남녀고용평등법 제18조의2(시행 2026.9.18.), 고용노동부 2026 급여 상한', 'https://www.work24.go.kr/', '1일 통상임금은 월 통상임금 ÷ 209시간 × 8시간으로 어림했어요. 끝나는 날은 태어난 날에 120일을 더한 값이니 회사와 확인해 주세요.');
     };
     bindInputs({ cPay: el => { calcS.pay = parseFloat(el.value) || 0; }, cDue: el => { calcS.due = el.value; }, cBirth: el => { calcS.birth = el.value; } }, out);
@@ -745,18 +794,19 @@
       const row = (t, v, n) => '<tr><td>' + esc(t) + (n ? '<small>' + esc(n) + '</small>' : '') + '</td><td>' + dot(v) + '</td></tr>';
       const after = d.birthReportBy ? '<div class="result"><small>태어난 뒤 챙길 기한</small><table class="calctbl">'
         + row('출생신고', d.birthReportBy, '출생 후 1개월 안. 늦으면 과태료')
-        + row('부모급여 신청', d.parentPayBy, '60일 안에 신청하면 태어난 달부터')
+        + row('부모급여 신청', d.parentPayBy, '출생일 포함 60일 안이면 태어난 달부터. 마지막 날이 휴일이면 다음 날까지')
         + row('BCG 접종', d.bcgBy, '생후 4주 안')
         + '<tr><td>영유아 건강검진 1차<small>생후 14~35일</small></td><td>' + dot(d.check1From) + '~<br>' + dot(d.check1To) + '</td></tr>'
         + row('첫만남이용권 신청·사용', d.firstVoucherBy, '2024년 이후 출생아는 2년 안')
         + '</table></div><a class="grow" href="#/g/birth-2weeks" style="margin-top:8px"><span class="ge">👶</span><span class="tx"><b>2주 안에 아빠가 할 일</b><small>순서대로 보기</small></span></a>' : '';
-      $('#calcOut').innerHTML = d.paternityFrom ? after + '<div class="result"><table class="calctbl">'
-        + row('배우자 출산전후휴가 시작 가능', d.paternityFrom, '출산 예정일 50일 전')
-        + row('배우자 출산전후휴가 마지막', d.paternityTo, '출산 후 120일')
-        + row('6+6 시작 마지막 날', d.bothStartBy, '부모 모두 생후 18개월 안에 시작')
+      const guess = d.birth ? '' : '. 예정일 기준 어림';
+      $('#calcOut').innerHTML = d.paternityTo ? after + '<div class="result"><table class="calctbl">'
+        + (d.paternityFrom ? row('배우자 출산전후휴가 시작 가능', d.paternityFrom, '출산 예정일 50일 전') : '')
+        + row('배우자 출산전후휴가 마지막', d.paternityTo, '출산 후 120일. 마지막 날이 휴일이면 다음 날까지' + guess)
+        + row('6+6 시작 마지막 날', d.bothStartBy, '부모 모두 생후 18개월 안에 시작' + guess)
         + row('육아휴직 시작 마지막 날', d.leaveStartBy, '만 8세 이하 또는 초2 이하 중 늦은 날')
         + row('단축근무 시작 마지막 날', d.reduceStartBy, '만 12세 이하 또는 초6 이하 중 늦은 날')
-        + '</table></div><p class="calcnote">초등학교는 만 6세가 되는 해의 다음 해 3월 입학으로 계산했어요. 입학을 앞당기거나 늦췄으면 달라져요. 시작일이 이 날 안이면, 쉬는 도중 나이를 넘어도 이어서 쓸 수 있어요. 근거: 남녀고용평등법 제18조의2·제19조·제19조의2.</p>'
+        + '</table></div><p class="calcnote">회사원 등 고용보험 근로자 기준이에요. 공무원·교원은 <a href="#/g/leave-job">직종별 안내</a>를 봐 주세요. 초등학교는 만 6세가 되는 해의 다음 해 3월 입학으로 계산했어요. 입학을 앞당기거나 늦췄으면 달라져요. 시작일이 이 날 안이면, 쉬는 도중 나이를 넘어도 이어서 쓸 수 있어요. 근거: 남녀고용평등법 제18조의2·제19조·제19조의2.</p>'
         : '<div class="about">태어난 날이나 출산 예정일을 넣으면 챙길 날짜를 보여 드려요.</div>';
     };
     bindInputs({ cDue: el => { calcS.due = el.value; }, cBirth: el => { calcS.birth = el.value; } }, out);

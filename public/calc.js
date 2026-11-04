@@ -1,7 +1,9 @@
 /* 육아맨 계산기(2026-11-04, 앱개발부). 화면 없는 순수 계산만 둔다(test/calc-test.js로 시험).
    기준은 2026-11-04에 국가법령정보센터 원문으로 확인했다. 법이 바뀌면 RULES만 고치고 시험을 다시 돌린다.
    - 육아휴직 급여: 고용보험법 시행령 제95조(일반) · 제95조의3(부모 모두 18개월 특례 = 6+6, 한부모) · 제98조(회사 금품 감액). [시행 2026.9.18.]
-     6+6은 제95조의3 제1항 "피보험자인 부모가 모두 육아휴직을 하는 경우"에만 — 배우자가 고용보험 피보험자가 아니면(공무원·자영업·전업주부) 일반 기준(opts.spouseInsured = false, 11-04 검수 2).
+     6+6: 고용노동부 답변(2024-05·2024-08·2025-02·2025-03)대로 "공무원(교원 등)·근로자 부부는 부부 중 근로자에 대해서만 적용"한다. 배우자가 공무원·교원이어도 근로자인 아빠는 6+6이다.
+     배우자가 육아휴직을 쓸 수 없으면(자영업·프리랜서·전업) 부모가 모두 쓰는 경우가 아니라 일반 기준(opts.spouseLeave = false). 이 계산은 고용보험 근로자용이다. 공무원·교원 본인은 공무원수당 규정을 따른다.
+   - 나눠 쓰기: 제95조 제2항 합산. 앞서 쓴 개월은 opts.usedMonths로 받아 이어서 센다.
    - 6+6 공통 기간: 고용노동부 답변 "부모가 공통으로 사용한 기간을 기준", "개시 시점에 생후 18개월 이내", "겹치지 않아도 적용".
    - 급여 요건: 고용보험법 제70조 제1항 — 육아휴직 30일 이상(단기 육아휴직은 7일 이상), 시작 전 피보험 단위기간 합산 180일. 제2항 — 시작 1개월 뒤부터 끝난 뒤 12개월 안 신청.
    - 육아기 근로시간 단축 급여: 고용보험법 시행령 제104조의2(2026.1.1.부터 상한 250만·160만, 하한 50만).
@@ -73,39 +75,41 @@
     }
     return out;
   }
-  // opts: {ordinary(원), start, end, mode:'general'|'both'|'single', spouseMonths, spouseInsured(기본 true), companyPay(원/월)}
+  // opts: {ordinary(원), start, end, mode:'general'|'both'|'single', spouseMonths, spouseLeave(배우자가 육아휴직을 쓸 수 있으면 true, 기본 true), usedMonths(같은 자녀로 앞서 쓴 개월), companyPay(원/월)}
   function leaveBenefit(opts) {
     const ordinary = Math.max(0, Math.floor(+opts.ordinary || 0));
     const mode = opts.mode === 'both' || opts.mode === 'single' ? opts.mode : 'general';
     const company = Math.max(0, Math.floor(+opts.companyPay || 0));
-    const insured = opts.spouseInsured !== false;         // 6+6은 부모 모두 피보험자일 때만(제95조의3 제1항)
+    const spouseLeave = opts.spouseLeave !== false;
+    const used = Math.max(0, Math.floor(+opts.usedMonths || 0));
     const periods = monthlyPeriods(opts.start, opts.end);
     const fullMonths = periods.filter(p => p.full).length;
-    const common = mode === 'both' && insured ? Math.min(6, fullMonths, Math.max(0, Math.floor(+opts.spouseMonths || 0))) : 0;
+    const common = mode === 'both' && spouseLeave ? Math.min(6, used + fullMonths, Math.max(0, Math.floor(+opts.spouseMonths || 0))) : 0;
     let total = 0, deducted = 0;
     const rows = periods.map(p => {
-      const m = leaveMonthly(ordinary, p.no, mode, common);
+      const no = p.no + used;                           // 나눠 쓰면 앞서 쓴 달에 이어서 센다(제95조 제2항)
+      const m = leaveMonthly(ordinary, no, mode, common);
       const ratio = p.full ? 1 : p.days / p.span;
       const base = Math.floor(m.amount * ratio);
       const limit = Math.floor(ordinary * ratio);       // 제98조: 금품 + 급여가 통상임금(일수 비례)을 넘으면 넘는 만큼 뺀다
       const cut = company > 0 ? Math.max(0, Math.min(base, company + base - limit)) : 0;
       const paid = base - cut;
       total += paid; deducted += cut;
-      return { no: p.no, from: p.from, to: p.to, days: p.days, span: p.span, full: p.full, rate: m.rate, cap: m.cap, special: m.special, atFloor: m.atFloor, base, cut, paid };
+      return { no, from: p.from, to: p.to, days: p.days, span: p.span, full: p.full, rate: m.rate, cap: m.cap, special: m.special, atFloor: m.atFloor, base, cut, paid };
     });
     const days = periods.reduce((s, p) => s + p.days, 0);
     const warnings = [];
     if (!ordinary) warnings.push('pay');                   // 통상임금 0이면 하한 70만원으로 계산되어 버리니 화면은 결과를 숨긴다
     if (!periods.length) warnings.push('dates');
     else {
-      if (days < RULES.leave.minDays) warnings.push('short');
-      if (periods.length > RULES.leave.maxMonths || (periods.length === RULES.leave.maxMonths && !periods[periods.length - 1].full && false)) warnings.push('over18');
-      else if (fullMonths > RULES.leave.baseMonths || (fullMonths === RULES.leave.baseMonths && periods.length > fullMonths)) warnings.push('over12');
-      if (mode === 'both' && !insured) warnings.push('spouseNotInsured');
+      if (days < RULES.leave.minDays && !used) warnings.push('short');
+      if (used + periods.length > RULES.leave.maxMonths) warnings.push('over18');
+      else if (used + fullMonths > RULES.leave.baseMonths || (used + fullMonths === RULES.leave.baseMonths && periods.length > fullMonths)) warnings.push('over12');
+      if (mode === 'both' && !spouseLeave) warnings.push('spouseNoLeave');
       else if (mode === 'both' && common < 1) warnings.push('noCommon');
     }
     return {
-      ordinary, mode, common, insured, rows, total, deducted, days, months: periods.length, fullMonths, warnings,
+      ordinary, mode, common, spouseLeave, used, rows, total, deducted, days, months: periods.length, fullMonths, warnings,
       applyBy: periods.length ? addDays(opts.start, -RULES.leave.applyBeforeDays) : '',
       claimFrom: periods.length ? addMonths(opts.start, 1) : '',
       claimTo: periods.length ? addMonths(opts.end, 12) : ''
@@ -134,8 +138,8 @@
     const wage = Math.floor(ordinary * after / before);     // 회사 임금: 일한 시간에 비례한다고 본 어림값
     const over = Math.max(0, wage + first + rest - ordinary);   // 임금 + 급여가 통상임금을 넘으면 넘는 만큼 뺀다(찾기쉬운 생활법령 '감액')
     const gov = Math.max(0, first + rest - over);
-    // 한 달을 못 채운 마지막 달은 일수에 비례(제104조의2 제2항 준용 안내). lastDays가 있으면 마지막 달을 그만큼으로 본다
-    const lastGov = lastDays ? Math.floor(gov * lastDays / 30) : gov;
+    // 한 달을 못 채운 마지막 달은 그 달의 일수로 나눈다(제104조의2 제2항). 어느 달인지 모르니 많게 나오지 않도록 31일로 나눈 어림값이다
+    const lastGov = lastDays ? Math.floor(gov * lastDays / 31) : gov;
     const totalGov = lastDays ? gov * (months - 1) + lastGov : gov * months;
     return { ordinary, before, after, cut, months, lastDays, firstHours, restHours, firstBase, restBase, first, rest, reduced: over, gov, lastGov, wage, monthly: wage + gov, totalGov, lost: ordinary - wage - gov, warnings };
   }
@@ -160,7 +164,7 @@
   function childDates(opts) {
     const birth = parse(opts.birth) != null ? opts.birth : '', due = parse(opts.due) != null ? opts.due : '';
     const P = RULES.paternity, out = { birth, due };
-    if (due || birth) out.paternityFrom = addDays(due || birth, -P.beforeDue);
+    if (due) out.paternityFrom = addDays(due, -P.beforeDue);   // 예정일을 알 때만. 태어난 날에서 거꾸로 세면 조문과 다른 날이 된다(11-04 재검토)
     const base = birth || due;
     if (base) out.paternityTo = addDays(base, P.afterBirth);
     if (base) {
@@ -175,7 +179,7 @@
     // 태어난 뒤 기한(검수 10). 예정일만 있으면 계산하지 않는다
     if (birth) {
       out.birthReportBy = addMonths(birth, 1);        // 출생신고: 출생 후 1개월 이내(가족관계등록법 제44조)
-      out.parentPayBy = addDays(birth, 60);           // 부모급여: 60일 안에 신청하면 태어난 달부터
+      out.parentPayBy = addDays(birth, 59);           // 부모급여: 출생일을 포함해 60일 안에 신청하면 태어난 달부터(복지부, 60일째가 토·일·공휴일이면 다음 날까지)
       out.bcgBy = addDays(birth, 28);                 // BCG: 생후 4주 이내
       out.check1From = addDays(birth, 14);            // 영유아 건강검진 1차: 생후 14~35일
       out.check1To = addDays(birth, 35);

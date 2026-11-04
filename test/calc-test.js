@@ -33,13 +33,33 @@ eq(paid(r), [250, 250, 300].map(x => x * MAN), '내가 3개월이면 3개월까�
 r = C.leaveBenefit({ ordinary: 500 * MAN, ...span(4), mode: 'both', spouseMonths: 0 });
 eq(r.warnings.includes('noCommon'), true, '배우자 사용 없음 경고');
 eq(paid(r), [250, 250, 250, 200].map(x => x * MAN), '배우자 안 쓰면 일반');
-// 제95조의3 제1항 "피보험자인 부모가 모두": 배우자가 고용보험 피보험자가 아니면(공무원·자영업·전업주부) 6+6이 아니다
-r = C.leaveBenefit({ ordinary: 500 * MAN, ...span(6), mode: 'both', spouseMonths: 6, spouseInsured: false });
-eq(paid(r), [250, 250, 250, 200, 200, 200].map(x => x * MAN), '배우자 미가입이면 일반 기준');
-eq(r.common, 0, '배우자 미가입 공통 0');
-eq(r.warnings.includes('spouseNotInsured') && !r.warnings.includes('noCommon'), true, '배우자 미가입 경고 하나만');
-r = C.leaveBenefit({ ordinary: 500 * MAN, ...span(6), mode: 'both', spouseMonths: 6, spouseInsured: true });
-eq(r.total, 2000 * MAN, 'spouseInsured true는 기본과 같다');
+// 배우자가 육아휴직을 쓸 수 없으면(자영업·프리랜서·전업) 부모가 모두 쓰는 경우가 아니라 일반 기준
+r = C.leaveBenefit({ ordinary: 500 * MAN, ...span(6), mode: 'both', spouseMonths: 6, spouseLeave: false });
+eq(paid(r), [250, 250, 250, 200, 200, 200].map(x => x * MAN), '배우자가 휴직 못 하면 일반 기준');
+eq(r.common, 0, '배우자가 휴직 못 하면 공통 0');
+eq(r.warnings.includes('spouseNoLeave') && !r.warnings.includes('noCommon'), true, '경고 하나만');
+// 고용노동부 답변 4건: 공무원(교원 등)·근로자 부부는 근로자에게 6+6. 공무원 배우자도 휴직 기간이 있으면 근로자 쪽은 특례
+r = C.leaveBenefit({ ordinary: 500 * MAN, ...span(6), mode: 'both', spouseMonths: 6, spouseLeave: true });
+eq(r.total, 2000 * MAN, '배우자가 휴직하면(공무원 포함) 6+6');
+r = C.leaveBenefit({ ordinary: 350 * MAN, ...span(12), mode: 'both', spouseMonths: 6 });
+eq(r.total, 2810 * MAN, '6+6 350만원 12개월');
+r = C.leaveBenefit({ ordinary: 500 * MAN, ...span(12), mode: 'both', spouseMonths: 6 });
+eq(r.total, 2960 * MAN, '6+6 12개월 최대(고용노동부 안내 2,960만원)');
+
+// 나눠 쓰기(제95조 제2항): 앞서 쓴 달에 이어서 센다
+r = C.leaveBenefit({ ordinary: 350 * MAN, ...span(3), usedMonths: 3 });
+eq(paid(r), [200, 200, 200].map(x => x * MAN), '앞서 3개월 쓰면 4~6개월째 상한');
+eq(r.rows[0].no, 4, '4개월째부터 표시');
+r = C.leaveBenefit({ ordinary: 350 * MAN, ...span(3), usedMonths: 6 });
+eq(paid(r), [160, 160, 160].map(x => x * MAN), '앞서 6개월 쓰면 7개월째부터');
+r = C.leaveBenefit({ ordinary: 500 * MAN, ...span(3), usedMonths: 2, mode: 'both', spouseMonths: 6 });
+eq(paid(r), [300, 350, 400].map(x => x * MAN), '6+6도 이어서 센다');
+r = C.leaveBenefit({ ordinary: 350 * MAN, ...span(6), usedMonths: 10 });
+eq(r.warnings.includes('over12'), true, '합쳐서 12개월 넘으면 경고');
+r = C.leaveBenefit({ ordinary: 350 * MAN, ...span(6), usedMonths: 15 });
+eq(r.warnings.includes('over18'), true, '합쳐서 18개월 넘으면 경고');
+r = C.leaveBenefit({ ordinary: 300 * MAN, start: '2027-03-01', end: '2027-03-20', usedMonths: 2 });
+eq(r.warnings.includes('short'), false, '앞서 쓴 기간이 있으면 30일 미만 경고 안 함');
 
 // 통상임금 0은 하한 70만원으로 계산되지 않게 경고
 r = C.leaveBenefit({ ordinary: 0, ...span(12) });
@@ -115,7 +135,7 @@ eq(r.company, 0, '하한이 통상임금보다 크면 회사 몫 0');
 
 // 단축 마지막 달 일할
 r = C.reduceBenefit({ ordinary: 300 * MAN, before: 40, after: 30, months: 3, lastDays: 15 });
-eq(r.totalGov, 625000 * 2 + Math.floor(625000 * 15 / 30), '마지막 달 15일은 절반');
+eq(r.totalGov, 625000 * 2 + Math.floor(625000 * 15 / 31), '마지막 달 15일은 31일로 나눈 어림');
 eq(C.reduceBenefit({ ordinary: 300 * MAN, before: 40, after: 30, months: 3 }).totalGov, 625000 * 3, 'lastDays 없으면 온달');
 
 // 아이 기준 날짜
@@ -129,7 +149,9 @@ r = C.childDates({ birth: '2026-01-10' });
 eq(r.leaveStartBy, '2035-02-28', '1월생은 초2 끝이 더 늦다');
 r = C.childDates({ birth: '2026-11-04' });
 eq(r.birthReportBy, '2026-12-04', '출생신고 1개월');
-eq(r.parentPayBy, '2027-01-03', '부모급여 60일');
+eq(r.parentPayBy, '2027-01-02', '부모급여: 출생일 포함 60일');
+eq(r.paternityFrom, undefined, '태어난 날만 있으면 예정일 50일 전을 만들지 않음');
+eq(r.paternityTo, '2027-03-04', '끝은 출생일 + 120일');
 eq(r.bcgBy, '2026-12-02', 'BCG 4주');
 eq([r.check1From, r.check1To], ['2026-11-18', '2026-12-09'], '검진 1차 14~35일');
 eq(r.firstVoucherBy, '2028-11-04', '첫만남이용권 2년');
