@@ -34,6 +34,7 @@
 //  GET    /api/login/kakao/start               카카오 동의 화면 주소(화면이 redirect_uri와 state를 붙여 이동). KAKAO_REST_KEY가 없으면 kakao_off
 //  POST   /api/login/kakao {code, redirect_uri}  카카오 로그인: 있던 회원이면 이 기기를 그 계정에 붙이고, 처음이면 need_nick(이어서 /join으로 닉네임). 인증 전 계정이면 카카오를 연결해 인증
 //  POST   /api/me/leave-kakao {code, redirect_uri}  카카오 회원 탈퇴: 같은 카카오 계정인지 확인하고 연결을 끊은 뒤 지운다(카카오 정책)
+//  GET·POST /api/kakao/unlink?user_id=…        카카오 연결 해제 웹훅(사용자가 카카오 쪽에서 끊었을 때 카카오가 부른다. 머리글 Authorization: KakaoAK <대표 어드민 키>). 탈퇴와 같게 지운다
 //  GET    /api/health                          살아 있나
 // 저장하는 개인정보: 닉네임 · 기기 토큰 해시 · 복구 코드 해시 · 쓴 글·댓글 · 대기 중인 신청 답변(결정 뒤 지움) · 누가 초대했는지 · 마지막 접속 시각.
 //   횟수 제한용 기기 주소(IP)는 해시 16자로 짧게(가입·코드·복구 시도에만, 이틀 안에 지움). 지운 글·댓글은 내용을 비우고 시각만 남긴다. 탈퇴하면 계정 줄을 지운다.
@@ -102,6 +103,7 @@ export async function handleApi(request, env) {
     if (seg[0] === 'comments' && isId(seg[1]) && !seg[2] && m === 'DELETE') return deleteComment(request, env, +seg[1]);
     if (seg[0] === 'reports' && !seg[1] && m === 'POST') return report(request, env);
     if (seg[0] === 'me' && seg[1] === 'seen' && !seg[2] && m === 'POST') return seenComments(request, env);
+    if (seg[0] === 'kakao' && seg[1] === 'unlink' && !seg[2] && (m === 'GET' || m === 'POST')) return kakaoUnlinked(request, env);
     if (seg[0] === 'login' && seg[1] === 'kakao' && seg[2] === 'start' && !seg[3] && m === 'GET') return kakaoStart(env);
     if (seg[0] === 'login' && seg[1] === 'kakao' && !seg[2] && m === 'POST') return kakaoLogin(request, env);
     if (seg[0] === 'me' && seg[1] === 'leave-kakao' && !seg[2] && m === 'POST') return kakaoLeave(request, env);
@@ -161,6 +163,7 @@ async function allow(db, who, kind) {
   const [max, win] = RATE[kind];
   const t = Date.now();
   await db.prepare('DELETE FROM acts WHERE who = ?1 AND kind = ?2 AND at < ?3').bind(who, kind, t - win).run();
+  await db.prepare('DELETE FROM kakao_pending WHERE created < ?1').bind(new Date(t - KAKAO_PENDING_MS).toISOString()).run();   // 가입을 마치지 않은 사람의 정보는 남기지 않는다(카카오 운영정책은 24시간)
   // 다시 오지 않는 기기의 기록도 남지 않게 가끔 통째로 비운다(가장 긴 제한이 하루)
   if (Math.random() < 0.02) await db.prepare('DELETE FROM acts WHERE at < ?1').bind(t - 2 * 86400000).run();
   const c = await db.prepare('SELECT COUNT(*) AS n FROM acts WHERE who = ?1 AND kind = ?2').bind(who, kind).first();
@@ -522,11 +525,23 @@ async function kakaoLogin(request, env) {
     return json({ ok: true, user: pubUser(u), linked: true });
   }
   // 처음 온 사람: 닉네임을 받을 때까지 이 기기와 묶어 둔다
-  await db.batch([
-    db.prepare('DELETE FROM kakao_pending WHERE created < ?1').bind(new Date(Date.now() - KAKAO_PENDING_MS).toISOString()),
-    db.prepare('INSERT OR REPLACE INTO kakao_pending (token_hash, kakao_hash, created) VALUES (?1, ?2, ?3)').bind(hash, k.hash, at)
-  ]);
+  await db.prepare('INSERT OR REPLACE INTO kakao_pending (token_hash, kakao_hash, created) VALUES (?1, ?2, ?3)').bind(hash, k.hash, at).run();
   return json({ ok: true, need_nick: true });
+}
+// 연결 해제 웹훅: 사용자가 카카오 쪽(계정 탈퇴·연결 끊기)에서 끊으면 카카오가 부른다. 대표 어드민 키로 확인하고 탈퇴와 같게 지운다.
+// 막힌 계정은 재가입을 막도록 줄을 남기고, 관리자는 지우지 않고 연결만 푼다. 없는 사용자여도 카카오에는 200으로 답한다(3초 안에, 문서 규칙)
+async function kakaoUnlinked(request, env) {
+  if (!env.KAKAO_ADMIN_KEY) return no('kakao_off', 503);
+  if (request.headers.get('Authorization') !== 'KakaoAK ' + env.KAKAO_ADMIN_KEY) return no('forbidden', 403);
+  let id = new URL(request.url).searchParams.get('user_id');
+  if (!id && request.method === 'POST') id = new URLSearchParams(await request.text()).get('user_id');
+  if (!id) return json({ ok: true });
+  const db = env.DB, hash = await sha256('kakao|' + id);
+  await db.prepare('DELETE FROM kakao_pending WHERE kakao_hash = ?1').bind(hash).run();
+  const u = await db.prepare('SELECT id, role, blocked FROM users WHERE kakao_hash = ?1').bind(hash).first();
+  if (u && u.role === 'user') await eraseUser(db, u.id, !!u.blocked);
+  else if (u) await db.prepare('UPDATE users SET kakao_hash = NULL WHERE id = ?1').bind(u.id).run();
+  return json({ ok: true });
 }
 // 탈퇴: 카카오 정책상 연결도 끊어야 한다. 회원번호를 저장하지 않으므로 다시 로그인해서 받은 토큰으로 끊는다. 막힌 계정은 내용만 지우고 재가입을 막도록 줄을 남긴다
 async function kakaoLeave(request, env) {
