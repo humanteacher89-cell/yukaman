@@ -9,7 +9,7 @@
 - `functions/api/[[path]].js` → `server/app.js`: Cloudflare Pages Functions 서버. 맨 위 주석에 API 약속.
 - `schema.sql` D1 표(users · invites · applications · posts · comments · reports · qna · acts). 검색 색인 posts_fts(FTS5 trigram)와 트리거는 MIGRATIONS에. 이미 있는 표에 칸을 더할 때는 `deploy.py` MIGRATIONS에 ALTER 한 줄(`deploy.py migrate`).
 - `seed/official-posts.json` → `tools/build_seed.py` → `seed/official.sql`(자료실 계정의 글 넣기) + `seed/official-update.sql`(이미 있는 글 고치기) + `public/official-data.js`(같은 글을 가이드로, 인증 전에도 보임. 'Q.'으로 시작하는 글은 Q&A 칸, 나머지는 정보 칸). 글을 고치면 `deploy.py seed`로 공개 D1도 맞춘다.
-- `data-src/*.json` → `tools/build_library.py` → `public/data/library.json`: 자료실. `verdicts.json`은 재검증 결과.
+- `data-src/*.json` → `tools/build_library.py` → `public/data/library.json`: 자료실. `verdicts.json`은 재검증 결과. `top20.json`은 자료실 맨 앞 20개와 고른 이유(사람이 고름, 주소가 목록에서 빠지면 만들기가 멈춘다). 그 뒤 순서는 스크립트의 `MIX`.
 - `wrangler.toml` Pages `humanssaem-yukaman` + D1 `yukaman`. `deploy.py` 미리 보기·올리기.
 
 ## 돌리기
@@ -67,5 +67,6 @@
 - 2026-11-05: 0.5.0(휴먼쌤). 가이드 첫 화면은 큰 버튼 8개 · Q&A는 질문을 누르면 답이 펼쳐지는 꼴 + 질문하기 + 관리자 답변(`qna` 표) · 읽기 자료는 정보 칸으로 · 안내문 개조식 · 직종 기준 칸 눈에 띄게 · 칩 줄 오른쪽에 더 있음 표시 · 근거 법령 이름·번호·시행일 표시 · 닉네임 별명/거주지/자녀 출생연도 끝 2자리 · 본인인증 코드(꺼 둠) · 커뮤니티 지금 뜨는 글 · 법령 감시 · MY 안내 상자 뺌(약관·처리방침 링크만). 시험 주소에는 아직 안 올림. 올릴 때 backup → migrate → deploy(자료실 글 내용은 안 바뀌어 seed는 안 해도 된다).
 - 2026-11-05: 0.6.0(휴먼쌤 "카카오로 바꿔줘"). 가입·인증을 카카오 로그인 + 닉네임으로 바꿈(앱 등록·키·웹훅까지, '카카오 로그인' 절). 본인인증(포트원) 코드는 그대로 꺼 둠. 서버 시험 205건·가짜 카카오 화면 시험 통과, 실제 카카오·실제 폰은 아직. 시험 주소에는 아직 안 올림.
 - 2026-11-05: 휴먼쌤 말씀. 가이드 큰 버튼 표지를 뺌(`#/guide`는 바로 육아휴직 칸, 상단 버튼에 계산기 추가, 제목은 '아빠 가이드'로 통일) · 상단 버튼 옆으로 민 자리 유지 · 홈 타일 대신 가이드로 가는 큰 버튼 · 이 나이 글 전체 보기(`#/guide/age/<나이>`) · 커뮤니티 잠금 아래 타일 가운데 정렬. 시험 주소에는 아직 안 올림.
+- 2026-11-05: 휴먼쌤 말씀. 칩 줄에 왼쪽 화살표 · 가입 입구의 '이메일·전화번호는 받지 않아요' 뺌(처리방침의 같은 내용은 둠) · 계산기 4종은 2열 2행 고정 · 자료실은 유용한 순 20개 + 더 보기 20개씩. 시험 주소에는 아직 안 올림.
 - 제도 문장을 쓸 때 조문만 보지 말고 담당 부처 답변·FAQ를 함께 본다(공개 빠른상담 답변이 조문 문구와 반대로 운영되는 경우가 있었다).
 - 남은 일(코드로 못 하는 것): 첫 아빠 열 명 모집, 이름 반응 조사, 문의 메일(`config.js` CONTACT), 약관·처리방침 확정, 공개 결정. 작은 것: 읽기·검색 횟수 제한, IP 해시 소금, 관리자 코드 만료, 푸시 알림, 경로 주소·사전 렌더링.

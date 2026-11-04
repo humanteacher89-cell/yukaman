@@ -10,6 +10,8 @@ ORDER = ['법령·제도', '통계', '불이익 대처', '지원금', '직군별
 FILES = ['law.json', 'stats.json', 'workplace.json', 'research.json', 'stories.json', 'more.json']
 UPDATED = '2026-11-04'
 NOISE = {'call_from', 'f', 'fbclid', 'pageindex', 'print', 'ref'}     # 같은 글을 가리키는데 주소만 달라지는 조각
+# 앱에 보여 주는 순서(2026-11-05 휴먼쌤 "가장 유용한 정보 20개만"). 앞 20개는 사람이 고른 top20.json, 그 뒤는 이 순서로 한 건씩 돌려 실용 갈래를 자주 넣고 통계·연구·해외는 뒤로 민다
+MIX = ['불이익 대처', '경험담', '지자체', '직군별', '법령·제도', '경험담', '지원금', '채널', '기업 사례', '불이익 대처', '경험담', '직군별', '통계', '책', '커뮤니티', '연구', '해외']
 
 
 def norm_url(u):
@@ -18,6 +20,28 @@ def norm_url(u):
     base, _, query = u.partition('?')
     keep = sorted(p for p in query.split('&') if p and p.split('=')[0].lower() not in NOISE and not p.lower().startswith('utm_'))
     return base.rstrip('/') + ('?' + '&'.join(keep) if keep else '')
+
+
+def useful_order(items):
+    """앞 20개 + 갈래를 섞은 나머지. 갈래 안에서는 끝난 사업을 맨 뒤로, 그다음 최근 자료·공식 자료 먼저(items는 이미 최신순이라 안정 정렬로 유지된다)."""
+    by_url = {norm_url(i['url']): i for i in items}
+    top = [by_url[norm_url(t['url'])] for t in json.load(open(os.path.join(SRC, 'top20.json'), encoding='utf-8'))]
+    chosen = {norm_url(i['url']) for i in top}
+
+    def rank(i):
+        year = int(i['date'][:4] or 0)
+        return (bool(re.search('종료|한시', i['title'] + i['summary'])), 0 if year >= 2024 else 1 if year >= 2020 else 2, not i['official'])
+
+    queues = {}
+    for i in sorted((i for i in items if norm_url(i['url']) not in chosen), key=rank):
+        queues.setdefault(i['topic'], []).append(i)
+    cycle = MIX + [t for t in queues if t not in MIX]
+    rest = []
+    while any(queues.values()):
+        for t in cycle:
+            if queues.get(t):
+                rest.append(queues[t].pop(0))
+    return top + rest
 
 
 def main():
@@ -63,7 +87,7 @@ def main():
             })
     topics = [t for t in ORDER if any(i['topic'] == t for i in items)] + sorted({i['topic'] for i in items} - set(ORDER))
     items.sort(key=lambda i: (topics.index(i['topic']), [-ord(c) for c in i['date'].ljust(10, '0')]))
-    out = {'updated': UPDATED, 'topics': topics, 'count': len(items), 'items': items}
+    out = {'updated': UPDATED, 'topics': topics, 'count': len(items), 'items': useful_order(items)}
     os.makedirs(os.path.join(HERE, 'public', 'data'), exist_ok=True)
     json.dump(out, open(os.path.join(HERE, 'public', 'data', 'library.json'), 'w', encoding='utf-8', newline='\n'), ensure_ascii=False, separators=(',', ':'))
     with open(os.path.join(SRC, '자료모음.md'), 'w', encoding='utf-8', newline='\n') as f:

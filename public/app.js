@@ -778,8 +778,9 @@
   function renderCalc(tab) {
     setTab('guide');
     bar(brandBar());
-    const chips = '<div class="chips">' + CALC_TABS.map(t => '<a class="chip' + (t.key === tab ? ' on' : '') + '" href="#/calc/' + t.key + '"><span class="e">' + t.e + '</span>' + esc(t.name) + '</a>').join('') + '</div>';
-    view.innerHTML = '<section class="pad">' + guideHead('calc') + chips + '<div id="calcJob"></div><div id="calcForm"></div><div id="calcOut"></div></section>';
+    // 네 개를 2열 2행으로 고정한다(11-05 휴먼쌤 "스크롤 말고 그냥 2열 2행으로")
+    const grid = '<div class="calcgrid">' + CALC_TABS.map(t => '<a class="chip' + (t.key === tab ? ' on' : '') + '" href="#/calc/' + t.key + '"><span class="e">' + t.e + '</span>' + esc(t.name) + '</a>').join('') + '</div>';
+    view.innerHTML = '<section class="pad">' + guideHead('calc') + grid + '<div id="calcJob"></div><div id="calcForm"></div><div id="calcOut"></div></section>';
     window.scrollTo(0, 0);
     const fill = ({ leave: calcLeave, reduce: calcReduce, paternity: calcPaternity, dates: calcDates })[tab];
     // 고용보험 근로자는 세 계산기 모두, 공무원·교원은 육아휴직 수당을 계산한다. 그 밖의 직종은 정보와 이동 단추. 날짜 칸은 누구나
@@ -1004,7 +1005,8 @@
   }
 
   // ----- 자료실 -----
-  const lib = { items: null, q: '', topic: '' };
+  const LIB_STEP = 20;     // 유용한 순으로 20개씩(11-05 휴먼쌤). 순서는 tools/build_library.py가 정해 둔다
+  const lib = { items: null, q: '', topic: '', shown: LIB_STEP };
   async function loadLibrary() {
     if (lib.items) return lib.items;
     const res = await fetch('data/library.json', { cache: 'no-cache' });
@@ -1024,7 +1026,7 @@
     const words = lib.q.toLowerCase().split(/\s+/).filter(Boolean);
     const rows = lib.items.filter(x => (!lib.topic || x.topic === lib.topic) && words.every(w => x._hay.indexOf(w) >= 0));
     $('#libCount').textContent = rows.length + '건';
-    box.innerHTML = rows.length ? rows.slice(0, 100).map(lcard).join('') + (rows.length > 100 ? '<p class="foot-note">앞 100건만 보여 드려요. 키워드를 더 넣어 보세요.</p>' : '') : empty('찾는 자료가 없어요', '다른 말로 찾아보세요');
+    box.innerHTML = rows.length ? rows.slice(0, lib.shown).map(lcard).join('') + (rows.length > lib.shown ? '<button type="button" class="more" id="libMore">더 보기</button>' : '') : empty('찾는 자료가 없어요', '다른 말로 찾아보세요');
   }
   async function renderLibrary() {
     setTab('guide');
@@ -1038,8 +1040,10 @@
       + '<div class="chips" id="libTopics"><button type="button" class="chip' + (!lib.topic ? ' on' : '') + '" data-t="">전체</button>' + lib.topics.map(t => '<button type="button" class="chip' + (lib.topic === t ? ' on' : '') + '" data-t="' + esc(t) + '">' + esc(t) + '</button>').join('') + '</div>'
       + '<div class="sec" style="margin-top:4px"><h2 style="font-size:15px">' + (lib.updated ? esc(dot(lib.updated)) + ' 모음' : '자료') + '</h2><span id="libCount"></span></div><div class="list" id="libList"></div>'
       + notes(['누르면 원문으로 이동', '숫자는 그 자료가 나온 때 기준']));
-    $('#libQ').addEventListener('input', ev => { lib.q = ev.target.value.trim(); paintLibrary(); });
-    $('#libTopics').addEventListener('click', ev => { const b = ev.target.closest('[data-t]'); if (!b) return; lib.topic = b.dataset.t; $$('#libTopics .chip').forEach(x => x.classList.toggle('on', x === b)); paintLibrary(); });
+    $('#libQ').addEventListener('input', ev => { lib.q = ev.target.value.trim(); lib.shown = LIB_STEP; paintLibrary(); });
+    $('#libTopics').addEventListener('click', ev => { const b = ev.target.closest('[data-t]'); if (!b) return; lib.topic = b.dataset.t; lib.shown = LIB_STEP; $$('#libTopics .chip').forEach(x => x.classList.toggle('on', x === b)); paintLibrary(); });
+    $('#libList').addEventListener('click', ev => { if (!ev.target.closest('#libMore')) return; lib.shown += LIB_STEP; paintLibrary(); });
+    lib.shown = LIB_STEP;
     paintLibrary();
   }
 
@@ -1061,7 +1065,7 @@
       + '<div class="lockbox" id="lockBox"><div class="lk">🔒</div><h2>' + (kakaoOn() ? '가입한 아빠만 볼 수 있어요' : '인증한 아빠만 볼 수 있어요') + '</h2>'
       + '<p>아빠끼리 마음 놓고 이야기하는 곳이에요.</p>'
       + (me && me.blocked ? '<div class="vstate bad">이용이 제한된 계정이에요.</div>'
-        : kakaoOn() ? '<div id="lockCta">' + kakaoBtn('lockKakao', '카카오로 시작하기') + '<small class="hint">이메일·전화번호는 받지 않아요.</small></div>'
+        : kakaoOn() ? '<div id="lockCta">' + kakaoBtn('lockKakao', '카카오로 시작하기') + '</div>'
         : identityOn() ? '<div id="lockCta"><button type="button" class="btn primary" id="lockGo">본인인증하고 시작하기</button><small class="hint">이름·전화번호는 저장하지 않아요.</small></div>'
         : '<div id="lockCta"><button type="button" class="btn primary" id="lockGo">초대 코드가 있어요</button><button type="button" class="btn line" id="lockNo">코드가 없어요 (신청서)</button><small class="hint">서류나 사진은 받지 않아요.</small></div>')
       + '</div>'
@@ -1324,7 +1328,7 @@
     bar(brandBar());
     if (!me) {
       view.innerHTML = '<section class="pad">' + pageHead('😊', 'MY')
-        + '<div class="profile" style="margin-top:12px"><span class="big">👋</span><div class="tx"><b>' + (kakaoOn() ? '아직 가입 전이에요' : '아직 닉네임이 없어요') + '</b><small>' + (kakaoOn() ? '이메일·전화번호는 받지 않아요.' : '이메일·서류는 받지 않아요.') + '</small></div></div>'
+        + '<div class="profile" style="margin-top:12px"><span class="big">👋</span><div class="tx"><b>' + (kakaoOn() ? '아직 가입 전이에요' : '아직 닉네임이 없어요') + '</b>' + (kakaoOn() ? '' : '<small>이메일·서류는 받지 않아요.</small>') + '</div></div>'
         + (pendingInvite ? '<div class="notice vcta" style="margin-top:12px"><span class="e">🎟️</span><span>받은 초대 코드 <b>' + esc(pendingInvite) + '</b>가 있어요. 시작하기를 누르면 바로 인증돼요.</span></div>' : '')
         + (kakaoOn() ? '<div style="margin-top:12px">' + kakaoBtn('startBtn', '카카오로 시작하기') + '</div>' : '<button type="button" class="btn primary" id="startBtn" style="margin-top:12px">시작하기</button>')
         + '<button type="button" class="btn ghost" id="recoverBtn">' + (kakaoOn() ? '복구 코드가 있어요' : '다른 폰에서 쓰던 닉네임이 있어요 (복구 코드)') + '</button>' + themeBox() + installBox() + aboutBox() + '</section>';
@@ -1520,7 +1524,7 @@
   // 글을 쓰다가 로그인이 필요해졌을 때 등: 카카오로 안내하는 시트. 다녀오면 지금 화면으로 돌아온다
   function openKakaoSheet(after) {
     showSheet('<div class="sheet" role="dialog" aria-modal="true" aria-label="카카오로 시작하기"><div class="grip"></div><h2>' + (me ? '카카오를 연결해요' : '카카오로 시작해요') + '</h2>'
-      + '<p>' + (me ? '카카오를 연결하면 바로 커뮤니티를 쓸 수 있어요.' : '커뮤니티는 가입한 아빠만 읽고 쓸 수 있어요.') + ' 이메일·전화번호는 받지 않아요.</p><div style="margin-top:16px">' + kakaoBtn('kkGo', me ? '카카오 연결하기' : '카카오로 시작하기') + '</div>'
+      + '<p>' + (me ? '카카오를 연결하면 바로 커뮤니티를 쓸 수 있어요.' : '커뮤니티는 가입한 아빠만 읽고 쓸 수 있어요.') + '</p><div style="margin-top:16px">' + kakaoBtn('kkGo', me ? '카카오 연결하기' : '카카오로 시작하기') + '</div>'
       + '<button type="button" class="btn ghost" id="kkNo">둘러보기만 할래요</button></div>', after);
     $('#kkGo').addEventListener('click', kakaoGo);
     $('#kkNo').addEventListener('click', () => { invitePrompted = true; closeSheet(); });
@@ -1726,20 +1730,26 @@
     const fx = ev.target.closest('[data-fix]'); if (fx) openAsk('fix', fx.dataset.fix);
   });
 
-  // 옆으로 밀리는 칩 줄에 '오른쪽에 더 있어요' 표시(11-05 휴먼쌤). 더 있을 때만 보이고, 누르면 밀린다
-  const syncMore = (el, b) => { b.hidden = el.scrollLeft + el.clientWidth >= el.scrollWidth - 8; };
+  // 옆으로 밀리는 칩 줄의 양쪽 화살표(11-05 휴먼쌤 "다시 왼쪽으로 돌아가는 버튼이 없어"). 그쪽에 더 있을 때만 보이고, 누르면 밀린다
+  const syncMore = el => {
+    const w = el.parentNode;
+    w.querySelector('.hsmore.prev').hidden = el.scrollLeft <= 8;
+    w.querySelector('.hsmore.next').hidden = el.scrollLeft + el.clientWidth >= el.scrollWidth - 8;
+  };
   function markScrollers() {
     $$('#view .chips, #view .ages').forEach(el => {
       if (!el.parentNode.classList.contains('hs')) {
         const w = document.createElement('div'); w.className = 'hs';
         el.parentNode.insertBefore(w, el); w.appendChild(el);
-        const b = document.createElement('button');
-        b.type = 'button'; b.className = 'hsmore'; b.setAttribute('aria-label', '오른쪽으로 더 보기'); b.innerHTML = '<span aria-hidden="true">›</span>';
-        b.addEventListener('click', () => el.scrollBy({ left: Math.round(el.clientWidth * 0.7), behavior: 'smooth' }));
-        w.appendChild(b);
-        el.addEventListener('scroll', () => syncMore(el, b), { passive: true });
+        [['prev', '왼쪽으로 돌아가기', '‹', -1], ['next', '오른쪽으로 더 보기', '›', 1]].forEach(([side, label, mark, dir]) => {
+          const b = document.createElement('button');
+          b.type = 'button'; b.className = 'hsmore ' + side; b.setAttribute('aria-label', label); b.innerHTML = '<span aria-hidden="true">' + mark + '</span>';
+          b.addEventListener('click', () => el.scrollBy({ left: dir * Math.round(el.clientWidth * 0.7), behavior: 'smooth' }));
+          w.appendChild(b);
+        });
+        el.addEventListener('scroll', () => syncMore(el), { passive: true });
       }
-      syncMore(el, el.parentNode.querySelector('.hsmore'));
+      syncMore(el);
     });
   }
   // 상단 버튼을 눌러 화면이 다시 그려져도 옆으로 민 자리를 지킨다(11-05 휴먼쌤 "맨 왼쪽으로 돌아가지 않게"). 가이드 줄은 칸을 옮겨도 같은 줄로 친다. 눌린 버튼이 가려져 있으면 보이게 민다
@@ -1752,9 +1762,11 @@
       el.chipKept = true;
       el.scrollLeft = chipPos[chipKey(el)] || 0;
       const on = el.querySelector('.on');
-      if (!on) return;
-      const a = on.getBoundingClientRect(), b = el.getBoundingClientRect();
-      if (a.right > b.right - 8 || a.left < b.left) el.scrollLeft += a.left - b.left - 16;
+      if (on) {
+        const a = on.getBoundingClientRect(), b = el.getBoundingClientRect(), clear = 66;     // 왼쪽 화살표에 가리지 않을 만큼
+        if (a.right > b.right - 8 || (el.scrollLeft > 8 && a.left < b.left + clear)) el.scrollLeft += a.left - b.left - clear;
+      }
+      syncMore(el);
     });
   }
   // 그려지는 즉시(화면에 나오기 전에) 돌려놓는다. 묶음을 씌우면 위치가 지워지니 묶은 다음에

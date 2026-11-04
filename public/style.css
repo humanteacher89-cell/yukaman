@@ -300,10 +300,15 @@ button.notice.vcta { display: flex; width: 100%; text-align: left; font: inherit
 .hotrow i { flex: none; display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--ink); color: var(--bg); font-style: normal; font-size: 12px; font-weight: 900; }
 .hotrow b { flex: 1; min-width: 0; font-size: 14.5px; font-weight: 800; letter-spacing: -.02em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .hotrow span { flex: none; font-size: 12.5px; font-weight: 800; color: var(--pri-d); }
-/* 칩 줄 오른쪽에 더 있다는 표시(11-05 휴먼쌤) */
+/* 칩 줄 양쪽에 더 있다는 표시(11-05 휴먼쌤). 왼쪽은 눌러서 돌아가는 자리라 움직이지 않는다 */
 .hs { position: relative; }
 .hsmore { position: absolute; top: 0; bottom: 0; right: -16px; display: flex; align-items: center; justify-content: flex-end; width: 62px; padding: 0 8px 0 0; border: 0; background: linear-gradient(to right, transparent, var(--bg) 60%); }
+.hsmore.prev { right: auto; left: -16px; justify-content: flex-start; padding: 0 0 0 8px; background: linear-gradient(to left, transparent, var(--bg) 60%); }
 .hsmore span { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: var(--ink); color: var(--bg); font-size: 19px; line-height: 1; font-weight: 800; padding-bottom: 2px; animation: hsnudge 1.2s ease-in-out 2; }
+.hsmore.prev span { animation: none; }
+/* 계산기 네 종류는 밀지 않고 2열 2행으로(11-05 휴먼쌤) */
+.calcgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 4px 0 8px; }
+.calcgrid .chip { justify-content: center; padding: 10px 6px; }
 @keyframes hsnudge { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(3px); } }
 @media (prefers-reduced-motion: reduce) { .hsmore span { animation: none; } }
 /* 카카오 단추(카카오 디자인 가이드 색) */
