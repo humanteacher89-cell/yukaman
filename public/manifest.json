@@ -1,0 +1,20 @@
+{
+  "id": "./",
+  "name": "육아맨",
+  "short_name": "육아맨",
+  "description": "육아하는 아빠들의 게시판 — 서로 묻고, 알려 주고, 자랑하는 곳",
+  "lang": "ko",
+  "dir": "ltr",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#F3F5F9",
+  "theme_color": "#2563EB",
+  "categories": ["social", "lifestyle"],
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

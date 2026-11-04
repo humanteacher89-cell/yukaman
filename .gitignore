@@ -1,0 +1,7 @@
+# 만들어지는 것·비밀
+.wrangler/
+node_modules/
+__pycache__/
+.dev.vars
+*.private.*
+*.log
