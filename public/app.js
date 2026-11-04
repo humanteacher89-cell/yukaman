@@ -283,6 +283,8 @@
   // 부제는 11-04 휴먼쌤 말씀. 오른쪽 단추가 있는 화면(커뮤니티)은 자리가 좁아 두 줄로 접는다
   const brandBar = (right) => '<div class="brand' + (right ? ' compact' : '') + '"><span class="logo">' + DAD + '</span><span class="wm" role="img" aria-label="육아맨">' + WORDMARK + '</span><span class="tagline"><span>아빠 육아의</span> <span>모든 정보</span></span></div><div class="fill"></div>' + (right || '');
   const backBtn = to => '<button class="circ" data-back="' + esc(to) + '" aria-label="뒤로">' + ICON.back + '</button>';
+  // 탭 제목(11-05 휴먼쌤 "상단에 이런 제목부분이 눈에 잘 안띄어. 심지어 홈 탭에는 이런 제목도 없어"): 노란 띠 + 그림 타일 + 큰 제목. right = 오른쪽 단추
+  const pageHead = (e, t, sub, right) => '<header class="phead"><span class="pe" aria-hidden="true">' + e + '</span><div class="tx"><h1>' + esc(t) + '</h1>' + (sub ? '<p>' + esc(sub) + '</p>' : '') + '</div>' + (right || '') + '</header>';
   function setTab(name) { $$('.tab').forEach(t => t.classList.toggle('on', t.dataset.tab === name)); }
   function go(h, replace) { if (replace) { if (location.hash !== h) navReplace = true; location.replace(h); } else location.hash = h; }
   // 앱 안에서 지나온 주소를 기억한다. 시스템 뒤로 가기로 돌아와도 어긋나지 않고, 앱 첫 화면이면 밖으로 나가는 대신 목록으로 간다.
@@ -465,7 +467,7 @@
   const agesRow = cur => '<div class="ages" id="ages" role="group" aria-label="아이 나이">' + AGES.map(x => '<button type="button" class="chip' + (x.key === cur ? ' on' : '') + '" data-age="' + x.key + '" aria-pressed="' + (x.key === cur) + '">' + esc(x.name) + '</button>').join('') + '</div>';
   function kidCard() {
     const line = kidLine();
-    return '<div class="kid"><span class="tx">' + (line ? '<small>우리 아이</small><b>' + esc(line) + '</b>' : '<b>우리 아이 날짜</b><small>넣으면 기한이 D-데이로 바뀌어요</small>') + '</span><button type="button" class="edit" id="kidEdit">' + (line ? '날짜 고치기' : '날짜 넣기') + '</button></div>';
+    return pageHead('👶', '우리 아이', line || '날짜를 넣으면 기한을 알려 드려요', '<button type="button" class="edit" id="kidEdit">' + (line ? '날짜 고치기' : '날짜 넣기') + '</button>');
   }
   // 날짜만 고치는 시트(11-04 휴먼쌤 "계산기로 이동해서 불편해"). 계산기 '내 아이 날짜'와 같은 값(calcS)을 쓴다. 날짜를 바꾸면 손으로 고른 나이 칸은 풀고 날짜를 따른다
   function openKidDates() {
@@ -566,8 +568,8 @@
     const picks = a ? a.ids.map(id => GD.items.find(g => g.id === id)).filter(Boolean) : GD.items.filter(g => g.home).slice(0, 3);
     view.innerHTML = '<section class="pad">'
       + (mode === 'local' ? mockBadge() : '')
-      + agesRow(key)
       + kidCard()
+      + agesRow(key)
       + '<div class="sec"><h2>' + (a ? esc(a.name) + ', 지금 챙길 것' : '지금 챙길 것') + '</h2>' + (a ? '<span>순서대로</span>' : '') + '</div>'
       + (a && calcS.job !== 'worker' ? '<a class="jobhint" href="#/g/leave-job">회사원 등 고용보험 기준이에요. <b>다른 직종 보기 ›</b></a>' : '')
       + timeline(key, d)
@@ -634,7 +636,7 @@
     bar(brandBar());
     const items = GD.items.filter(g => g.cat === cat);
     view.innerHTML = '<section class="pad">'
-      + '<h1 class="htitle">아빠 가이드 📚</h1>'
+      + pageHead('📚', '아빠 가이드')
       + guideChips(cat)
       + (cat === 'leave' ? calcCard() + '<a class="grow" href="#/calc" style="margin-top:16px"><span class="ge">🧮</span><span class="tx"><b>계산기 모음</b><small>단축근무 · 출산휴가 · 아이 날짜</small></span></a>' : '')
       + '<div class="glist">' + (items.length ? items.map(grow).join('') : empty('준비 중이에요', '곧 글이 올라와요')) + '</div>'
@@ -924,7 +926,7 @@
   async function renderLibrary() {
     setTab('guide');
     bar(brandBar());
-    view.innerHTML = '<section class="pad"><h1 class="htitle">자료실 🗂️</h1>' + guideChips('library') + '<div class="loading" id="libLoad">불러오는 중…</div></section>';
+    view.innerHTML = '<section class="pad">' + pageHead('🗂️', '자료실') + guideChips('library') + '<div class="loading" id="libLoad">불러오는 중…</div></section>';
     window.scrollTo(0, 0);
     try { await loadLibrary(); } catch (e) { $('#libLoad').outerHTML = empty('자료를 못 불러왔어요', '잠시 뒤 다시 열어 주세요'); return; }
     const sec = $('#view section');
@@ -951,7 +953,7 @@
   // 커뮤니티 잠금: 인증 전에는 목록·글·검색을 열지 않고, 왜 닫혀 있는지와 인증하는 길을 보여 준다
   function renderLock() {
     fab.hidden = true;
-    view.innerHTML = '<section class="pad"><h1 class="htitle">커뮤니티 💬</h1>'
+    view.innerHTML = '<section class="pad">' + pageHead('💬', '커뮤니티')
       + (mode === 'local' ? mockBadge() : '')
       + '<div class="lockbox" id="lockBox"><div class="lk">🔒</div><h2>인증한 아빠만 볼 수 있어요</h2>'
       + '<p>아빠끼리 마음 놓고 이야기하는 곳이에요.</p>'
@@ -992,7 +994,7 @@
     if (!reuse) { listState.cat = cat; listState.q = ''; listState.posts = []; listState.next = null; }
     const q = listState.q;
     view.innerHTML = '<section class="pad">'
-      + '<h1 class="htitle">커뮤니티 💬</h1>'
+      + pageHead('💬', '커뮤니티')
       + '<div class="chips">' + chip('', '전체', '🏠', cat) + CATS.map(c => chip(c.key, c.name, c.e, cat)).join('') + '</div>'
       + '<div class="chips ages" id="ages2" role="group" aria-label="아이 나이로 거르기">' + ageChip('', '전체 나이') + AGES.map(x => ageChip(x.key, x.name)).join('') + '</div>'
       + '<div class="searchbar" id="searchbar"' + (q ? '' : ' hidden') + '><input id="q" type="search" placeholder="키워드로 글 찾기 (예: 복직, 이유식)" enterkeyhint="search" autocomplete="off" value="' + esc(q) + '"><button type="button" class="sgo" id="qgo">찾기</button><button type="button" class="sx" id="qx" aria-label="검색 지우기">✕</button></div>'
@@ -1208,7 +1210,7 @@
     setTab('me');
     bar(brandBar());
     if (!me) {
-      view.innerHTML = '<section class="pad"><h1 class="htitle">MY</h1>'
+      view.innerHTML = '<section class="pad">' + pageHead('😊', 'MY')
         + '<div class="profile" style="margin-top:12px"><span class="big">👋</span><div class="tx"><b>아직 닉네임이 없어요</b><small>이메일·서류는 받지 않아요.</small></div></div>'
         + (pendingInvite ? '<div class="notice vcta" style="margin-top:12px"><span class="e">🎟️</span><span>받은 초대 코드 <b>' + esc(pendingInvite) + '</b>가 있어요. 시작하기를 누르면 바로 인증돼요.</span></div>' : '')
         + '<button type="button" class="btn primary" id="startBtn" style="margin-top:12px">시작하기</button>'
@@ -1228,7 +1230,7 @@
     setMe(r.user);
     setDot(0);
     if (r.new_comments) api('seen').catch(() => {});      // 이 화면에 보였으니 다음에는 안 뜬다
-    view.innerHTML = '<section class="pad"><h1 class="htitle">MY</h1>'
+    view.innerHTML = '<section class="pad">' + pageHead('😊', 'MY')
       + '<div class="profile" style="margin-top:12px"><span class="big">' + esc(first(r.user.nick)) + '</span><div class="tx"><b>' + esc(r.user.nick) + '</b><small>' + ymd(r.user.created) + '부터 육아맨 · 글 ' + r.posts.length + ' · 댓글 ' + r.comments.length + '</small></div><button type="button" class="edit" id="editNick">닉네임 바꾸기</button></div>'
       + statusBox(r)
       + (r.user.role === 'admin' ? '<a class="glink" href="#/admin"><span>🛠️ 관리자 화면: 인증 신청 · 초대 코드 · 회원</span><span>→</span></a>' : '')

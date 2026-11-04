@@ -5,6 +5,7 @@
      --pri(채움, 흰 글자 4.7:1) · --pri-d(작은 글자·링크 6.8:1) · --but(버터, 강조 칸) */
   --ink: #1B1F2A; --sub: #5F6675; --mute: #6A7080; --line: #EDE8DA; --line-s: #D9D2BF; --bg: #FFFBF0; --card: #FFFFFF;
   --pri: #2F6FE0; --pri-d: #1F56B8; --pri-l: #E6EEFF; --but: #FFD66B; --but-l: #FFF4D6;
+  --hd: #FFD66B; --hd-ink: #1B1F2A; --hd-sub: #4F3F0E; --hd-tile: #FFFFFF;
   --acc: #1B1F2A; --acc-d: #0F121A;
   --bl: #2563EB; --bl-l: #E8EFFF; --g: #15803D; --g-l: #E6F6EC; --or: #C2410C; --or-l: #FFF0E3;
   --pu: #6D28D9; --pu-l: #F0E9FF; --te: #0F766E; --te-l: #E0F5F2; --pk: #BE185D; --pk-l: #FDE7F1; --gy: #525A6B; --gy-l: #EEEDE6;
@@ -296,9 +297,16 @@ input[type=date].inp { -webkit-appearance: none; appearance: none; min-height: 4
 .fab svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
 .fab:active { background: var(--acc-d); }
 
-/* 큰 제목(가이드·커뮤니티·홈 첫 줄) */
-.htitle { margin: 6px 0 0; font-size: 26px; font-weight: 900; letter-spacing: -.04em; line-height: 1.2; }
-.hsub { margin: 4px 0 0; font-size: 14px; color: var(--sub); font-weight: 600; }
+/* 탭 제목 띠(11-05 휴먼쌤 "눈에 잘 안띄어"): 홈·가이드·자료실·커뮤니티·MY 맨 위. 파랑은 누르는 것, 노랑은 제목으로 나눈다 */
+.phead { position: relative; display: flex; align-items: center; gap: 13px; margin-top: 4px; padding: 15px 16px; border-radius: 22px; background: var(--hd); color: var(--hd-ink); overflow: hidden; }
+.phead:before { content: ""; position: absolute; right: -34px; top: -46px; width: 130px; height: 130px; border-radius: 50%; background: rgba(255,255,255,.26); }
+.phead > * { position: relative; }
+.phead .pe { flex: none; width: 54px; height: 54px; border-radius: 17px; background: var(--hd-tile); display: grid; place-items: center; font-size: 31px; line-height: 1; }
+.phead .tx { flex: 1; min-width: 0; }
+.phead h1 { margin: 0; font-size: 27px; font-weight: 900; letter-spacing: -.04em; line-height: 1.2; }
+.phead p { margin: 3px 0 0; font-size: 13.5px; font-weight: 700; line-height: 1.4; color: var(--hd-sub); text-wrap: balance; }
+.phead .edit { flex: none; min-height: 40px; padding: 0 12px; border: 0; border-radius: 999px; background: var(--card); color: var(--ink); font-size: 13px; font-weight: 800; white-space: nowrap; }
+.phead .edit:after { content: ""; position: absolute; inset: -4px; }   /* 누르는 칸 44px(검수 17) */
 
 /* 홈(아이 나이 길은 파일 끝 '홈 아이 나이 길' 절) */
 .sec a.all { font-size: 13px; color: var(--pri); font-weight: 800; }
@@ -374,6 +382,7 @@ input[type=date].inp { -webkit-appearance: none; appearance: none; min-height: 4
 [data-theme=dark] {
   --ink: #E8ECF4; --sub: #AEB6C4; --mute: #98A1B0; --line: #2C3546; --line-s: #3F4A5E; --bg: #141A26; --card: #1E2533;
   --pri: #3B7BF0; --pri-d: #93B8FF; --pri-l: #1F2F4F; --but: #FFD66B; --but-l: #33290F;
+  --hd: #4A3B12; --hd-ink: #FFE9A8; --hd-sub: #F0DCA0; --hd-tile: #2B2410;
   --acc: #3B7BF0; --acc-d: #2F6FE0;
   --bl: #8AB4FF; --bl-l: #1F2F4F; --g: #6EE7A0; --g-l: #173526; --or: #FDBA74; --or-l: #3B2A18;
   --pu: #C4B5FD; --pu-l: #2B2448; --te: #5EEAD4; --te-l: #15332F; --pk: #F9A8D4; --pk-l: #3A1D2D; --gy: #C9D0DC; --gy-l: #2A3242;
@@ -406,7 +415,6 @@ html[data-theme=dark] { background: #0D1119; }
 [data-theme=dark] .seg { background: #2A3242; }
 [data-theme=dark] .seg button.on { background: #3A4458; }
 [data-theme=dark] .agetag { background: #3B3012; color: #FFE08A; }
-[data-theme=dark] .kid .edit { background: var(--card); color: var(--ink); }
 [data-theme=dark] .tli.done:before { background: #4A5368; }
 [data-theme=dark] .pill.soon { color: #14213D; }
 
@@ -458,12 +466,6 @@ html[data-theme=dark] { background: #0D1119; }
 .ages::-webkit-scrollbar { display: none; }
 .ages .chip { border-radius: 12px; padding: 9px 13px; font-size: 13.5px; }
 .chips.ages { margin-top: 2px; }
-.kid { display: flex; align-items: center; gap: 10px; margin-top: 8px; background: var(--card); border-radius: 16px; padding: 12px 14px; box-shadow: var(--shadow); }
-.kid .tx { flex: 1; min-width: 0; }
-.kid small { display: block; font-size: 13px; color: var(--sub); font-weight: 600; }
-.kid b { display: block; margin-top: 1px; font-size: 16px; font-weight: 900; letter-spacing: -.02em; line-height: 1.35; word-break: keep-all; }
-.kid .edit { position: relative; flex: none; border: 1.5px solid var(--line); background: var(--card); border-radius: 999px; padding: 7px 11px; font-size: 12.5px; font-weight: 800; color: var(--ink); white-space: nowrap; }
-.kid .edit:after { content: ""; position: absolute; inset: -8px -6px; }   /* 누르는 칸 44px(검수 17) */
 .sheet .dfield span { display: block; }
 .tl { position: relative; margin-top: 4px; padding-left: 26px; }
 .tl:before { content: ""; position: absolute; left: 8px; top: 12px; bottom: 12px; width: 2px; background: var(--line); }
