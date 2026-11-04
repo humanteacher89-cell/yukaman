@@ -25,6 +25,8 @@ MIGRATIONS = [
     'CREATE INDEX IF NOT EXISTS posts_age ON posts (age, deleted, id)',
     'ALTER TABLE users ADD COLUMN identity_hash TEXT',      # 2026-11-05 본인인증(1인 1계정)
     'CREATE UNIQUE INDEX IF NOT EXISTS users_identity ON users (identity_hash) WHERE identity_hash IS NOT NULL',
+    'ALTER TABLE users ADD COLUMN kakao_hash TEXT',         # 2026-11-05 카카오 로그인
+    'CREATE UNIQUE INDEX IF NOT EXISTS users_kakao ON users (kakao_hash) WHERE kakao_hash IS NOT NULL',
     # 검색 색인(검수 27): trigram이라 한국어 조사가 붙어도 세 글자 조각으로 찾는다. 글을 넣고·고치고·지울 때 트리거가 따라간다. 이미 있으면 그대로.
     "CREATE VIRTUAL TABLE IF NOT EXISTS posts_fts USING fts5(title, body, content='posts', content_rowid='id', tokenize='trigram')",
     'CREATE TRIGGER IF NOT EXISTS posts_ai AFTER INSERT ON posts BEGIN INSERT INTO posts_fts(rowid, title, body) VALUES (new.id, new.title, new.body); END',

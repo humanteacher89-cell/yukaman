@@ -5,7 +5,8 @@
    운영 주소에서는 서버가 JSON이 아닌 것을 돌려줘도(오류 페이지·와이파이 로그인 페이지) 시험 모드로 바꾸지 않고 "서버에 연결할 수 없어요"만 보인다(11-04 검수 1).
    계정: 기기 토큰(localStorage) + 가입 때 한 번 보여 주는 복구 코드(폰 바꿀 때) · 이 기기 로그아웃 · 탈퇴(11-04 검수 3·5).
    가이드 글: guide-data.js · 자료실: data/library.json · 계산: calc.js(법령 기준, test/calc-test.js). 사진·영상 없음 — 줄글 + 댓글만, 검색 됨(11-04 휴먼쌤).
-   아빠 인증: 커뮤니티는 읽기도 쓰기도 인증 아빠만(2026-11-04 휴먼쌤 "인증 아빠만"), 가이드·계산기·자료실은 누구나. 초대 코드(바로) 또는 신청서(관리자 승인). 서류·아이 정보는 받지 않는다. */
+   아빠 인증: 커뮤니티는 읽기도 쓰기도 인증 아빠만(2026-11-04 휴먼쌤 "인증 아빠만"), 가이드·계산기·자료실은 누구나. 초대 코드(바로) 또는 신청서(관리자 승인). 서류·아이 정보는 받지 않는다.
+   카카오 로그인(11-05 휴먼쌤): config.js KAKAO_LOGIN을 켜면 카카오 + 닉네임이 곧 인증이고, 신청서·초대 코드 화면은 숨는다(관리자 코드 링크만 남음). */
 (function () {
   'use strict';
   const CFG = window.YK_CONFIG || {};
@@ -35,7 +36,8 @@
     own: '내가 쓴 글은 신고할 수 없어요', no_api: '서버에 연결할 수 없어요. 잠시 뒤 다시 열어 주세요', recovery_bad: '맞지 않는 복구 코드예요', token_in_use: '이 기기에 이미 다른 닉네임이 있어요',
     verify: '커뮤니티는 인증한 아빠만 읽고 쓸 수 있어요', blocked: '이용이 제한된 계정이에요',
     code_bad: '맞지 않는 초대 코드예요', code_used: '이미 쓴 초대 코드예요', stage: '지금 상황을 골라 주세요', answer_len: '이야기는 20자 이상으로 적어 주세요', pledge: '약속에 체크해 주세요', invite_max: '초대 코드는 3개까지 만들 수 있어요',
-    ask_len: '5자 이상 300자 안으로 적어 주세요', identity_bad: '본인인증을 확인하지 못했어요. 다시 해 주세요', identity_denied: '만 19세 이상 남성만 가입할 수 있어요', identity_dup: '이미 가입한 분이에요. MY에서 복구 코드로 돌아와 주세요', identity_off: '본인인증을 준비하고 있어요'
+    ask_len: '5자 이상 300자 안으로 적어 주세요', identity_bad: '본인인증을 확인하지 못했어요. 다시 해 주세요', identity_denied: '만 19세 이상 남성만 가입할 수 있어요', identity_dup: '이미 가입한 분이에요. MY에서 복구 코드로 돌아와 주세요', identity_off: '본인인증을 준비하고 있어요',
+    kakao_bad: '카카오 로그인을 확인하지 못했어요. 다시 해 주세요', kakao_off: '카카오 로그인을 준비하고 있어요', kakao_taken: '이 기기는 다른 카카오 계정과 연결돼 있어요. 로그아웃한 뒤 다시 해 주세요', kakao_mismatch: '가입할 때 쓴 카카오 계정으로 해 주세요', kakao_used: '이미 가입한 카카오 계정이에요. 카카오로 다시 시작해 주세요', kakao_leave: '카카오 연결을 끊어야 탈퇴할 수 있어요'
   };
 
   // ----- 도구 -----
@@ -113,7 +115,7 @@
   function randomToken() { const a = new Uint8Array(24); crypto.getRandomValues(a); let s = ''; a.forEach(b => { s += String.fromCharCode(b); }); return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); }
   function token() { let t = store.get('token'); if (!t || !/^[A-Za-z0-9_-]{16,80}$/.test(t)) { t = randomToken(); store.set('token', t); } return t; }
   let me = store.get('me', null);
-  function setMe(u) { me = u ? { id: u.id, nick: u.nick, created: u.created, verified: !!u.verified, role: u.role || 'user', how: u.how || '', blocked: !!u.blocked } : null; if (me) store.set('me', me); else store.del('me'); }
+  function setMe(u) { me = u ? { id: u.id, nick: u.nick, created: u.created, verified: !!u.verified, role: u.role || 'user', how: u.how || '', blocked: !!u.blocked, kakao: !!u.kakao } : null; if (me) store.set('me', me); else store.del('me'); }
   const canWrite = () => me && !me.blocked && (me.verified || me.role === 'admin');
   const canRead = canWrite;   // 커뮤니티 읽기 자격은 쓰기와 같다
   const pub = u => ({ id: u.id, nick: u.nick, created: u.created, verified: !!u.verified, role: 'user', how: u.how || '', blocked: false });
@@ -172,7 +174,10 @@
     qnaList: () => remote.call('GET', '/qna'),
     ask: b => remote.call('POST', '/qna', b),
     adminQna: b => remote.call('POST', '/admin/qna', b),
-    verifyIdentity: id => remote.call('POST', '/verify/identity', { id })
+    verifyIdentity: id => remote.call('POST', '/verify/identity', { id }),
+    kakaoStart: () => remote.call('GET', '/login/kakao/start'),
+    kakaoLogin: (code, redirect_uri) => remote.call('POST', '/login/kakao', { code, redirect_uri }),
+    kakaoLeave: (code, redirect_uri) => remote.call('POST', '/me/leave-kakao', { code, redirect_uri })
   };
 
   // 시험 모드: 견본 글 + 이 기기(localStorage). 서버와 같은 응답 꼴. 코드는 아무 글자나, 신청서는 바로 승인된다.
@@ -272,6 +277,27 @@
   }
   function setMode(m) { if (mode === m) return; mode = m; if (m === 'local') { const u = local.user(); setMe(u ? pub(u) : null); } }
   const identityOn = () => !!(CFG.IDENTITY && CFG.IDENTITY.storeId && CFG.IDENTITY.channelKey) && mode === 'server';
+  const kakaoOn = () => !!CFG.KAKAO_LOGIN && mode === 'server';
+  const KAKAO_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3C6.5 3 2 6.5 2 10.8c0 2.8 1.9 5.2 4.700 6.600l-1 3.600c-.1.300.3.600.6.400l4.200-2.800c.5.100 1 .1 1.500.1 5.500 0 10-3.500 10-7.900S17.500 3 12 3z"/></svg>';
+  const joinWord = () => kakaoOn() ? (me ? '카카오 연결하기' : '카카오로 시작하기') : (me ? '아빠 인증하기' : '시작하기');
+  const kakaoBtn = (id, label) => '<button type="button" class="btn kakao" id="' + id + '">' + KAKAO_ICON + '<span>' + label + '</span></button>';
+  // 카카오 동의 화면으로 갔다가 이 주소로 돌아온다(?code=…&state=…). 어디서 갔는지와 state를 기기에 남겨 두고, 돌아오면 시작 부분에서 마무리한다
+  async function startKakao(purpose) {
+    const r = await api('kakaoStart');
+    const state = randomToken().slice(0, 24);
+    store.set('kakaoState', { state, purpose: purpose || 'login', back: location.hash || '#/' });
+    location.href = r.url + '&redirect_uri=' + encodeURIComponent(location.origin + '/') + '&state=' + encodeURIComponent(state);
+  }
+  const kakaoGo = () => { startKakao().catch(e => fail(e)); };
+  async function finishKakao(purpose, code) {
+    const red = location.origin + '/';
+    try {
+      if (purpose === 'leave') { await api('kakaoLeave', code, red); forgetDevice(); toast('탈퇴했어요. 그동안 고마웠어요'); go('#/', true); render(); return; }
+      const r = await api('kakaoLogin', code, red);
+      if (r.need_nick) { openSheet(() => render(), 'kakao'); return; }
+      setMe(r.user); toast('반가워요, ' + r.user.nick + '님!'); render();
+    } catch (e) { toast(errText(e), 'err'); render(); }
+  }
 
   // ----- 알림 -----
   let toastTimer = 0;
@@ -579,7 +605,7 @@
   const tile = (e, t, h) => '<a class="tile" href="' + esc(h) + '"><span class="ge">' + esc(e) + '</span><b>' + esc(t) + '</b></a>';
   // 커뮤니티가 비어 있을 때: 솔직하게 모집 중이라고 말한다(검수 15)
   const emptyCommunity = () => '<div class="lockbox recruit"><div class="lk">👋</div><h2>첫 아빠들을 모으고 있어요</h2><p>지금 쓰는 글이 다음 아빠의 첫 답이 돼요.</p>'
-    + '<a class="btn primary" href="#/write">첫 글 쓰기</a><a class="btn line" href="#/me">초대 코드 보내기</a><a class="btn ghost" href="#/guide/faq">자주 묻는 질문은 가이드 Q&amp;A에</a></div>';
+    + '<a class="btn primary" href="#/write">첫 글 쓰기</a>' + (kakaoOn() ? '' : '<a class="btn line" href="#/me">초대 코드 보내기</a>') + '<a class="btn ghost" href="#/guide/faq">자주 묻는 질문은 가이드 Q&amp;A에</a></div>';
   async function renderHome() {
     setTab('home');
     bar(brandBar());
@@ -613,7 +639,7 @@
     if (seq !== renderSeq) return;
     const box = $('#homeCom'); if (!box) return;
     box.innerHTML = locked
-      ? '<div class="sec"><h2>커뮤니티</h2></div><a class="notice vcta" id="homeLock" href="#/community" style="margin-top:0"><span class="e">🔒</span><span>인증한 아빠만 볼 수 있어요. <b>' + (me ? '아빠 인증하기' : '시작하기') + '</b></span></a>'
+      ? '<div class="sec"><h2>커뮤니티</h2></div><a class="notice vcta" id="homeLock" href="#/community" style="margin-top:0"><span class="e">🔒</span><span>' + (kakaoOn() ? '가입한' : '인증한') + ' 아빠만 볼 수 있어요. <b>' + joinWord() + '</b></span></a>'
       : '<div class="sec"><h2>' + (peers ? '또래 아빠들 글' : '커뮤니티 새 글') + '</h2><a class="all" href="#/community">전체 보기 →</a></div>'
         + '<div class="list" id="homeList">' + (err ? empty('글을 못 불러왔어요', '잠시 뒤 다시 열어 주세요') : (posts.length ? posts.map(pcard).join('') : '<a class="notice vcta" href="#/write" style="margin-top:0"><span class="e">👋</span><span>첫 아빠들을 모으고 있어요. <b>첫 글 쓰기</b></span></a>')) + '</div>';
     if (err) fail(err);
@@ -632,11 +658,11 @@
       { h: '탈퇴' }, { p: 'MY에서 언제든 탈퇴할 수 있고, 내 글과 댓글 내용이 함께 지워져요.' },
       { h: '문의' }, { p: mail }
     ] : [
-      { h: '받는 것' }, { ul: ['닉네임(별명·거주지·자녀 출생연도 끝 2자리, 다른 아빠들에게 보여요), 내가 쓴 글·댓글, 신고 내용', '본인인증을 쓰면 중복 가입을 막는 값의 해시(이름·전화번호·생년월일·성별은 확인 뒤 바로 버려요)', '질문·제보 내용(쓴 사람은 저장하지 않아요. Q&A로 올리면 공개되고, 처리하면 지워요)', '인증 신청 답변(승인·거절하면 바로 지워요)', '이 기기 토큰과 복구 코드의 해시(원래 값은 서버에 없어요)', '누가 초대했는지, 마지막 접속 시각', '가입·코드·복구 시도 횟수 제한을 위한 기기 주소(IP)의 짧은 해시(이틀 안에 지워요)'] },
+      { h: '받는 것' }, { ul: ['닉네임(별명·거주지·자녀 출생연도 끝 2자리, 다른 아빠들에게 보여요), 내가 쓴 글·댓글, 신고 내용', '카카오 로그인 회원번호의 해시(프로필·이메일·전화번호는 받지 않아요)', '본인인증을 쓰면 중복 가입을 막는 값의 해시(이름·전화번호·생년월일·성별은 확인 뒤 바로 버려요)', '질문·제보 내용(쓴 사람은 저장하지 않아요. Q&A로 올리면 공개되고, 처리하면 지워요)', '인증 신청 답변(승인·거절하면 바로 지워요)', '이 기기 토큰과 복구 코드의 해시(원래 값은 서버에 없어요)', '누가 초대했는지, 마지막 접속 시각', '가입·코드·복구 시도 횟수 제한을 위한 기기 주소(IP)의 짧은 해시(이틀 안에 지워요)'] },
       { h: '받지 않는 것' }, { p: '이메일, 서류, 아이 이름·사진. 전화번호는 본인인증 때 확인만 하고 저장하지 않아요. 계산기에 넣은 아이 날짜와 월급은 이 기기에만 저장되고 서버로 보내지 않아요.' },
       { h: '왜 쓰나' }, { p: '커뮤니티 운영, 아빠 인증, 도배·사칭 막기에만 써요. 광고나 판매에 쓰지 않고 다른 곳에 주지 않아요.' },
-      { h: '어디에 두나' }, { p: 'Cloudflare(Pages, D1)에 저장해요. 본인인증은 포트원과 본인확인기관이 처리해요.' },
-      { h: '언제 지우나' }, { p: '글·댓글은 지우는 즉시 내용을 비워요. 탈퇴하면 글·댓글 내용과 계정을 지워요. 막힌 계정의 기록은 재가입을 막기 위해 남을 수 있어요.' },
+      { h: '어디에 두나' }, { p: 'Cloudflare(Pages, D1)에 저장해요. 로그인은 카카오가, 본인인증은 포트원과 본인확인기관이 처리해요.' },
+      { h: '언제 지우나' }, { p: '글·댓글은 지우는 즉시 내용을 비워요. 탈퇴하면 글·댓글 내용과 계정을 지우고 카카오 연결도 끊어요. 막힌 계정의 기록은 재가입을 막기 위해 남을 수 있어요.' },
       { h: '문의' }, { p: who + ' · ' + mail }
     ];
     view.innerHTML = '<section class="pad"><article class="garticle"><div class="draft"><span>📝</span><span>초안이에요. 정식 공개 전에 확정해요.</span></div>' + blocks(T) + '</article></section>';
@@ -1028,16 +1054,18 @@
     fab.hidden = true;
     view.innerHTML = '<section class="pad">' + pageHead('💬', '커뮤니티')
       + (mode === 'local' ? mockBadge() : '')
-      + '<div class="lockbox" id="lockBox"><div class="lk">🔒</div><h2>인증한 아빠만 볼 수 있어요</h2>'
+      + '<div class="lockbox" id="lockBox"><div class="lk">🔒</div><h2>' + (kakaoOn() ? '가입한 아빠만 볼 수 있어요' : '인증한 아빠만 볼 수 있어요') + '</h2>'
       + '<p>아빠끼리 마음 놓고 이야기하는 곳이에요.</p>'
       + (me && me.blocked ? '<div class="vstate bad">이용이 제한된 계정이에요.</div>'
+        : kakaoOn() ? '<div id="lockCta">' + kakaoBtn('lockKakao', '카카오로 시작하기') + '<small class="hint">이메일·전화번호는 받지 않아요.</small></div>'
         : identityOn() ? '<div id="lockCta"><button type="button" class="btn primary" id="lockGo">본인인증하고 시작하기</button><small class="hint">이름·전화번호는 저장하지 않아요.</small></div>'
         : '<div id="lockCta"><button type="button" class="btn primary" id="lockGo">초대 코드가 있어요</button><button type="button" class="btn line" id="lockNo">코드가 없어요 (신청서)</button><small class="hint">서류나 사진은 받지 않아요.</small></div>')
       + '</div>'
-      + '<div class="sec"><h2>인증 전에도 볼 수 있어요</h2></div>'
+      + '<div class="sec"><h2>' + (kakaoOn() ? '가입 전에도' : '인증 전에도') + ' 볼 수 있어요</h2></div>'
       + '<div class="tiles" style="margin-top:0">' + tile('📚', '아빠 가이드', '#/guide') + tile('🙋', 'Q&A', '#/guide/faq') + tile('💰', '계산기', '#/calc') + tile('🗂️', '자료실', '#/library') + '</div></section>';
     window.scrollTo(0, 0);
     const after = () => render();
+    const lk = $('#lockKakao'); if (lk) lk.addEventListener('click', kakaoGo);
     const start = $('#lockGo');
     if (start) start.addEventListener('click', () => { if (!me) openSheet(after); else openVerify(after); });
     const noCode = $('#lockNo');
@@ -1052,7 +1080,7 @@
       if (canRead()) { render(); return; }
       if (!!me.blocked !== wasBlocked) { renderLock(); return; }
       const cta = $('#lockCta');
-      if (cta && r.application && r.application.status === 'pending') {
+      if (cta && !kakaoOn() && r.application && r.application.status === 'pending') {
         cta.innerHTML = statusBox(r);
         const d = $('#doVerify'); if (d) d.addEventListener('click', () => openVerify(after));
       }
@@ -1202,7 +1230,7 @@
     bar(backBtn('#/community') + '<div class="fill atitle">글쓰기</div><button class="abtn" id="submitTop" type="submit" form="wform">올리기</button>');
     const d = store.get('draft', null) || {};
     view.innerHTML = '<section class="pad">'
-      + (!canWrite() ? '<button type="button" class="notice vcta" id="vcta" style="margin-bottom:8px"><span class="e">✅</span><span>글은 인증한 아빠만 올릴 수 있어요. 써 둔 글은 이 기기에 남아요. <b>' + (me ? '아빠 인증하기' : '시작하기') + '</b></span></button>' : '')
+      + (!canWrite() ? '<button type="button" class="notice vcta" id="vcta" style="margin-bottom:8px"><span class="e">✅</span><span>글은 ' + (kakaoOn() ? '가입한' : '인증한') + ' 아빠만 올릴 수 있어요. 써 둔 글은 이 기기에 남아요. <b>' + joinWord() + '</b></span></button>' : '')
       + '<form class="form" id="wform" novalidate>'
       + '<span class="lbl">분류</span><div class="catpick" id="catpick">' + CATS.map(c => '<button type="button" class="chip' + (d.cat === c.key ? ' on' : '') + '" data-pick="' + c.key + '"><span class="e">' + c.e + '</span>' + esc(c.name) + '</button>').join('') + '</div>'
       + '<span class="lbl">아이 나이 <small style="font-weight:600">(선택 — 또래 아빠들이 찾기 쉬워요)</small></span><div class="catpick" id="agepick">' + AGES.map(x => '<button type="button" class="chip' + ((d.age || currentAge()) === x.key ? ' on' : '') + '" data-age="' + x.key + '">' + esc(x.name) + '</button>').join('') + '</div>'
@@ -1282,6 +1310,7 @@
     const u = r.user || me;
     if (u.blocked) return '<div class="vstate bad">이용이 제한된 계정이에요.</div>';
     if (u.verified || u.role === 'admin') return '<div class="vstate ok">' + CHECK + '<span><b>인증 아빠</b>' + (u.role === 'admin' ? ' · 관리자' : '') + '</span></div>';
+    if (kakaoOn()) return '<div class="vstate"><span><b>아직 인증 전이에요.</b><br>카카오를 연결하면 바로 커뮤니티를 쓸 수 있어요.</span><button type="button" class="edit" id="doVerify">카카오 연결</button></div>';
     const ap = r.application;
     if (ap && ap.status === 'pending') return '<div class="vstate wait"><span><b>인증 신청을 확인하고 있어요.</b><br>승인되면 여기에 바로 표시돼요. 초대 코드가 생기면 먼저 쓸 수도 있어요.</span><button type="button" class="edit" id="doVerify">코드 넣기</button></div>';
     return '<div class="vstate"><span><b>아직 인증 전이에요.</b><br>커뮤니티는 인증한 아빠만 읽고 쓸 수 있어요.' + (ap && ap.status === 'rejected' ? ' 지난 신청은 승인되지 않았어요. 다시 신청할 수 있어요.' : '') + '</span><button type="button" class="edit" id="doVerify">인증하기</button></div>';
@@ -1291,12 +1320,12 @@
     bar(brandBar());
     if (!me) {
       view.innerHTML = '<section class="pad">' + pageHead('😊', 'MY')
-        + '<div class="profile" style="margin-top:12px"><span class="big">👋</span><div class="tx"><b>아직 닉네임이 없어요</b><small>이메일·서류는 받지 않아요.</small></div></div>'
+        + '<div class="profile" style="margin-top:12px"><span class="big">👋</span><div class="tx"><b>' + (kakaoOn() ? '아직 가입 전이에요' : '아직 닉네임이 없어요') + '</b><small>' + (kakaoOn() ? '이메일·전화번호는 받지 않아요.' : '이메일·서류는 받지 않아요.') + '</small></div></div>'
         + (pendingInvite ? '<div class="notice vcta" style="margin-top:12px"><span class="e">🎟️</span><span>받은 초대 코드 <b>' + esc(pendingInvite) + '</b>가 있어요. 시작하기를 누르면 바로 인증돼요.</span></div>' : '')
-        + '<button type="button" class="btn primary" id="startBtn" style="margin-top:12px">시작하기</button>'
-        + '<button type="button" class="btn ghost" id="recoverBtn">다른 폰에서 쓰던 닉네임이 있어요 (복구 코드)</button>' + themeBox() + installBox() + aboutBox() + '</section>';
+        + (kakaoOn() ? '<div style="margin-top:12px">' + kakaoBtn('startBtn', '카카오로 시작하기') + '</div>' : '<button type="button" class="btn primary" id="startBtn" style="margin-top:12px">시작하기</button>')
+        + '<button type="button" class="btn ghost" id="recoverBtn">' + (kakaoOn() ? '복구 코드가 있어요' : '다른 폰에서 쓰던 닉네임이 있어요 (복구 코드)') + '</button>' + themeBox() + installBox() + aboutBox() + '</section>';
       bindTheme();
-      $('#startBtn').addEventListener('click', () => openSheet(() => render()));
+      $('#startBtn').addEventListener('click', () => { if (kakaoOn()) kakaoGo(); else openSheet(() => render()); });
       $('#recoverBtn').addEventListener('click', () => openRecover(() => render()));
       bindInstall(); window.scrollTo(0, 0);
       if (pendingInvite && !invitePrompted) { invitePrompted = true; openSheet(() => render()); }
@@ -1314,7 +1343,7 @@
       + '<div class="profile" style="margin-top:12px"><span class="big">' + esc(first(r.user.nick)) + '</span><div class="tx"><b>' + esc(r.user.nick) + '</b><small>' + ymd(r.user.created) + '부터 육아맨 · 글 ' + r.posts.length + ' · 댓글 ' + r.comments.length + '</small></div><button type="button" class="edit" id="editNick">닉네임 바꾸기</button></div>'
       + statusBox(r)
       + (r.user.role === 'admin' ? '<a class="glink" href="#/admin"><span>🛠️ 관리자 화면: 인증 신청 · 초대 코드 · 회원</span><span>→</span></a>' : '')
-      + (canWrite() ? inviteBox(r) : '')
+      + (canWrite() && !(kakaoOn() && r.user.role !== 'admin') ? inviteBox(r) : '')
       + newCommentsBox(r)
       + '<div class="seg" id="meSegs" style="margin-top:16px"><button type="button" class="' + (meSeg === 'posts' ? 'on' : '') + '" data-seg="posts">내 글 ' + r.posts.length + '</button><button type="button" class="' + (meSeg === 'comments' ? 'on' : '') + '" data-seg="comments">내 댓글 ' + r.comments.length + '</button></div>'
       + '<div class="list" id="meList"></div>' + accountBox(r) + themeBox() + installBox() + aboutBox() + '</section>';
@@ -1334,18 +1363,24 @@
     if (ib) ib.addEventListener('click', ev => { const b = ev.target.closest('[data-share]'); if (b) shareInvite(b.dataset.share); });
     bindAccount();
     bindInstall(); window.scrollTo(0, 0);
-    if (pendingInvite && canWrite()) clearInvite();
+    if (pendingInvite && canWrite()) {        // 이미 인증했어도 관리자 코드는 쓸 수 있다(서버가 아빠 코드는 쓰지 않고 넘긴다)
+      const c = pendingInvite; clearInvite();
+      api('verifyCode', c).then(x => { if (x.user && x.user.role === 'admin' && me.role !== 'admin') { setMe(x.user); toast('관리자로 바뀌었어요'); render(); } }).catch(() => {});
+    }
     else if (pendingInvite && !invitePrompted) { invitePrompted = true; openVerify(() => render()); }
     if (r.user.verified && r.user.how === 'apply' && !store.get('welcomed')) { store.set('welcomed', true); toast('아빠 인증이 승인됐어요'); }
   }
   // 내 계정: 복구 코드(폰 바꿀 때) · 이 기기 로그아웃 · 탈퇴(11-04 검수 3·5). 복구 코드는 서버에 해시만 있어 이 기기에 남긴 것을 보여 준다.
   function accountBox(r) {
     const rec = store.get('recovery', '');
-    return '<div class="about" id="acctBox"><b>내 계정</b><p class="sm">폰을 바꿔도 이 코드로 돌아올 수 있어요. 어디에 적어 두세요.</p>'
+    if (me && me.kakao) return '<div class="about" id="acctBox"><b>내 계정</b><p class="sm">카카오로 로그인했어요. 폰을 바꿔도 카카오로 다시 들어오면 돼요.</p>'
+      + '<div class="two" style="margin-top:10px"><button type="button" class="btn line small" id="logoutBtn">이 기기 로그아웃</button>' + (me.role === 'admin' ? '' : '<button type="button" class="btn line small danger" id="quitBtn">탈퇴하기</button>') + '</div></div>';
+    return '<div class="about" id="acctBox"><b>내 계정</b>' + (kakaoOn() ? '<div style="margin:8px 0 10px">' + kakaoBtn('kakaoLink', '카카오 연결하기') + '</div>' : '') + '<p class="sm">폰을 바꿔도 이 코드로 돌아올 수 있어요. 어디에 적어 두세요.</p>'
       + '<div class="irow"><code>' + (rec ? esc(rec) : (r.has_recovery ? '이 기기에 코드가 없어요' : '코드 없음')) + '</code><button type="button" class="edit" id="recNew">' + (rec ? '새 코드' : '코드 받기') + '</button></div>'
       + '<div class="two" style="margin-top:10px"><button type="button" class="btn line small" id="logoutBtn">이 기기 로그아웃</button>' + (me && me.role === 'admin' ? '' : '<button type="button" class="btn line small danger" id="quitBtn">탈퇴하기</button>') + '</div></div>';
   }
   function bindAccount() {
+    const kl = $('#kakaoLink'); if (kl) kl.addEventListener('click', kakaoGo);
     const rn = $('#recNew');
     if (rn) rn.addEventListener('click', async () => {
       if (store.get('recovery', '') && !confirm('새 복구 코드를 만들면 지금 코드는 쓸 수 없어요. 만들까요?')) return;
@@ -1355,13 +1390,14 @@
     const lo = $('#logoutBtn');
     if (lo) lo.addEventListener('click', async () => {
       const rec = store.get('recovery', '');
-      if (!confirm('이 기기에서 로그아웃할까요? 다시 들어오려면 복구 코드가 필요해요.' + (rec ? '' : ' 지금 이 기기에는 복구 코드가 없어요. 먼저 "코드 받기"를 눌러 적어 두세요.'))) return;
+      if (!confirm(me && me.kakao ? '이 기기에서 로그아웃할까요? 카카오로 다시 들어올 수 있어요.' : '이 기기에서 로그아웃할까요? 다시 들어오려면 복구 코드가 필요해요.' + (rec ? '' : ' 지금 이 기기에는 복구 코드가 없어요. 먼저 "코드 받기"를 눌러 적어 두세요.'))) return;
       try { await api('logout'); } catch (e) { if (!(e && (e.code === 'unknown_user' || e.code === 'login'))) { fail(e); return; } }
       forgetDevice(); toast('로그아웃했어요'); render();
     });
     const q = $('#quitBtn');
     if (q) q.addEventListener('click', async () => {
       if (window.prompt('탈퇴하면 내 글과 댓글 내용이 모두 지워지고 되돌릴 수 없어요. 계속하려면 "탈퇴"라고 적어 주세요.') !== '탈퇴') return;
+      if (me && me.kakao && kakaoOn()) { startKakao('leave').catch(e => fail(e)); return; }      // 카카오 연결을 끊으려면 카카오를 한 번 거친다
       try { await api('deleteMe'); forgetDevice(); toast('탈퇴했어요. 그동안 고마웠어요'); go('#/', true); } catch (e) { fail(e); }
     });
   }
@@ -1380,7 +1416,7 @@
     if (seq !== renderSeq) return;
     const STAGE = { raising: '아이를 키워요', expecting: '곧 아빠가 돼요' };
     const urow = u => {
-      const state = u.role === 'admin' ? '관리자' : u.blocked ? '막힘' : u.verified ? '인증(' + ({ invite: '초대', apply: '신청', admin: '관리자', identity: '본인인증' }[u.verified_how] || '') + ')' : '인증 전';
+      const state = u.role === 'admin' ? '관리자' : u.blocked ? '막힘' : u.verified ? '인증(' + ({ invite: '초대', apply: '신청', admin: '관리자', identity: '본인인증', kakao: '카카오' }[u.verified_how] || '') + ')' : '인증 전';
       const acts = u.role !== 'user' ? '' : (u.blocked ? '<button type="button" class="edit" data-u="' + u.id + '" data-a="unblock">풀기</button>'
         : (u.verified ? '<button type="button" class="edit" data-u="' + u.id + '" data-a="unverify">해제</button>' : '<button type="button" class="edit" data-u="' + u.id + '" data-a="verify">인증</button>') + '<button type="button" class="edit" data-u="' + u.id + '" data-a="block">막기</button>')
         + '<button type="button" class="edit" data-u="' + u.id + '" data-a="logout">끊기</button>'
@@ -1477,20 +1513,29 @@
     if (ev.shiftKey && document.activeElement === a) { ev.preventDefault(); z.focus(); }
     else if (!ev.shiftKey && document.activeElement === z) { ev.preventDefault(); a.focus(); }
   });
+  // 글을 쓰다가 로그인이 필요해졌을 때 등: 카카오로 안내하는 시트. 다녀오면 지금 화면으로 돌아온다
+  function openKakaoSheet(after) {
+    showSheet('<div class="sheet" role="dialog" aria-modal="true" aria-label="카카오로 시작하기"><div class="grip"></div><h2>' + (me ? '카카오를 연결해요' : '카카오로 시작해요') + '</h2>'
+      + '<p>' + (me ? '카카오를 연결하면 바로 커뮤니티를 쓸 수 있어요.' : '커뮤니티는 가입한 아빠만 읽고 쓸 수 있어요.') + ' 이메일·전화번호는 받지 않아요.</p><div style="margin-top:16px">' + kakaoBtn('kkGo', me ? '카카오 연결하기' : '카카오로 시작하기') + '</div>'
+      + '<button type="button" class="btn ghost" id="kkNo">둘러보기만 할래요</button></div>', after);
+    $('#kkGo').addEventListener('click', kakaoGo);
+    $('#kkNo').addEventListener('click', () => { invitePrompted = true; closeSheet(); });
+  }
   // 닉네임은 세 칸을 합쳐 만든다(11-05 휴먼쌤 "닉네임에 별명/거주지/자녀연생 끝2자리 입력"). 예: 든든이/청주/24
   const nickNow = () => ($('#nName').value.trim() || '별명') + '/' + ($('#nPlace').value.trim() || '거주지') + '/' + ($('#nYear').value.trim() || '00');
   function openSheet(after, kind) {
-    const rename = kind === 'rename', P = nickParts(rename && me ? me.nick : '');
+    if (kakaoOn() && kind !== 'rename' && kind !== 'kakao') { openKakaoSheet(after); return; }
+    const rename = kind === 'rename', fromKakao = kind === 'kakao', P = nickParts(rename && me ? me.nick : '');
     showSheet('<div class="sheet" role="dialog" aria-modal="true" aria-label="' + (rename ? '닉네임 바꾸기' : '닉네임 정하기') + '"><div class="grip"></div>'
-      + '<h2>' + (rename ? '닉네임 바꾸기' : '육아맨에 온 걸 환영해요 👋') + '</h2>'
-      + '<p>' + (rename ? '일주일에 한 번 바꿀 수 있어요. 지난 글의 이름도 함께 바뀌어요.' : '이메일이나 서류는 받지 않아요.') + '</p>'
+      + '<h2>' + (rename ? '닉네임 바꾸기' : fromKakao ? '닉네임을 정해 주세요 👋' : '육아맨에 온 걸 환영해요 👋') + '</h2>'
+      + '<p>' + (rename ? '일주일에 한 번 바꿀 수 있어요. 지난 글의 이름도 함께 바뀌어요.' : fromKakao ? '글에 이 이름으로 보여요.' : '이메일이나 서류는 받지 않아요.') + '</p>'
       + '<span class="lbl">닉네임</span><div class="nick3">'
       + '<label>별명<input class="inp" id="nName" maxlength="8" placeholder="든든이" autocomplete="off" enterkeyhint="next" value="' + esc(P.name) + '"></label>'
       + '<label>거주지<input class="inp" id="nPlace" maxlength="6" placeholder="청주" autocomplete="off" enterkeyhint="next" value="' + esc(P.place) + '"></label>'
       + '<label>자녀 출생연도<input class="inp" id="nYear" maxlength="2" inputmode="numeric" placeholder="24" autocomplete="off" enterkeyhint="done" value="' + esc(P.year) + '"></label></div>'
       + '<div class="nickshow" id="nickShow"></div>'
       + '<small class="hint">거주지는 시·군까지만 · 출생연도는 끝 2자리(곧 태어나면 예정 연도) · 글에 그대로 보여요</small>'
-      + (rename ? '' : '<label class="lbl" for="invite">초대 코드 (있으면)</label><input class="inp code" id="invite" maxlength="12" placeholder="없으면 비워 두세요" autocomplete="off" autocapitalize="characters" value="' + esc(pendingInvite) + '">'
+      + (rename ? '' : (fromKakao && !pendingInvite ? '' : '<label class="lbl" for="invite">초대 코드 (있으면)</label><input class="inp code" id="invite" maxlength="12" placeholder="없으면 비워 두세요" autocomplete="off" autocapitalize="characters" value="' + esc(pendingInvite) + '">')
         + '<label class="chk"><input type="checkbox" id="agree"> 서로 존중하고, 아이의 이름·얼굴 같은 개인정보는 올리지 않을게요.</label>')
       + '<div class="err" id="nickErr" hidden></div>'
       + '<button type="button" class="btn primary" id="joinBtn">' + (rename ? '바꾸기' : '다음') + '</button>'
@@ -1518,7 +1563,7 @@
     if (!rename && !$('#agree').checked) return say('약속에 체크해 주세요');
     const btn = $('#joinBtn'); btn.disabled = true;
     try {
-      const invite = rename ? '' : ($('#invite').value || '').trim();
+      const inv = $('#invite'), invite = rename || !inv ? '' : (inv.value || '').trim();
       const r = rename ? await api('rename', nick) : await api('join', nick, invite);
       setMe(r.user);
       const f = sheetAfter;
@@ -1597,6 +1642,7 @@
   // 아빠 인증: 초대 코드(바로) · 신청서(운영자 승인). 본인인증을 켜면 본인인증과 초대 코드만
   function openVerify(after) {
     if (!me) { openSheet(after); return; }
+    if (kakaoOn()) { openKakaoSheet(after); return; }
     if (identityOn()) { openIdentity(after); return; }
     let tab = 'code', stage = '';
     const startApply = verifyStartTab === 'apply'; verifyStartTab = 'code';
@@ -1698,7 +1744,18 @@
 
   // ----- 시작 -----
   if (mode === 'local') { const u = local.user(); setMe(u ? pub(u) : null); }
+  // 카카오에서 돌아왔을 때(?code=…&state=… 또는 ?error=…): 주소를 먼저 깨끗이 하고 원래 화면을 그린 뒤 마무리한다
+  const kakaoBack = (function () {
+    const p = new URLSearchParams(location.search), code = p.get('code'), err = p.get('error');
+    if (p.has('identityVerificationId') || (!code && !err)) return null;     // 본인인증 복귀도 code를 쓴다
+    invitePrompted = true;                                                    // 돌아온 순간 카카오 안내 시트가 다시 뜨지 않게
+    const k = store.get('kakaoState', null); store.del('kakaoState');
+    history.replaceState(null, '', location.pathname + ((k && k.back) || '#/'));
+    if (!k || k.state !== p.get('state')) return { bad: !!code };     // 이 기기에서 시작한 로그인이 아니다
+    return err ? {} : { purpose: k.purpose, code };
+  })();
   render();
+  if (kakaoBack) { if (kakaoBack.code) finishKakao(kakaoBack.purpose, kakaoBack.code); else if (kakaoBack.bad) toast(MSG.kakao_bad, 'err'); }
   // 본인인증 화면에서 돌아왔을 때(폰): ?identityVerificationId=…&code=…
   (function () {
     const p = new URLSearchParams(location.search), id = p.get('identityVerificationId');
@@ -1710,6 +1767,6 @@
   // 승인·해제가 다른 기기에서 일어나도 다음에 열 때 맞춘다(화면을 막지 않는다)
   // 읽기 자격이 바뀌었으면 커뮤니티가 보이는 화면을 다시 그린다(잠금 ↔ 글 목록)
   const syncMe = next => { const was = canRead(); setMe(next); if (!!was !== !!canRead() && ['home', 'community', 'post'].includes(parse().name)) render(); };
-  if (me && mode === 'server') api('me').then(r => { syncMe(r.user); if (parse().name !== 'me') setDot(r.new_comments); }).catch(e => { if (e && e.code === 'unknown_user') syncMe(null); });
+  if (me && mode === 'server' && !(kakaoBack && kakaoBack.code)) api('me').then(r => { syncMe(r.user); if (parse().name !== 'me') setDot(r.new_comments); }).catch(e => { if (e && e.code === 'unknown_user') syncMe(null); });
   if ('serviceWorker' in navigator && location.protocol !== 'file:') window.addEventListener('load', () => { navigator.serviceWorker.register('sw.js').catch(() => {}); });
 })();

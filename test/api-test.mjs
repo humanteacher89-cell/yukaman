@@ -1,7 +1,7 @@
 // 육아맨 서버 시험: 내 컴퓨터 미리 보기(deploy.py dev --fresh)에 대고 돌린다. 공개 주소에는 돌리지 않는다.
 //   node test/api-test.mjs [http://127.0.0.1:8799]
 import assert from 'node:assert';
-import http from 'node:http';
+import { startMock } from './mock-kakao.mjs';
 const BASE = (process.argv[2] || 'http://127.0.0.1:8799') + '/api';
 if (!/127\.0\.0\.1|localhost/.test(BASE)) throw new Error('내 컴퓨터 주소에서만 돌립니다');
 let n = 0;
@@ -385,14 +385,7 @@ const K = { male: { status: 'VERIFIED', verifiedCustomer: { name: '시험', gend
   female: { status: 'VERIFIED', verifiedCustomer: { name: '시험', gender: 'FEMALE', birthDate: '1985-03-01', di: 'di-f-' + stamp } },
   teen: { status: 'VERIFIED', verifiedCustomer: { name: '시험', gender: 'MALE', birthDate: new Date().getFullYear() - 10 + '-01-01', di: 'di-t-' + stamp } },
   ready: { status: 'READY' }, cionly: { status: 'VERIFIED', verifiedCustomer: { gender: 'MALE', birthDate: '1990-01-01', ci: 'ci-' + stamp } } };
-const mock = http.createServer((req, res) => {
-  const id = decodeURIComponent(req.url.split('/').pop()).replace('case-', '');
-  const okAuth = req.headers.authorization === 'PortOne test-secret';
-  res.statusCode = okAuth && K[id] ? 200 : 404;
-  res.setHeader('Content-Type', 'application/json');
-  res.end(JSON.stringify(okAuth && K[id] ? K[id] : { message: 'not found' }));
-});
-await new Promise(done => mock.listen(8798, '127.0.0.1', done));
+const mock = await startMock(8798, K);
 const I1 = rnd(), I2 = rnd();
 r = await call('POST', '/join', I1, { nick: N('본인' + stamp) });
 ok(r.data.ok && r.data.user.verified === false, '본인인증 전 가입');
@@ -417,6 +410,68 @@ r = await call('POST', '/verify/identity', I2, { id: 'case-dup' });
 ok(r.status === 409 && r.data.error === 'identity_dup', '같은 사람의 두 번째 계정 막기');
 r = await call('POST', '/verify/identity', I2, { id: 'case-cionly' });
 ok(r.data.ok && r.data.user.verified === true, 'DI가 없으면 CI로');
-mock.close();
+
+// 카카오 로그인: 가짜 카카오(같은 8798). 처음이면 닉네임, 있던 회원이면 이 기기로, 탈퇴하면 연결도 끊는다
+const RED = BASE.replace(/\/api$/, '') + '/';
+const KA = rnd(), KB = rnd(), KC = rnd();
+r = await call('GET', '/login/kakao/start');
+ok(r.data.ok && r.data.url.includes('/oauth/authorize') && r.data.url.includes('client_id=test-key'), '동의 화면 주소');
+r = await call('POST', '/login/kakao', null, { code: 'k1', redirect_uri: RED });
+ok(r.status === 401, '기기 토큰 없으면 거절');
+r = await call('POST', '/login/kakao', KA, { code: 'nope', redirect_uri: RED });
+ok(r.data.error === 'kakao_bad', '카카오가 거절한 코드');
+r = await call('POST', '/login/kakao', KA, { code: 'k1', redirect_uri: 'https://evil.example/' });
+ok(r.data.error === 'kakao_bad', '다른 주소로 돌아가는 요청 거절');
+r = await call('POST', '/login/kakao', KA, { code: 'k1', redirect_uri: RED });
+ok(r.data.ok && r.data.need_nick === true && !r.data.user, '처음이면 닉네임 먼저');
+r = await call('GET', '/me', KA);
+ok(r.status === 401, '닉네임 전에는 계정 없음');
+r = await call('POST', '/join', KA, { nick: '잘못된꼴' });
+ok(r.data.error === 'nick_form', '카카오 뒤에도 닉네임 꼴 검사');
+r = await call('POST', '/join', KA, { nick: N('카카오' + stamp) });
+ok(r.data.ok && r.data.user.verified === true && r.data.user.how === 'kakao' && r.data.user.kakao === true && !r.data.recovery, '카카오 + 닉네임이면 바로 인증, 복구 코드 없음');
+r = await call('GET', '/posts?limit=1', KA);
+ok(r.status === 200, '가입 뒤 커뮤니티 읽기');
+r = await call('POST', '/login/kakao', KB, { code: 'k1', redirect_uri: RED });
+ok(r.data.ok && !r.data.need_nick && r.data.user.nick === N('카카오' + stamp), '새 기기는 같은 계정으로');
+r = await call('GET', '/me', KA);
+ok(r.status === 401, '새 기기로 옮기면 이전 기기는 끊김');
+r = await call('POST', '/login/kakao', KB, { code: 'k2', redirect_uri: RED });
+ok(r.status === 409 && r.data.error === 'kakao_taken', '다른 카카오 계정은 이 기기에 못 붙임');
+r = await call('POST', '/login/kakao', KB, { code: 'k1', redirect_uri: RED });
+ok(r.data.ok && r.data.user.kakao === true, '같은 기기 다시 로그인');
+// 카카오 없이 가입한 계정 잇기(앞에서 만든 인증 전 G)
+r = await call('POST', '/login/kakao', G, { code: 'k3', redirect_uri: RED });
+ok(r.data.ok && r.data.linked === true && r.data.user.verified === true && r.data.user.how === 'kakao', '옛 계정에 카카오 잇기');
+r = await call('POST', '/login/kakao', KC, { code: 'k3', redirect_uri: RED });
+ok(r.data.ok && r.data.user.kakao === true, '이은 계정은 새 기기에서 카카오로 복귀');
+// 막힌 회원은 카카오로 다시 와도 막혀 있다
+const gid = r.data.user.id;
+r = await call('POST', '/admin/user', ADMIN, { user_id: gid, action: 'block' });
+ok(r.data.ok, '막기');
+r = await call('POST', '/login/kakao', rnd(), { code: 'k3', redirect_uri: RED });
+ok(r.data.ok && r.data.user.blocked === true && r.data.user.verified === false, '막힌 회원은 다시 와도 막힘');
+// 탈퇴: 카카오를 거쳐야 하고, 연결을 끊고, 다시 오면 새 가입이다
+r = await call('DELETE', '/me', KB, { confirm: true });
+ok(r.data.error === 'kakao_leave', '카카오 회원은 그냥 탈퇴 안 됨');
+r = await call('POST', '/me/leave-kakao', KB, { code: 'k4', redirect_uri: RED });
+ok(r.status === 403 && r.data.error === 'kakao_mismatch', '다른 카카오 계정으로 탈퇴 안 됨');
+r = await call('POST', '/me/leave-kakao', KB, { code: 'k1', redirect_uri: RED });
+ok(r.data.ok && mock.unlinked.includes(1001), '탈퇴하면 카카오 연결도 끊김');
+r = await call('GET', '/me', KB);
+ok(r.status === 401, '탈퇴 뒤 계정 없음');
+r = await call('POST', '/login/kakao', rnd(), { code: 'k1', redirect_uri: RED });
+ok(r.data.need_nick === true, '탈퇴 뒤 다시 오면 새 가입');
+// 같은 카카오로 두 기기에서 동시에 처음 가입: 먼저 마친 쪽만, 뒤의 기기는 안내 뒤 카카오로 같은 계정에
+const KD = rnd(), KE = rnd();
+await call('POST', '/login/kakao', KD, { code: 'k2', redirect_uri: RED });
+await call('POST', '/login/kakao', KE, { code: 'k2', redirect_uri: RED });
+r = await call('POST', '/join', KD, { nick: N('먼저' + stamp) });
+ok(r.data.ok && r.data.user.kakao === true, '먼저 마친 기기 가입');
+r = await call('POST', '/join', KE, { nick: N('나중' + stamp) });
+ok(r.status === 409 && r.data.error === 'kakao_used', '같은 카카오로 두 번 가입 안 됨');
+r = await call('POST', '/login/kakao', KE, { code: 'k2', redirect_uri: RED });
+ok(r.data.ok && r.data.user.nick === N('먼저' + stamp), '뒤의 기기는 카카오로 같은 계정에');
+mock.server.close();
 
 console.log('통과', n, '건');

@@ -17,7 +17,15 @@ CREATE TABLE IF NOT EXISTS users (
   invited_by   INTEGER,                        -- 초대한 사람(문제가 생기면 초대 줄기를 본다)
   blocked      INTEGER NOT NULL DEFAULT 0,     -- 1 = 인증 취소하고 다시 신청 못 함
   comments_seen TEXT,                          -- 내 글의 새 댓글을 마지막으로 본 시각(MY 배지, 검수 22). 기존 표에는 MIGRATIONS로 더함
-  identity_hash TEXT                           -- SHA-256('id|' + 본인인증 DI 또는 CI). 1인 1계정 확인용, 이름·전화번호는 저장하지 않는다(11-05). 기존 표에는 MIGRATIONS로 더함. 색인도 MIGRATIONS에
+  identity_hash TEXT,                          -- SHA-256('id|' + 본인인증 DI 또는 CI). 1인 1계정 확인용, 이름·전화번호는 저장하지 않는다(11-05). 기존 표에는 MIGRATIONS로 더함. 색인도 MIGRATIONS에
+  kakao_hash   TEXT                            -- SHA-256('kakao|' + 카카오 회원번호). 프로필·이메일·전화번호는 받지 않는다(11-05). 기존 표에는 MIGRATIONS로 더함. 색인도 MIGRATIONS에
+);
+
+-- 카카오를 마치고 닉네임을 정하기 전의 기기(30분). 가입하면 줄을 지운다
+CREATE TABLE IF NOT EXISTS kakao_pending (
+  token_hash TEXT PRIMARY KEY,
+  kakao_hash TEXT NOT NULL,
+  created    TEXT NOT NULL
 );
 
 -- 초대 코드: 인증 아빠가 만들어 다른 아빠에게 준다. kind = dad(아빠 인증) · admin(첫 관리자, 한 번 쓰면 끝)

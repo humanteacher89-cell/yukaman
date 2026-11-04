@@ -307,6 +307,10 @@ button.notice.vcta { display: flex; width: 100%; text-align: left; font: inherit
 .hsmore span { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: var(--ink); color: var(--bg); font-size: 19px; line-height: 1; font-weight: 800; padding-bottom: 2px; animation: hsnudge 1.2s ease-in-out 2; }
 @keyframes hsnudge { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(3px); } }
 @media (prefers-reduced-motion: reduce) { .hsmore span { animation: none; } }
+/* 카카오 단추(카카오 디자인 가이드 색) */
+.btn.kakao { display: flex; align-items: center; justify-content: center; gap: 8px; background: #FEE500; color: rgba(0,0,0,.85); }
+.btn.kakao svg { flex: none; width: 20px; height: 20px; fill: #000; }
+.btn.kakao:disabled { opacity: .6; }
 /* 닉네임 세 칸(11-05 휴먼쌤) */
 .nick3 { display: grid; grid-template-columns: 1.25fr 1fr .95fr; gap: 8px; }
 .nick3 label { display: block; min-width: 0; font-size: 12.5px; font-weight: 800; color: var(--sub); }

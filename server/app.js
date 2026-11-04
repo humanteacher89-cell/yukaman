@@ -31,6 +31,9 @@
 //  POST   /api/qna {kind, ref, text}           질문하기(kind=question) · 가이드 글 제보(kind=fix, ref=글 번호). 누구나, 기기 주소당 하루 5건. 관리자 화면에 쌓인다
 //  POST   /api/admin/qna {id, action, question, answer}  관리자: answer(답을 올려 공개) · delete(지움)
 //  POST   /api/verify/identity {id}            본인인증(포트원 조회 결과로 만 19세 이상 남성 확인, 1인 1계정). PORTONE_API_SECRET이 없으면 identity_off
+//  GET    /api/login/kakao/start               카카오 동의 화면 주소(화면이 redirect_uri와 state를 붙여 이동). KAKAO_REST_KEY가 없으면 kakao_off
+//  POST   /api/login/kakao {code, redirect_uri}  카카오 로그인: 있던 회원이면 이 기기를 그 계정에 붙이고, 처음이면 need_nick(이어서 /join으로 닉네임). 인증 전 계정이면 카카오를 연결해 인증
+//  POST   /api/me/leave-kakao {code, redirect_uri}  카카오 회원 탈퇴: 같은 카카오 계정인지 확인하고 연결을 끊은 뒤 지운다(카카오 정책)
 //  GET    /api/health                          살아 있나
 // 저장하는 개인정보: 닉네임 · 기기 토큰 해시 · 복구 코드 해시 · 쓴 글·댓글 · 대기 중인 신청 답변(결정 뒤 지움) · 누가 초대했는지 · 마지막 접속 시각.
 //   횟수 제한용 기기 주소(IP)는 해시 16자로 짧게(가입·코드·복구 시도에만, 이틀 안에 지움). 지운 글·댓글은 내용을 비우고 시각만 남긴다. 탈퇴하면 계정 줄을 지운다.
@@ -41,7 +44,7 @@ const STAGES = ['raising', 'expecting'];
 const LIM = { title: [2, 60], body: [1, 3000], comment: [1, 1000], answer: [20, 500], ask: [5, 300], qa: [2, 1000], list: 20, listMax: 50 };
 const RATE = {                                        // [횟수, 기간 ms]
   join: [20, 600000], post: [10, 3600000], comment: [60, 3600000], nick: [1, 7 * 86400000],   // 닉네임은 7일에 1번(사칭 방어, 검수 16)
-  code: [10, 600000], apply: [3, 86400000], invite: [10, 86400000], recover: [10, 600000], report: [10, 86400000], ask: [5, 86400000], identity: [10, 600000]
+  code: [10, 600000], apply: [3, 86400000], invite: [10, 86400000], recover: [10, 600000], report: [10, 86400000], ask: [5, 86400000], identity: [10, 600000], kakao: [30, 600000]
 };
 const INVITE_MAX = 3;                                 // 인증 아빠 한 사람이 만들 수 있는 초대 코드
 // 운영진처럼 보이는 이름 막기(검수 16). 띄어쓰기·특수문자를 지우고 닮은 글자(0→o, 1→i, 3→e, 5→s)를 접은 뒤 본다.
@@ -99,6 +102,9 @@ export async function handleApi(request, env) {
     if (seg[0] === 'comments' && isId(seg[1]) && !seg[2] && m === 'DELETE') return deleteComment(request, env, +seg[1]);
     if (seg[0] === 'reports' && !seg[1] && m === 'POST') return report(request, env);
     if (seg[0] === 'me' && seg[1] === 'seen' && !seg[2] && m === 'POST') return seenComments(request, env);
+    if (seg[0] === 'login' && seg[1] === 'kakao' && seg[2] === 'start' && !seg[3] && m === 'GET') return kakaoStart(env);
+    if (seg[0] === 'login' && seg[1] === 'kakao' && !seg[2] && m === 'POST') return kakaoLogin(request, env);
+    if (seg[0] === 'me' && seg[1] === 'leave-kakao' && !seg[2] && m === 'POST') return kakaoLeave(request, env);
     if (seg[0] === 'join' && !seg[1] && m === 'POST') return join(request, env);
     if (seg[0] === 'recover' && !seg[1] && m === 'POST') return recover(request, env);
     if (seg[0] === 'recovery' && seg[1] === 'new' && !seg[2] && m === 'POST') return recoveryNew(request, env);
@@ -127,7 +133,7 @@ function bearer(request) {
   return h.startsWith('Bearer ') ? h.slice(7).trim() : '';
 }
 
-const USER_COLS = 'id, nick, created, role, verified, verified_how, blocked, recovery_hash, comments_seen';
+const USER_COLS = 'id, nick, created, role, verified, verified_how, blocked, recovery_hash, comments_seen, kakao_hash';
 async function auth(request, db) {
   const token = bearer(request);
   if (!tokenOk(token)) return { err: no('login', 401) };
@@ -167,7 +173,7 @@ const ipKey = async request => 'ip:' + (await sha256('ip|' + (request.headers.ge
 const BADGE = "CASE WHEN u.role = 'official' THEN 'official' WHEN u.role = 'admin' THEN 'admin' WHEN u.verified = 1 THEN 'dad' ELSE '' END AS badge";
 const badgeOf = u => (u.role === 'official' ? 'official' : u.role === 'admin' ? 'admin' : u.verified === 1 ? 'dad' : '');
 const rowPost = r => ({ id: r.id, cat: r.cat, age: r.age || '', title: r.title, preview: r.preview, created: r.created, comments: r.comment_count, nick: r.nick, uid: r.uid, badge: r.badge || '' });
-const pubUser = u => ({ id: u.id, nick: u.nick, created: u.created, verified: u.verified === 1 && !u.blocked, role: u.role, how: u.verified_how || '', blocked: !!u.blocked });
+const pubUser = u => ({ id: u.id, nick: u.nick, created: u.created, verified: u.verified === 1 && !u.blocked, role: u.role, how: u.verified_how || '', blocked: !!u.blocked, kakao: !!u.kakao_hash });
 
 // ----- 글 -----
 async function listPosts(request, env, sp) {
@@ -460,6 +466,86 @@ async function verifyIdentity(request, env) {
   return json({ ok: true, user: pubUser(u) });
 }
 
+// 카카오 로그인(11-05 휴먼쌤 "카카오로 바꿔줘"). 사업자 없이 쓸 수 있다. 저장은 회원번호의 해시뿐이고 프로필·이메일·전화번호와 카카오 토큰은 저장하지 않는다.
+// 키는 wrangler.toml [vars] KAKAO_REST_KEY, 비밀 코드는 wrangler pages secret KAKAO_CLIENT_SECRET(카카오 기본값이 켜짐이라 토큰 요청에 넣는다).
+const kakaoAuthBase = env => env.KAKAO_AUTH_BASE || 'https://kauth.kakao.com';
+const kakaoApiBase = env => env.KAKAO_API_BASE || 'https://kapi.kakao.com';
+const KAKAO_PENDING_MS = 30 * 60000;      // 카카오를 마치고 닉네임을 정할 때까지 기다리는 시간
+
+function kakaoStart(env) {
+  if (!env.KAKAO_REST_KEY) return no('kakao_off', 503);
+  return json({ ok: true, url: kakaoAuthBase(env) + '/oauth/authorize?response_type=code&client_id=' + encodeURIComponent(env.KAKAO_REST_KEY) });
+}
+// 인가 코드 → 토큰 → 회원번호. 다른 앱의 코드는 client_id가 달라 카카오가 거절한다. redirect_uri는 이 서버 주소만 받는다
+async function kakaoIdentify(request, env, b) {
+  const code = str(b && b.code, 600), redirect = str(b && b.redirect_uri, 300);
+  let same = false;
+  try { same = new URL(redirect).origin === new URL(request.url).origin; } catch (e) { same = false; }
+  if (!code || !same) return { err: no('kakao_bad') };
+  try {
+    const form = new URLSearchParams({ grant_type: 'authorization_code', client_id: env.KAKAO_REST_KEY, redirect_uri: redirect, code });
+    if (env.KAKAO_CLIENT_SECRET) form.set('client_secret', env.KAKAO_CLIENT_SECRET);
+    const t = await fetch(kakaoAuthBase(env) + '/oauth/token', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=utf-8' }, body: form.toString() });
+    if (!t.ok) { console.error('kakao token', t.status); return { err: no('kakao_bad') }; }
+    const token = (await t.json()).access_token;
+    if (!token) return { err: no('kakao_bad') };
+    const u = await fetch(kakaoApiBase(env) + '/v2/user/me', { headers: { Authorization: 'Bearer ' + token } });
+    if (!u.ok) { console.error('kakao me', u.status); return { err: no('kakao_bad') }; }
+    const id = (await u.json()).id;
+    if (!id) return { err: no('kakao_bad') };
+    return { token, hash: await sha256('kakao|' + id) };
+  } catch (e) { console.error('kakao', e && e.message); return { err: no('kakao_bad', 502) }; }
+}
+async function kakaoLogin(request, env) {
+  if (!env.KAKAO_REST_KEY) return no('kakao_off', 503);
+  const db = env.DB, token = bearer(request);
+  if (!tokenOk(token)) return no('login', 401);
+  if (!(await allow(db, await ipKey(request), 'kakao'))) return no('limit', 429);
+  const k = await kakaoIdentify(request, env, await readJson(request));
+  if (k.err) return k.err;
+  const hash = await sha256('tok|' + token), at = nowIso();
+  const owner = await db.prepare('SELECT ' + USER_COLS + ' FROM users WHERE kakao_hash = ?1').bind(k.hash).first();
+  const here = await db.prepare('SELECT ' + USER_COLS + ' FROM users WHERE token_hash = ?1').bind(hash).first();
+  if (owner) {
+    if (here && here.id !== owner.id) return no('kakao_taken', 409);
+    await db.prepare('UPDATE users SET token_hash = ?1, last_seen = ?2 WHERE id = ?3').bind(hash, at, owner.id).run();   // 새 기기면 이 기기로 옮긴다(이전 기기는 끊김)
+    return json({ ok: true, user: pubUser(owner) });
+  }
+  if (here) {                    // 카카오 없이 가입한 계정: 카카오를 이어 붙이고 인증한다
+    if (here.kakao_hash) return no('kakao_taken', 409);
+    if (here.blocked) return no('blocked', 403);
+    await db.batch([
+      db.prepare("UPDATE users SET kakao_hash = ?1, verified = 1, verified_how = CASE WHEN verified = 1 THEN verified_how ELSE 'kakao' END, verified_at = COALESCE(verified_at, ?2) WHERE id = ?3").bind(k.hash, at, here.id),
+      db.prepare("UPDATE applications SET status = 'approved', answer = '', decided_at = ?1 WHERE user_id = ?2 AND status = 'pending'").bind(at, here.id)
+    ]);
+    const u = await db.prepare('SELECT ' + USER_COLS + ' FROM users WHERE id = ?1').bind(here.id).first();
+    return json({ ok: true, user: pubUser(u), linked: true });
+  }
+  // 처음 온 사람: 닉네임을 받을 때까지 이 기기와 묶어 둔다
+  await db.batch([
+    db.prepare('DELETE FROM kakao_pending WHERE created < ?1').bind(new Date(Date.now() - KAKAO_PENDING_MS).toISOString()),
+    db.prepare('INSERT OR REPLACE INTO kakao_pending (token_hash, kakao_hash, created) VALUES (?1, ?2, ?3)').bind(hash, k.hash, at)
+  ]);
+  return json({ ok: true, need_nick: true });
+}
+// 탈퇴: 카카오 정책상 연결도 끊어야 한다. 회원번호를 저장하지 않으므로 다시 로그인해서 받은 토큰으로 끊는다. 막힌 계정은 내용만 지우고 재가입을 막도록 줄을 남긴다
+async function kakaoLeave(request, env) {
+  if (!env.KAKAO_REST_KEY) return no('kakao_off', 503);
+  const a = await auth(request, env.DB);
+  if (a.err) return a.err;
+  if (a.user.role !== 'user' || !a.user.kakao_hash) return no('forbidden', 403);
+  if (!(await allow(env.DB, await ipKey(request), 'kakao'))) return no('limit', 429);
+  const k = await kakaoIdentify(request, env, await readJson(request));
+  if (k.err) return k.err;
+  if (k.hash !== a.user.kakao_hash) return no('kakao_mismatch', 403);
+  try {
+    const r = await fetch(kakaoApiBase(env) + '/v1/user/unlink', { method: 'POST', headers: { Authorization: 'Bearer ' + k.token } });
+    if (!r.ok) { console.error('kakao unlink', r.status); return no('kakao_bad', 502); }
+  } catch (e) { return no('kakao_bad', 502); }
+  await eraseUser(env.DB, a.user.id, !!a.user.blocked);
+  return json({ ok: true });
+}
+
 const ALPHA = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';       // 헷갈리는 글자(I·O·0·1) 뺌
 function newCode() {
   const a = new Uint8Array(8);
@@ -526,11 +612,19 @@ async function join(request, env) {
   const ip = await ipKey(request);
   if (!(await allow(db, ip, 'join'))) return no('limit', 429);
   const created = nowIso();
+  // 카카오를 마치고 온 기기면 바로 인증(11-05 휴먼쌤). 복구 코드는 필요 없다(카카오로 다시 들어오면 된다)
+  const pend = await db.prepare('SELECT kakao_hash FROM kakao_pending WHERE token_hash = ?1 AND created >= ?2').bind(hash, new Date(Date.now() - KAKAO_PENDING_MS).toISOString()).first();
+  if (pend && await db.prepare('SELECT 1 AS x FROM users WHERE kakao_hash = ?1').bind(pend.kakao_hash).first()) {   // 같은 카카오로 다른 기기에서 먼저 가입을 마쳤다
+    await db.prepare('DELETE FROM kakao_pending WHERE token_hash = ?1').bind(hash).run();
+    return no('kakao_used', 409);
+  }
   let uid;
   try {
-    const r = await db.prepare('INSERT INTO users (nick, nick_key, token_hash, created, last_seen) VALUES (?1, ?2, ?3, ?4, ?4)')
-      .bind(nick, nickKey(nick), hash, created).run();
+    const r = await (pend
+      ? db.prepare("INSERT INTO users (nick, nick_key, token_hash, created, last_seen, kakao_hash, verified, verified_how, verified_at) VALUES (?1, ?2, ?3, ?4, ?4, ?5, 1, 'kakao', ?4)").bind(nick, nickKey(nick), hash, created, pend.kakao_hash)
+      : db.prepare('INSERT INTO users (nick, nick_key, token_hash, created, last_seen) VALUES (?1, ?2, ?3, ?4, ?4)').bind(nick, nickKey(nick), hash, created)).run();
     uid = r.meta && r.meta.last_row_id;
+    if (pend) await db.prepare('DELETE FROM kakao_pending WHERE token_hash = ?1').bind(hash).run();
   } catch (e) {
     if (/UNIQUE/i.test(String(e && e.message))) return no('nick_taken', 409);
     throw e;
@@ -542,7 +636,7 @@ async function join(request, env) {
       inviteError = res.error || '';
     } else inviteError = 'limit';
   }
-  const recovery = await setRecovery(db, uid);
+  const recovery = pend ? undefined : await setRecovery(db, uid);
   const u = await db.prepare('SELECT ' + USER_COLS + ' FROM users WHERE id = ?1').bind(uid).first();
   return json({ ok: true, user: pubUser(u), invite_error: inviteError, recovery });
 }
@@ -583,14 +677,9 @@ async function logout(request, env) {
 }
 
 // 탈퇴: 글·댓글 내용을 비우고(지운 표시), 내 글에 달린 남의 댓글도 글과 함께 사라지니 비운다. 안 쓴 초대 코드는 막고, 신청서·횟수 기록·계정 줄을 지운다.
-async function deleteMe(request, env) {
-  const a = await auth(request, env.DB);
-  if (a.err) return a.err;
-  if (a.user.role !== 'user') return no('forbidden', 403);          // 관리자는 먼저 넘겨 주고, 자료실 계정은 로그인이 없다
-  const b = await readJson(request);
-  if (!b || b.confirm !== true) return no('bad_json');
-  const db = env.DB, uid = a.user.id, at = nowIso();
-  await db.batch([
+function eraseUser(db, uid, keepRow) {
+  const at = nowIso();
+  return db.batch([
     db.prepare("UPDATE comments SET body = '', deleted = COALESCE(deleted, ?1) WHERE user_id = ?2").bind(at, uid),
     db.prepare('UPDATE posts SET comment_count = (SELECT COUNT(*) FROM comments c WHERE c.post_id = posts.id AND c.deleted IS NULL) '
       + 'WHERE id IN (SELECT post_id FROM comments WHERE user_id = ?1)').bind(uid),
@@ -599,8 +688,17 @@ async function deleteMe(request, env) {
     db.prepare('UPDATE invites SET revoked = 1 WHERE owner_id = ?1 AND used_by IS NULL').bind(uid),
     db.prepare('DELETE FROM applications WHERE user_id = ?1').bind(uid),
     db.prepare('DELETE FROM acts WHERE who = ?1').bind('u:' + uid),
-    db.prepare('DELETE FROM users WHERE id = ?1').bind(uid)
+    keepRow ? db.prepare('UPDATE users SET token_hash = ?1 WHERE id = ?2').bind(offToken(uid), uid) : db.prepare('DELETE FROM users WHERE id = ?1').bind(uid)
   ]);
+}
+async function deleteMe(request, env) {
+  const a = await auth(request, env.DB);
+  if (a.err) return a.err;
+  if (a.user.role !== 'user') return no('forbidden', 403);          // 관리자는 먼저 넘겨 주고, 자료실 계정은 로그인이 없다
+  if (a.user.kakao_hash && env.KAKAO_REST_KEY) return no('kakao_leave');   // 카카오로 들어온 사람은 카카오 연결도 끊어야 한다(/api/me/leave-kakao)
+  const b = await readJson(request);
+  if (!b || b.confirm !== true) return no('bad_json');
+  await eraseUser(env.DB, a.user.id);
   return json({ ok: true });
 }
 
