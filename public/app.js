@@ -95,7 +95,7 @@
     const pref = store.get('theme', 'auto');
     const dark = pref === 'dark' || (pref === 'auto' && window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches);
     document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
-    const m = document.querySelector('meta[name=theme-color]'); if (m) m.setAttribute('content', dark ? '#1A1512' : '#FBF6F0');
+    const m = document.querySelector('meta[name=theme-color]'); if (m) m.setAttribute('content', dark ? '#141A26' : '#FFFBF0');
   }
   applyTheme();
   if (window.matchMedia) { const q = matchMedia('(prefers-color-scheme: dark)'); if (q.addEventListener) q.addEventListener('change', applyTheme); }
@@ -402,7 +402,25 @@
   const agesRow = cur => '<div class="ages" id="ages" role="group" aria-label="아이 나이">' + AGES.map(x => '<button type="button" class="chip' + (x.key === cur ? ' on' : '') + '" data-age="' + x.key + '" aria-pressed="' + (x.key === cur) + '">' + esc(x.name) + '</button>').join('') + '</div>';
   function kidCard() {
     const line = kidLine();
-    return '<a class="kid" href="#/calc/dates"><span class="tx"><small>우리 아이</small><b>' + (line ? esc(line) : '생일이나 예정일을 넣으면 기한을 D-데이로 보여 드려요') + '</b></span><span class="edit">' + (line ? '날짜 고치기' : '날짜 넣기') + '</span></a>';
+    return '<div class="kid"><span class="tx"><small>우리 아이</small><b>' + (line ? esc(line) : '생일이나 예정일을 넣으면 기한을 D-데이로 보여 드려요') + '</b></span><button type="button" class="edit" id="kidEdit">' + (line ? '날짜 고치기' : '날짜 넣기') + '</button></div>';
+  }
+  // 날짜만 고치는 시트(11-04 휴먼쌤 "계산기로 이동해서 불편해"). 계산기 '내 아이 날짜'와 같은 값(calcS)을 쓴다. 날짜를 바꾸면 손으로 고른 나이 칸은 풀고 날짜를 따른다
+  function openKidDates() {
+    const k = kidDates();
+    showSheet('<div class="sheet" role="dialog" aria-modal="true" aria-label="우리 아이 날짜"><div class="grip"></div><h2>우리 아이 날짜</h2><p>둘 중 하나만 넣어도 돼요. 이 기기에만 저장하고 서버로 보내지 않아요.</p>'
+      + '<div class="two" style="margin-top:14px">' + dateField('kBirth', '태어난 날', k.birth) + dateField('kDue', '출산 예정일', k.due) + '</div>'
+      + '<div class="err" id="kErr" hidden></div>'
+      + '<button type="button" class="btn primary" id="kSave">저장</button>'
+      + (k.birth || k.due ? '<button type="button" class="btn line" id="kClear">날짜 지우기</button>' : '')
+      + '<button type="button" class="btn ghost" id="kCancel">취소</button></div>');
+    const done = msg => { saveCalc(); store.del('age'); closeSheet(); toast(msg); render(); };
+    $('#kSave').addEventListener('click', () => {
+      const b = $('#kBirth').value, due = $('#kDue').value, err = $('#kErr');
+      if (b && b > todayStr()) { err.hidden = false; err.textContent = '태어난 날이 오늘보다 뒤예요. 아직 태어나지 않았다면 출산 예정일 칸에 넣어 주세요'; return; }
+      calcS.birth = b; calcS.due = due; done('날짜를 저장했어요');
+    });
+    const c = $('#kClear'); if (c) c.addEventListener('click', () => { calcS.birth = ''; calcS.due = ''; done('날짜를 지웠어요'); });
+    $('#kCancel').addEventListener('click', closeSheet);
   }
   // 나이마다 지금 챙길 것, 순서대로. by = 마지막 날(날짜를 넣었을 때), from = 시작할 수 있는 날, lab = 날짜가 없을 때의 기준. 근거는 각 가이드 글에
   function tlItems(key, d) {
@@ -457,22 +475,9 @@
     }).join('') + '</div>';
   }
   function bindHomeAge() {
+    const e = $('#kidEdit'); if (e) e.addEventListener('click', openKidDates);
     const box = $('#ages'); if (!box) return;
     box.addEventListener('click', ev => { const b = ev.target.closest('[data-age]'); if (!b) return; store.set('age', store.get('age', '') === b.dataset.age ? '' : b.dataset.age); renderHome(); });
-  }
-  // 첫 방문 '홈 화면에 추가' 안내(검수 19). 닫으면 다시 안 뜬다
-  function installBanner() {
-    const standalone = (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || navigator.standalone;
-    const coarse = window.matchMedia && matchMedia('(pointer: coarse)').matches;
-    if (standalone || !coarse || store.get('installDone')) return '';
-    const ios = /iPhone|iPad|iPod/.test(navigator.userAgent);
-    const SHARE = '<svg class="ishare" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V4m0 0L8 8m4-4 4 4M6 11H5v9h14v-9h-1" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-    return '<div class="install" id="installBanner"><span class="logo">' + LOGO + '</span><div class="tx"><b>홈 화면에 추가하면 앱처럼 열려요</b><small>' + (ios ? '사파리 아래 ' + SHARE + ' 공유 단추 → "홈 화면에 추가". 카카오톡 안에서 열었으면 사파리로 먼저 여세요.' : '앱스토어 없이 설치돼요.') + '</small></div>'
-      + (ios ? '' : '<button type="button" class="inbtn" id="installBtn">추가</button>') + '<button type="button" class="ix" id="installX" aria-label="안내 닫기">✕</button></div>';
-  }
-  function bindInstallBanner() {
-    const x = $('#installX'); if (x) x.addEventListener('click', () => { store.set('installDone', true); const b = $('#installBanner'); if (b) b.remove(); });
-    bindInstall();
   }
   // 커뮤니티가 비어 있을 때: 솔직하게 모집 중이라고 말한다(검수 15)
   const emptyCommunity = () => '<div class="lockbox recruit"><div class="lk">👋</div><h2>첫 아빠들을 모으고 있어요</h2><p>아직 아빠들의 글이 많지 않아요. 지금 쓰는 글이 다음 아빠의 첫 답이 돼요. 아는 아빠에게 초대 코드를 보내 함께 시작해 주세요.</p>'
@@ -486,7 +491,6 @@
     const picks = a ? a.ids.map(id => GD.items.find(g => g.id === id)).filter(Boolean) : GD.items.filter(g => g.home).slice(0, 3);
     view.innerHTML = '<section class="pad">'
       + (mode === 'local' ? mockBadge() : '')
-      + installBanner()
       + agesRow(key)
       + kidCard()
       + '<div class="sec"><h2>' + (a ? esc(a.name) + ', 지금 챙길 것' : '지금 챙길 것, 순서대로') + '</h2>' + (a ? '<span>순서대로</span>' : '') + '</div>'
@@ -499,7 +503,7 @@
       + '<p class="foot-note">사진·영상 없이 줄글로 · 인증한 아빠끼리<br><a href="#/terms">이용약관</a> · <a href="#/privacy">개인정보 처리방침</a></p>'
       + '</section>';
     window.scrollTo(0, 0);
-    bindCalcCard(); bindHomeAge(); bindInstallBanner();
+    bindCalcCard(); bindHomeAge();
     let posts = [], err = null, locked = !canRead(), peers = false;
     if (!locked) {
       try {

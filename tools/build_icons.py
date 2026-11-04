@@ -6,7 +6,7 @@ import json, os, shutil, subprocess, sys, tempfile
 HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT = os.path.join(HERE, 'public', 'icons')
 P = json.load(open(os.path.join(HERE, 'tools', 'logo-paths.json'), encoding='utf-8'))
-BG, INK, SUB = '#FBF6F0', '#2B2118', '#6B5F55'      # 색감 3(토마토와 먹색)의 바탕·글자색
+BG, INK, SUB = '#FFFBF0', '#1B1F2A', '#5F6675'      # 색감 4(버터와 하늘)의 바탕·글자색
 
 
 def chrome():
