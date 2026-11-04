@@ -21,6 +21,7 @@
     w24reduce: { t: '고용24 육아기 근로시간 단축 모의계산', u: 'https://m.work24.go.kr/cm/c/f/1100/selecSimulate13.do?systClId=SC00000252&systId=SI00000397&systCnntId=CI00001582' },
     moel3: { t: '고용노동부 2026-09-17 배우자 지원 3종 세트 보도자료', u: 'https://www.moel.go.kr/news/enews/report/enewsView.do?news_seq=19964' },
     moelDec: { t: '고용노동부 2026-08-11 시행령 개정 보도자료', u: 'https://www.moel.go.kr/news/enews/report/enewsView.do?news_seq=19768' },
+    moelNov: { t: '고용노동부 2026-11-03 시행령 개정 보도자료', u: 'https://www.moel.go.kr/news/enews/report/enewsView.do?news_seq=20188' },
     korea2026: { t: '정책브리핑 2026 일·가정양립 지원제도', u: 'https://www.korea.kr/news/policyNewsView.do?newsId=148958223' },
     korea10: { t: '정책브리핑 새해 육아기 10시 출근 지원', u: 'https://www.korea.kr/news/policyNewsView.do?newsId=148957375' },
     moel66: { t: '고용노동부 상담 답변: 6+6 적용 기준', u: 'https://www.moel.go.kr/minwon/fastcounsel/fastcounselView.do?inetDcssMngId=202501080525450040945' },
@@ -322,12 +323,12 @@
         body: [
           { ul: ['만 12세 이하 또는 초등학교 6학년 이하 자녀를 키우면 신청할 수 있어요.', '단축 후 근로시간은 주 15시간 이상 35시간 이하예요.', '기간은 1년 안에서, 육아휴직을 안 쓴 기간이 있으면 그 두 배를 더해요.', '1개월 이상씩 나눠 쓸 수 있어요.'] },
           { h: '회사가 거부할 수 있는 경우' },
-          { p: '2026년 9월 18일 신청분부터 "대체인력을 못 구한 경우"가 빠졌어요. 남은 것은 근속 6개월 미만, 업무 성격상 나누기 어렵거나 정상 운영에 큰 지장이 있음을 회사가 증명한 경우예요.' },
+          { p: '2026년 9월 18일 신청분부터 "대체인력을 못 구한 경우"가 빠졌어요. 남은 것은 근속 6개월 미만, 업무 성격상 나누기 어렵거나 정상 운영에 큰 지장이 있음을 회사가 증명한 경우예요. 2026년 11월 27일부터는 회사가 신청을 받고 14일 안에 허용 여부를 서면이나 전자 방식으로 알려야 해요.' },
           { h: '급여(2026년 1월부터)' },
           { ul: ['매주 처음 10시간: 통상임금(상한 250만원, 하한 50만원) × 줄인 시간 ÷ 단축 전 시간', '나머지 시간: 통상임금 80%(상한 160만원, 하한 50만원) × 나머지 시간 ÷ 단축 전 시간', '30일 이상 쓰고, 고용보험 가입 180일 이상이어야 해요.'] },
           { go: '#/calc/reduce', t: '단축근무 수입 계산하기' }
         ],
-        sources: [L.eq192, L.dec152, L.de1042, L.easyReduce, L.w24reduce, L.moelDec] },
+        sources: [L.eq192, L.dec152, L.de1042, L.easyReduce, L.w24reduce, L.moelDec, L.moelNov] },
       { id: 'policy-company', cat: 'policy', e: '🏢', tag: '몰랐던', community: 'leave', status: '공식 근거', updated: UP,
         title: '회사도 지원금을 받아요', sub: '말 꺼낼 때 함께 알려 주면 좋은 것',
         body: [
@@ -337,7 +338,7 @@
         ],
         sources: [L.gov29, L.korea2026, L.korea10, L.w24share, L.first1880] },
       { id: 'policy-2026', cat: 'policy', e: '🗓️', tag: 'NEW', community: 'leave', status: '공식 근거', updated: UP,
-        title: '2026년에 바뀐 것 한눈에', sub: '1월 · 8월 · 9월',
+        title: '2026년에 바뀐 것 한눈에', sub: '1월 · 8월 · 9월 · 11월',
         body: [
           { h: '1월' },
           { ul: ['단축근무 급여 상한: 처음 10시간 220만원에서 250만원, 나머지 150만원에서 160만원', '육아기 10시 출근제 신설(사업주 지원)', '대체인력 지원 기간이 복직 후 1개월까지 늘어남'] },
@@ -345,9 +346,11 @@
           { ul: ['단기 육아휴직(1주 또는 2주) 시작'] },
           { h: '9월 18일' },
           { ul: ['배우자 출산전후휴가: 출산 예정일 50일 전부터', '배우자 유산·사산휴가 신설', '임신 중 배우자 돌봄 육아휴직 신설', '단축근무 거부 사유에서 대체인력 빠짐'] },
+          { h: '11월 27일부터' },
+          { ul: ['단축근무 신청을 받으면 회사가 14일 안에 허용 여부를 서면이나 전자 방식으로 알려야 함'] },
           { tip: '새 제도는 회사가 먼저 알려 주지 않을 수 있어요. 아는 아빠가 먼저 쓸 수 있어요.' }
         ],
-        sources: [L.w24reduce, L.korea10, L.moelDec, L.moel3] }
+        sources: [L.w24reduce, L.korea10, L.moelDec, L.moel3, L.moelNov] }
     ]
   };
 })();
