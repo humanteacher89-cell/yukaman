@@ -16,7 +16,8 @@ CREATE TABLE IF NOT EXISTS users (
   verified_at  TEXT,
   invited_by   INTEGER,                        -- 초대한 사람(문제가 생기면 초대 줄기를 본다)
   blocked      INTEGER NOT NULL DEFAULT 0,     -- 1 = 인증 취소하고 다시 신청 못 함
-  comments_seen TEXT                           -- 내 글의 새 댓글을 마지막으로 본 시각(MY 배지, 검수 22). 기존 표에는 MIGRATIONS로 더함
+  comments_seen TEXT,                          -- 내 글의 새 댓글을 마지막으로 본 시각(MY 배지, 검수 22). 기존 표에는 MIGRATIONS로 더함
+  identity_hash TEXT                           -- SHA-256('id|' + 본인인증 DI 또는 CI). 1인 1계정 확인용, 이름·전화번호는 저장하지 않는다(11-05). 기존 표에는 MIGRATIONS로 더함. 색인도 MIGRATIONS에
 );
 
 -- 초대 코드: 인증 아빠가 만들어 다른 아빠에게 준다. kind = dad(아빠 인증) · admin(첫 관리자, 한 번 쓰면 끝)
@@ -89,6 +90,20 @@ CREATE TABLE IF NOT EXISTS reports (
 );
 CREATE INDEX IF NOT EXISTS reports_open ON reports (handled, id);
 CREATE INDEX IF NOT EXISTS reports_target ON reports (kind, target_id, user_id);
+
+-- Q&A 질문과 가이드 글 제보(11-05). kind = question · fix, ref = 제보한 가이드 글 번호. status = pending · published. 쓴 사람은 저장하지 않는다. 처리하면 줄을 지운다(답을 올린 질문만 남음)
+CREATE TABLE IF NOT EXISTS qna (
+  id          INTEGER PRIMARY KEY,
+  kind        TEXT NOT NULL DEFAULT 'question',
+  ref         TEXT NOT NULL DEFAULT '',
+  question    TEXT NOT NULL,
+  answer      TEXT NOT NULL DEFAULT '',
+  status      TEXT NOT NULL DEFAULT 'pending',
+  created     TEXT NOT NULL,
+  answered_at TEXT,
+  answered_by INTEGER
+);
+CREATE INDEX IF NOT EXISTS qna_status ON qna (status, id);
 
 -- 검색 색인(검수 27): posts_fts(FTS5, trigram)과 트리거는 deploy.py MIGRATIONS에서 한 문장씩 만든다(트리거의 BEGIN…END를 파일로 넘기면 문장이 쪼개진다).
 

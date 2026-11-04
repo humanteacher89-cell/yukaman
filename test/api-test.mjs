@@ -1,6 +1,7 @@
 // 육아맨 서버 시험: 내 컴퓨터 미리 보기(deploy.py dev --fresh)에 대고 돌린다. 공개 주소에는 돌리지 않는다.
 //   node test/api-test.mjs [http://127.0.0.1:8799]
 import assert from 'node:assert';
+import http from 'node:http';
 const BASE = (process.argv[2] || 'http://127.0.0.1:8799') + '/api';
 if (!/127\.0\.0\.1|localhost/.test(BASE)) throw new Error('내 컴퓨터 주소에서만 돌립니다');
 let n = 0;
@@ -15,6 +16,7 @@ async function call(method, path, token, body) {
 }
 const ok = (cond, what) => { n++; assert.ok(cond, what); };
 const A = rnd(), B = rnd(), C = rnd(), ADMIN = rnd();
+const N = s => s + '/청주/24';     // 닉네임 = 별명/거주지/자녀 출생연도 끝 2자리(11-05)
 
 // 커뮤니티는 읽기도 쓰기도 인증 아빠만. 로그인이 없으면 목록·글·검색 모두 내용 없이 401
 let r = await call('GET', '/posts?limit=2');
@@ -31,17 +33,21 @@ r = await call('POST', '/posts', null, { cat: 'tip', title: '제목입니다', b
 ok(r.status === 401 && r.data.error === 'login', '토큰 없으면 401');
 
 // 닉네임
-r = await call('POST', '/join', A, { nick: '육아맨 운영자' });
+r = await call('POST', '/join', A, { nick: N('육아맨운영자') });
 ok(r.data.error === 'nick_reserved', '운영 사칭 이름 막기');
 r = await call('POST', '/join', A, { nick: 'a' });
-ok(r.data.error === 'nick_len', '짧은 닉네임');
-r = await call('POST', '/join', A, { nick: '시험A' + stamp });
+ok(r.data.error === 'nick_form', '세 칸이 아닌 닉네임');
+for (const bad of ['시험/청주', '시험/청주/2024', '시험/청주/ab', 'a/청주/24', '띄어 쓰기/청주/24', '시험/qq/24']) {
+  r = await call('POST', '/join', A, { nick: bad });
+  ok(r.data.error === 'nick_form', '닉네임 꼴 막기 ' + bad);
+}
+r = await call('POST', '/join', A, { nick: N('시험A' + stamp) });
 ok(r.data.ok && r.data.user.verified === false, '가입: 인증 전');
 const recA = r.data.recovery;
 ok(/^[A-Z2-9]{4}-[A-Z2-9]{4}-[A-Z2-9]{4}$/.test(recA || ''), '가입 때 복구 코드 12자');
 r = await call('POST', '/join', A, { nick: '다른이름' + stamp });
 ok(r.data.existing === true && !r.data.recovery, '같은 기기는 기존 사용자(복구 코드 다시 안 줌)');
-r = await call('POST', '/join', B, { nick: '시험A' + stamp });
+r = await call('POST', '/join', B, { nick: N('시험A' + stamp) });
 ok(r.data.error === 'nick_taken', '같은 닉네임 막기');
 
 // 인증 전에는 못 읽고 못 쓴다
@@ -67,7 +73,7 @@ r = await call('GET', '/posts?limit=2', A);
 ok(r.status === 200 && r.data.posts.every(p => p.badge !== 'official'), '인증 뒤 읽기, 자료실 글은 목록에 없음');
 r = await call('GET', '/posts/1', A);
 ok(r.status === 200 && r.data.post.badge === 'official', '자료실 글은 번호로는 열림');
-r = await call('POST', '/join', C, { nick: '시험C' + stamp, invite: 'TESTDADS' });
+r = await call('POST', '/join', C, { nick: N('시험C' + stamp), invite: 'TESTDADS' });
 ok(r.data.ok && r.data.user.verified === false && r.data.invite_error === 'code_used', '쓴 코드는 다시 못 씀, 가입은 됨');
 
 // 글·댓글·검색
@@ -125,11 +131,11 @@ ok(r.data.user.verified === true, '받은 코드로 인증');
 r = await call('GET', '/posts?limit=1', C);
 ok(r.status === 200 && r.data.posts.length === 1, '받은 코드로 인증한 뒤 읽기');
 r = await call('GET', '/me', A);
-ok(r.data.invites.length === 3 && r.data.invites[0].used === true && r.data.invites[0].nick === '시험C' + stamp, '누가 썼는지 보임');
+ok(r.data.invites.length === 3 && r.data.invites[0].used === true && r.data.invites[0].nick === N('시험C' + stamp), '누가 썼는지 보임');
 
 // 사칭 이름 막기
-for (const bad of ['운영진', '휴먼쌤', 'yukaman', 'adm1n', 'a d m i n', '매니저1']) {
-  r = await call('POST', '/join', rnd(), { nick: bad });
+for (const bad of ['운영진', '휴먼쌤', 'yukaman', 'adm1n', '매니저1']) {
+  r = await call('POST', '/join', rnd(), { nick: N(bad) });
   ok(r.data.error === 'nick_reserved', '사칭 이름 막기 ' + bad);
 }
 
@@ -139,7 +145,7 @@ ok(r.data.new_comments === 0, '내가 단 댓글은 새 댓글 아님');
 r = await call('POST', `/posts/${pid}/comments`, C, { body: 'C의 댓글' });
 const ccid = r.data.comment.id;
 r = await call('GET', '/me', A);
-ok(r.data.new_comments === 1 && r.data.new_list[0].nick === '시험C' + stamp && r.data.new_list[0].post_id === pid, '새 댓글 1');
+ok(r.data.new_comments === 1 && r.data.new_list[0].nick === N('시험C' + stamp) && r.data.new_list[0].post_id === pid, '새 댓글 1');
 r = await call('POST', '/me/seen', A, {});
 ok(r.data.ok, '봤음');
 r = await call('GET', '/me', A);
@@ -163,7 +169,7 @@ r = await call('POST', '/invites', C, {});
 const cCode = r.data.invite.code;
 
 // 신청서 → 관리자 승인 → 답변 지움
-r = await call('POST', '/join', B, { nick: '시험B' + stamp });
+r = await call('POST', '/join', B, { nick: N('시험B' + stamp) });
 ok(r.data.ok, 'B 가입');
 r = await call('POST', '/verify/apply', B, { stage: 'raising', answer: '짧음', pledge: true });
 ok(r.data.error === 'answer_len', '답변 짧음');
@@ -175,7 +181,7 @@ r = await call('GET', '/admin/queue', A);
 ok(r.status === 403, '일반 회원은 관리자 화면 금지');
 
 // 관리자 코드
-r = await call('POST', '/join', ADMIN, { nick: '시험관' + stamp, invite: 'TESTADMN' });
+r = await call('POST', '/join', ADMIN, { nick: N('시험관' + stamp), invite: 'TESTADMN' });
 ok(r.data.user.role === 'admin' && r.data.user.verified === true, '관리자 코드');
 const recAdmin = r.data.recovery;
 r = await call('POST', '/posts', ADMIN, { cat: 'tip', title: '운영 안내 ' + stamp, body: '운영 글' });
@@ -197,7 +203,7 @@ ok(r.data.comments.length === 1 && r.data.post.comments === 1, '숨긴 댓글 �
 r = await call('GET', '/admin/queue', ADMIN);
 ok(r.data.reports.length === 0, '신고함 비움');
 r = await call('GET', '/admin/queue', ADMIN);
-const app = r.data.queue.find(q => q.nick === '시험B' + stamp);
+const app = r.data.queue.find(q => q.nick === N('시험B' + stamp));
 ok(app && app.answer.includes('밤에'), '대기 목록');
 r = await call('POST', '/admin/decide', ADMIN, { id: app.id, approve: true });
 ok(r.data.ok, '승인');
@@ -214,7 +220,7 @@ ok(r.status === 200, '관리자 읽기');
 const uid = (await call('GET', '/me', C)).data.user.id;
 r = await call('POST', '/admin/user', ADMIN, { user_id: uid, action: 'block' });
 ok(r.data.ok, '막기');
-r = await call('POST', '/join', rnd(), { nick: '새기기' + stamp, invite: cCode });
+r = await call('POST', '/join', rnd(), { nick: N('새기기' + stamp), invite: cCode });
 ok(r.data.invite_error === 'code_bad' && r.data.user.verified === false, '막힌 회원의 안 쓴 초대 코드는 폐기됨');
 r = await call('POST', '/posts', C, { cat: 'tip', title: '제목입니다', body: '내용' });
 ok(r.status === 403 && r.data.error === 'blocked', '막힌 회원 글 금지');
@@ -252,12 +258,12 @@ const D = rnd(), E = rnd();
 r = await call('POST', '/recover', D, { code: 'ZZZZ-ZZZZ-ZZZZ' });
 ok(r.data.error === 'recovery_bad', '틀린 복구 코드');
 r = await call('POST', '/recover', D, { code: recA.toLowerCase() });
-ok(r.data.ok && r.data.user.nick === '시험A' + stamp && r.data.recovery && r.data.recovery !== recA, '복구: 같은 계정, 새 코드');
+ok(r.data.ok && r.data.user.nick === N('시험A' + stamp) && r.data.recovery && r.data.recovery !== recA, '복구: 같은 계정, 새 코드');
 const recA2 = r.data.recovery;
 r = await call('GET', '/me', A);
 ok(r.status === 401 && r.data.error === 'unknown_user', '옛 기기는 끊김');
 r = await call('GET', '/me', D);
-ok(r.status === 200 && r.data.user.nick === '시험A' + stamp && r.data.has_recovery === true, '새 기기로 내 정보');
+ok(r.status === 200 && r.data.user.nick === N('시험A' + stamp) && r.data.has_recovery === true, '새 기기로 내 정보');
 r = await call('POST', '/recover', E, { code: recA });
 ok(r.data.error === 'recovery_bad', '쓴 복구 코드는 다시 못 씀');
 r = await call('POST', '/recovery/new', D, {});
@@ -268,7 +274,7 @@ ok(r.data.error === 'recovery_bad', '새로 만들면 이전 코드 무효');
 r = await call('POST', '/recover', B, { code: recAdmin });
 ok(r.status === 409 && r.data.error === 'token_in_use', '다른 계정이 있는 기기로는 복구 못 함');
 r = await call('POST', '/recover', E, { code: recA3 });
-ok(r.data.ok && r.data.user.nick === '시험A' + stamp, '새 코드로 복구');
+ok(r.data.ok && r.data.user.nick === N('시험A' + stamp), '새 코드로 복구');
 r = await call('GET', '/posts?limit=1', E);
 ok(r.status === 200, '복구한 기기는 인증 상태 그대로');
 r = await call('GET', '/me', D);
@@ -309,5 +315,108 @@ ok(r.status === 401 && r.data.error === 'unknown_user', '끊긴 기기');
 
 r = await call('GET', '/nope');
 ok(r.status === 404, '없는 주소');
+
+// Q&A · 제보: 누구나 보내고, 관리자가 답해야 공개된다
+r = await call('GET', '/qna');
+ok(r.status === 200 && r.data.items.length === 0, '처음엔 올라간 Q&A 없음');
+r = await call('POST', '/qna', null, { text: '짧음' });
+ok(r.data.error === 'ask_len', '질문이 너무 짧음');
+r = await call('POST', '/qna', null, { kind: 'fix', ref: 'bad ref!', text: '상한액이 바뀌었어요' });
+ok(r.data.error === 'bad_json', '이상한 글 번호');
+r = await call('POST', '/qna', null, { text: '육아휴직 중에 이사해도 되나요? ' + stamp });
+ok(r.data.ok, '로그인 없이 질문');
+r = await call('POST', '/qna', null, { kind: 'fix', ref: 'leave-apply', text: '상한액이 바뀌었어요 ' + stamp });
+ok(r.data.ok, '글 제보');
+r = await call('GET', '/qna');
+ok(r.data.items.length === 0, '답하기 전에는 공개 안 됨');
+r = await call('GET', '/admin/queue', E);
+ok(r.status === 401, '끊긴 기기는 관리자 화면 금지');
+r = await call('GET', '/admin/queue', ADMIN);
+const qq = r.data.qna.find(x => x.kind === 'question'), qf = r.data.qna.find(x => x.kind === 'fix');
+ok(qq && qf && qf.ref === 'leave-apply', '관리자 화면에 질문과 제보');
+const G = rnd();
+r = await call('POST', '/join', G, { nick: N('일반' + stamp) });
+ok(r.data.ok, '일반 회원');
+r = await call('POST', '/admin/qna', G, { id: qq.id, action: 'delete' });
+ok(r.status === 403, '일반 회원은 답변 금지');
+r = await call('POST', '/admin/qna', ADMIN, { id: qq.id, action: 'answer', question: '육아휴직 중 이사', answer: '' });
+ok(r.data.error === 'answer_len', '빈 답변');
+r = await call('POST', '/admin/qna', ADMIN, { id: qq.id, action: 'answer', question: '육아휴직 중에 이사해도 되나요?', answer: '돼요. 시험 답변이에요.' });
+ok(r.data.ok, '답변 올리기');
+r = await call('GET', '/qna');
+ok(r.data.items.length === 1 && r.data.items[0].answer.includes('시험 답변') && !('uid' in r.data.items[0]), '답하면 누구나 봄');
+r = await call('POST', '/admin/qna', ADMIN, { id: qf.id, action: 'delete' });
+ok(r.data.ok, '제보 처리 완료');
+r = await call('GET', '/admin/queue', ADMIN);
+ok(r.data.qna.length === 0 && r.data.qna_published.length === 1, '대기는 비고 올라간 것만 남음');
+r = await call('POST', '/admin/qna', ADMIN, { id: qq.id, action: 'delete' });
+r = await call('GET', '/qna');
+ok(r.data.ok && r.data.items.length === 0, 'Q&A 내리기');
+
+// 지금 뜨는 글: 글쓴이가 아닌 두 사람이 댓글을 달아야 뜬다
+r = await call('GET', '/posts/hot');
+ok(r.status === 401, '인기 글도 인증 아빠만');
+r = await call('GET', '/posts/hot', G);
+ok(r.status === 403, '인증 전 인기 글 금지');
+r = await call('POST', '/posts', ADMIN, { cat: 'tip', title: '뜨는 글 ' + stamp, body: '뜨는 글 내용' });
+const hid = r.data.id;
+const H1 = rnd(), H2 = rnd();
+for (const [t, nm] of [[H1, '인기하'], [H2, '인기둘']]) {
+  r = await call('POST', '/join', t, { nick: N(nm + stamp) });
+  ok(r.data.ok, '인기 시험 가입');
+  r = await call('POST', '/admin/user', ADMIN, { user_id: r.data.user.id, action: 'verify' });
+  ok(r.data.ok, '인기 시험 인증');
+}
+await call('POST', `/posts/${hid}/comments`, ADMIN, { body: '글쓴이 댓글은 안 센다' });
+await call('POST', `/posts/${hid}/comments`, H1, { body: '첫 사람' });
+await call('POST', `/posts/${hid}/comments`, H1, { body: '같은 사람 또' });
+r = await call('GET', '/posts/hot', H1);
+ok(r.status === 200 && !r.data.posts.find(p => p.id === hid), '한 사람 댓글로는 안 뜸');
+await call('POST', `/posts/${hid}/comments`, H2, { body: '둘째 사람' });
+r = await call('GET', '/posts/hot', H1);
+ok(r.data.posts.length >= 1 && r.data.posts[0].id === hid && r.data.posts[0].comments === 4, '두 사람이 달면 뜸');
+await call('DELETE', `/posts/${hid}`, ADMIN);
+r = await call('GET', '/posts/hot', H1);
+ok(!r.data.posts.find(p => p.id === hid), '지운 글은 안 뜸');
+
+// 본인인증: 가짜 포트원(.dev.vars PORTONE_API_BASE)에 물어본다. 내 컴퓨터에서만
+const K = { male: { status: 'VERIFIED', verifiedCustomer: { name: '시험', gender: 'MALE', birthDate: '1985-03-01', di: 'di-male-' + stamp } },
+  dup: { status: 'VERIFIED', verifiedCustomer: { name: '시험', gender: 'MALE', birthDate: '1985-03-01', di: 'di-male-' + stamp } },
+  female: { status: 'VERIFIED', verifiedCustomer: { name: '시험', gender: 'FEMALE', birthDate: '1985-03-01', di: 'di-f-' + stamp } },
+  teen: { status: 'VERIFIED', verifiedCustomer: { name: '시험', gender: 'MALE', birthDate: new Date().getFullYear() - 10 + '-01-01', di: 'di-t-' + stamp } },
+  ready: { status: 'READY' }, cionly: { status: 'VERIFIED', verifiedCustomer: { gender: 'MALE', birthDate: '1990-01-01', ci: 'ci-' + stamp } } };
+const mock = http.createServer((req, res) => {
+  const id = decodeURIComponent(req.url.split('/').pop()).replace('case-', '');
+  const okAuth = req.headers.authorization === 'PortOne test-secret';
+  res.statusCode = okAuth && K[id] ? 200 : 404;
+  res.setHeader('Content-Type', 'application/json');
+  res.end(JSON.stringify(okAuth && K[id] ? K[id] : { message: 'not found' }));
+});
+await new Promise(done => mock.listen(8798, '127.0.0.1', done));
+const I1 = rnd(), I2 = rnd();
+r = await call('POST', '/join', I1, { nick: N('본인' + stamp) });
+ok(r.data.ok && r.data.user.verified === false, '본인인증 전 가입');
+r = await call('POST', '/verify/identity', null, { id: 'case-male' });
+ok(r.status === 401, '본인인증도 가입 뒤');
+r = await call('POST', '/verify/identity', I1, { id: 'x' });
+ok(r.data.error === 'identity_bad', '이상한 번호');
+r = await call('POST', '/verify/identity', I1, { id: 'case-ready' });
+ok(r.data.error === 'identity_bad', '끝나지 않은 인증');
+r = await call('POST', '/verify/identity', I1, { id: 'case-nobody' });
+ok(r.data.error === 'identity_bad', '없는 인증');
+r = await call('POST', '/verify/identity', I1, { id: 'case-female' });
+ok(r.status === 403 && r.data.error === 'identity_denied', '남성이 아니면 거절');
+r = await call('POST', '/verify/identity', I1, { id: 'case-teen' });
+ok(r.status === 403 && r.data.error === 'identity_denied', '미성년 거절');
+r = await call('POST', '/verify/identity', I1, { id: 'case-male' });
+ok(r.data.ok && r.data.user.verified === true && r.data.user.how === 'identity', '본인인증으로 인증');
+r = await call('GET', '/posts?limit=1', I1);
+ok(r.status === 200, '본인인증 뒤 읽기');
+r = await call('POST', '/join', I2, { nick: N('둘째' + stamp) });
+r = await call('POST', '/verify/identity', I2, { id: 'case-dup' });
+ok(r.status === 409 && r.data.error === 'identity_dup', '같은 사람의 두 번째 계정 막기');
+r = await call('POST', '/verify/identity', I2, { id: 'case-cionly' });
+ok(r.data.ok && r.data.user.verified === true, 'DI가 없으면 CI로');
+mock.close();
 
 console.log('통과', n, '건');

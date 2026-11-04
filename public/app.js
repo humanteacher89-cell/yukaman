@@ -22,19 +22,20 @@
   ];
   const CAT = {}; CATS.forEach(c => { CAT[c.key] = c; });
   const GCAT = {}; GD.cats.forEach(c => { GCAT[c.key] = c; });
-  const LIM = { nick: [2, 12], title: [2, 60], body: [1, 3000], comment: [1, 1000], answer: [20, 500] };   // server/app.js LIM과 같게
+  const LIM = { title: [2, 60], body: [1, 3000], comment: [1, 1000], answer: [20, 500], ask: [5, 300], qa: [2, 1000] };   // server/app.js LIM과 같게
   const PAGE = 20;
   const RESERVED = /(육아맨|운영|관리|자료실|공식|스태프|스탭|매니저|마스터|휴먼쌤|휴먼샘|admin|official|staff|manager|master|moderator|yukaman|humanssaem)/i;   // server/app.js와 같게
   const foldNick = s => s.replace(/[\s_.\-]+/g, '').toLowerCase().replace(/0/g, 'o').replace(/1/g, 'i').replace(/3/g, 'e').replace(/5/g, 's');
   const MSG = {
     login: '닉네임을 먼저 정해 주세요', unknown_user: '이 기기의 닉네임 기록이 없어요. 다시 정해 주세요',
-    nick_taken: '이미 쓰는 닉네임이에요', nick_len: '닉네임은 2~12자로 해 주세요', nick_chars: '닉네임은 한글·영문·숫자만 쓸 수 있어요', nick_reserved: '운영 계정과 헷갈리는 이름은 쓸 수 없어요',
+    nick_taken: '이미 쓰는 닉네임이에요. 별명을 바꿔 보세요', nick_form: '별명/거주지/자녀 출생연도 끝 2자리로 적어 주세요', nick_reserved: '운영 계정과 헷갈리는 이름은 쓸 수 없어요',
     limit: '너무 자주 했어요. 잠시 뒤에 다시 해 주세요', title_len: '제목은 2~60자로 해 주세요', body_len: '내용을 적어 주세요(3000자까지)',
     comment_len: '댓글은 1~1000자로 해 주세요', cat: '분류를 골라 주세요', not_found: '글을 찾을 수 없어요(지워졌을 수 있어요)',
     forbidden: '내가 쓴 것만 지울 수 있어요', bad_json: '보낼 내용이 잘못됐어요', server: '서버에 문제가 있어요. 잠시 뒤 다시 해 주세요', network: '인터넷 연결을 확인해 주세요',
     own: '내가 쓴 글은 신고할 수 없어요', no_api: '서버에 연결할 수 없어요. 잠시 뒤 다시 열어 주세요', recovery_bad: '맞지 않는 복구 코드예요', token_in_use: '이 기기에 이미 다른 닉네임이 있어요',
     verify: '커뮤니티는 인증한 아빠만 읽고 쓸 수 있어요', blocked: '이용이 제한된 계정이에요',
-    code_bad: '맞지 않는 초대 코드예요', code_used: '이미 쓴 초대 코드예요', stage: '지금 상황을 골라 주세요', answer_len: '이야기는 20자 이상으로 적어 주세요', pledge: '약속에 체크해 주세요', invite_max: '초대 코드는 3개까지 만들 수 있어요'
+    code_bad: '맞지 않는 초대 코드예요', code_used: '이미 쓴 초대 코드예요', stage: '지금 상황을 골라 주세요', answer_len: '이야기는 20자 이상으로 적어 주세요', pledge: '약속에 체크해 주세요', invite_max: '초대 코드는 3개까지 만들 수 있어요',
+    ask_len: '5자 이상 300자 안으로 적어 주세요', identity_bad: '본인인증을 확인하지 못했어요. 다시 해 주세요', identity_denied: '만 19세 이상 남성만 가입할 수 있어요', identity_dup: '이미 가입한 분이에요. MY에서 복구 코드로 돌아와 주세요', identity_off: '본인인증을 준비하고 있어요'
   };
 
   // ----- 도구 -----
@@ -54,6 +55,9 @@
     return sign + fmtNum(man) + '만' + (rest ? ' ' + fmtNum(rest) : '') + '원';
   }
   const dot = s => (s ? String(s).replace(/-/g, '.') : '');
+  const dotd = s => { const m = String(s || '').match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? m[1] + '. ' + (+m[2]) + '. ' + (+m[3]) + '.' : ''; };
+  // 안내는 개조식 점 목록으로(11-05 휴먼쌤 "2줄 문구는 개조식으로"). 코드에 적은 글자만 넣는다(사용자 글은 넣지 않는다)
+  const notes = list => '<ul class="nlist">' + list.filter(Boolean).map(x => '<li>' + x + '</li>').join('') + '</ul>';
   const store = {
     get(k, d) { try { const v = localStorage.getItem('yk.' + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
     set(k, v) { try { localStorage.setItem('yk.' + k, JSON.stringify(v)); } catch (e) { /* 비공개 창 등 */ } },
@@ -77,7 +81,10 @@
   const who = (nick, badge) => '<span class="nick">' + avatar(nick) + esc(nick) + vbadge(badge) + '</span>';
   const nickKey = s => String(s).replace(/\s+/g, '').toLowerCase();
   const clean = (s, n) => String(s == null ? '' : s).replace(/\r\n?/g, '\n').trim().slice(0, n);
-  function checkNick(nick) { const n = len(nick); if (n < LIM.nick[0] || n > LIM.nick[1]) return 'nick_len'; if (!/^[가-힣A-Za-z0-9 _.]+$/.test(nick)) return 'nick_chars'; if (RESERVED.test(foldNick(nick))) return 'nick_reserved'; return ''; }
+  // 닉네임 = 별명/거주지/자녀 출생연도 끝 2자리(11-05 휴먼쌤). server/app.js NICK_RE와 같게
+  const NICK_RE = /^[가-힣A-Za-z0-9]{2,8}\/[가-힣]{2,6}\/\d{2}$/;
+  function checkNick(nick) { if (!NICK_RE.test(nick)) return 'nick_form'; if (RESERVED.test(foldNick(nick))) return 'nick_reserved'; return ''; }
+  const nickParts = s => { const m = String(s || '').match(/^([^/]+)\/([^/]+)\/(\d{2})$/); return m ? { name: m[1], place: m[2], year: m[3] } : { name: '', place: '', year: '' }; };
   function checkPost(p) { if (!CAT[p.cat]) return 'cat'; const t = len(p.title), b = len(p.body); if (t < LIM.title[0] || t > LIM.title[1]) return 'title_len'; if (b < LIM.body[0] || b > LIM.body[1]) return 'body_len'; return ''; }
   const ICON = {
     search: '<svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>',
@@ -160,7 +167,12 @@
     deleteMe: () => remote.call('DELETE', '/me', { confirm: true }),
     report: (kind, id, reason) => remote.call('POST', '/reports', { kind, id, reason }),
     seen: () => remote.call('POST', '/me/seen', {}),
-    adminReport: (kind, id, action) => remote.call('POST', '/admin/report', { kind, id, action })
+    adminReport: (kind, id, action) => remote.call('POST', '/admin/report', { kind, id, action }),
+    hotPosts: () => remote.call('GET', '/posts/hot'),
+    qnaList: () => remote.call('GET', '/qna'),
+    ask: b => remote.call('POST', '/qna', b),
+    adminQna: b => remote.call('POST', '/admin/qna', b),
+    verifyIdentity: id => remote.call('POST', '/verify/identity', { id })
   };
 
   // 시험 모드: 견본 글 + 이 기기(localStorage). 서버와 같은 응답 꼴. 코드는 아무 글자나, 신청서는 바로 승인된다.
@@ -242,7 +254,14 @@
     async deleteComment(id) { const u = this.need(); const c = this.db.comments.find(x => x.id === id && !x.deleted); if (!c) throw new ApiError('not_found', 404); if (c.user_id !== u.id) throw new ApiError('forbidden', 403); c.deleted = new Date().toISOString(); this.save(); return { ok: true }; },
     async verifyCode(code) { const u = this.need(); if (String(code || '').replace(/[^A-Za-z0-9]/g, '').length < 4) throw new ApiError('code_bad'); u.verified = true; u.how = 'invite'; this.save(); return { ok: true, user: pub(u) }; },
     async verifyApply() { const u = this.need(); u.verified = true; u.how = 'apply'; this.save(); return { ok: true, user: pub(u), instant: true }; },
-    async createInvite() { this.needDad(); const d = this.db; if (d.invites.length >= 3) throw new ApiError('invite_max'); const c = { code: 'TEST-' + String(1000 + d.invites.length), used: false }; d.invites.push(c); this.save(); return { ok: true, invite: c }; }
+    async createInvite() { this.needDad(); const d = this.db; if (d.invites.length >= 3) throw new ApiError('invite_max'); const c = { code: 'TEST-' + String(1000 + d.invites.length), used: false }; d.invites.push(c); this.save(); return { ok: true, invite: c }; },
+    async hotPosts() {
+      this.needDad(); const d = this.load();
+      const heat = p => new Set(d.comments.filter(c => c.post_id === p.id && !c.deleted && c.user_id !== p.user_id).map(c => c.user_id)).size;
+      return { ok: true, posts: d.posts.filter(p => !p.deleted && heat(p) >= 2).sort((a, b) => heat(b) - heat(a) || b.id - a.id).slice(0, 3).map(p => this.card(p)) };
+    },
+    async qnaList() { return { ok: true, items: [] }; },
+    async ask() { return { ok: true }; }
   };
 
   async function api(name) {
@@ -252,6 +271,7 @@
     catch (e) { if (e && e.code === 'no_api' && DEV_HOST) { setMode('local'); if (!local[name]) throw new ApiError('server'); return local[name].apply(local, args); } throw e; }
   }
   function setMode(m) { if (mode === m) return; mode = m; if (m === 'local') { const u = local.user(); setMe(u ? pub(u) : null); } }
+  const identityOn = () => !!(CFG.IDENTITY && CFG.IDENTITY.storeId && CFG.IDENTITY.channelKey) && mode === 'server';
 
   // ----- 알림 -----
   let toastTimer = 0;
@@ -301,7 +321,7 @@
 
   function parse() {
     const s = location.hash.replace(/^#\/?/, '').split('/').map(x => { try { return decodeURIComponent(x); } catch (e) { return x; } });
-    if (s[0] === 'guide') return { name: 'guide', cat: s[1] && GCAT[s[1]] ? s[1] : (GD.cats[0] ? GD.cats[0].key : '') };
+    if (s[0] === 'guide') return { name: 'guide', cat: s[1] && GCAT[s[1]] ? s[1] : '' };
     if (s[0] === 'g' && s[1]) return { name: 'garticle', id: s[1] };
     if (s[0] === 'calc') return { name: 'calc', tab: CALC_TABS.some(t => t.key === s[1]) ? s[1] : 'leave' };
     if (s[0] === 'library') return { name: 'library' };
@@ -366,7 +386,8 @@
     { key: 'self', name: '자영업·프리랜서' },
     { key: 'unknown', name: '잘 모르겠어요' }
   ];
-  const JOB_LINE = { worker: '회사원 등 <b>고용보험 근로자</b> 기준이에요', civil: '<b>공무원·국공립 교원</b> 기준이에요', pteacher: '<b>사립학교 교원</b> 기준이에요' };
+  // 어떤 직종 기준인지 눈에 띄게(11-05 휴먼쌤 "어떤 근로자 기준인지 더 가시적으로")
+  const JOB_LINE = { worker: { e: '👔', t: '회사원·계약직·공무직', s: '고용보험 근로자 기준' }, civil: { e: '🏛️', t: '공무원·국공립 교원', s: '공무원수당 규정 기준' }, pteacher: { e: '🏫', t: '사립학교 교원', s: '국공립 교원 규정 준용' } };
   const isCivilJob = () => calcS.job === 'civil' || calcS.job === 'pteacher';
   const JOB_NOTE = {
     pstaff: { t: '사립학교 직원은 학교 규정을 먼저 봐요', p: '사학연금을 적용받으면 고용보험 대상이 아니에요. 육아휴직은 남녀고용평등법대로 쓸 수 있지만, 돈은 법령에 정한 금액이 없고 학교법인 내부 규정을 따라요. 학교 행정실에 육아휴직수당 규정을 물어보세요.',
@@ -378,7 +399,8 @@
       go: [{ t: '고용24에서 내 고용보험 가입 이력 보기', h: 'https://www.work24.go.kr/', out: true }, { t: '그래도 모르면 1350에 전화', h: 'tel:1350' }] }
   };
   function jobBox() {
-    if (JOB_LINE[calcS.job]) return '<div class="jobline"><span>' + JOB_LINE[calcS.job] + '</span><button type="button" data-job="">바꾸기</button></div>';
+    const JL = JOB_LINE[calcS.job];
+    if (JL) return '<div class="jobline"><span class="je" aria-hidden="true">' + JL.e + '</span><span class="tx"><b>' + esc(JL.t) + '</b><small>' + esc(JL.s) + '</small></span><button type="button" data-job="">직종 바꾸기</button></div>';
     const n = JOB_NOTE[calcS.job];
     const goes = list => (list || []).map(g => '<a class="jobgo" href="' + esc(g.h) + '"' + (g.out ? ' target="_blank" rel="noopener"' : '') + '><span>' + esc(g.t) + '</span><i>›</i></a>').join('');
     return '<div class="jobs"><b>어떻게 일하세요?</b><small>직종마다 받는 곳과 금액이 달라요.</small>'
@@ -400,15 +422,15 @@
   function quickNote(man) {
     if (!toWon(man)) return '월 통상임금을 넣으면 바로 계산돼요.';
     const r = quickCalc(man);
-    return qrows([r.rows[0].paid, r.rows[3].paid, r.rows[6].paid]) + (toWon(man) >= 2500000 ? '<span class="qcap">법정 상한에 걸려 월급이 더 많아도 금액이 같아요.</span>' : '');
+    return qrows([r.rows[0].paid, r.rows[3].paid, r.rows[6].paid]) + (toWon(man) >= 2500000 ? notes(['월급이 더 많아도 법정 상한으로 금액 동일']) : '');
   }
   const quickTotal = man => (toWon(man) ? won(quickCalc(man).total) : '—');     // 0원이면 하한 70만원으로 계산된 840만원이 나와 버리니 비워 둔다
   const W24_SIM = 'https://m.work24.go.kr/cm/c/f/1100/selecSimulate12.do?systClId=SC00000251&systId=SI00000402';
   const MPM_LEAVE = 'https://www.mpm.go.kr/mpm/info/infoBiz/bizHr05/';
   // 이 계산이 어디서 나왔는지 밝힌다(휴먼쌤 "이게 고용24에서 직접 제공하는거야?"). 고용24 것이 아니라 육아맨이 법령 숫자로 만든 어림이다
   function calcSource(civil) {
-    if (!civil) return '<small class="qnote">육아맨이 법령 숫자로 만든 어림이에요(고용24 아님). 고용보험 180일 이상이어야 받아요.</small><a class="offi" href="' + W24_SIM + '" target="_blank" rel="noopener">고용24 공식 모의계산 열기</a>';
-    return '<small class="qnote">' + (calcS.job === 'pteacher' ? '사립학교 교원은 국공립 규정을 준용해요. ' : '') + '육아맨이 수당 규정 숫자로 만든 어림이에요. 실제 금액은 소속 기관이 정해요.</small><a class="offi" href="' + MPM_LEAVE + '" target="_blank" rel="noopener">인사혁신처 공무원 휴직 안내 열기</a>';
+    if (!civil) return notes(['법령 숫자로 만든 육아맨 어림값(고용24 제공 아님)', '고용보험 가입 180일 이상만 수급', '실제 금액은 고용센터 결정']) + '<a class="offi" href="' + W24_SIM + '" target="_blank" rel="noopener">고용24 공식 모의계산 열기</a>';
+    return notes(['수당 규정 숫자로 만든 육아맨 어림값', '실제 금액은 소속 기관 결정']) + '<a class="offi" href="' + MPM_LEAVE + '" target="_blank" rel="noopener">인사혁신처 공무원 휴직 안내 열기</a>';
   }
   function calcCard() {
     const civil = isCivilJob(), worker = calcS.job === 'worker';
@@ -416,7 +438,7 @@
     if (!worker && !civil) return head + '<div class="big">' + jobBox() + '</div></div>';
     const v = civil ? calcS.bong : calcS.pay;
     return head + '<div class="big">' + jobBox() + '<label class="qpay">' + (civil ? '내 월봉급액' : '내 월 통상임금') + ' <input id="qPay" type="number" inputmode="decimal" min="0" max="3000" step="10" value="' + esc(v) + '" aria-label="' + (civil ? '월봉급액' : '월 통상임금') + '(만원)"> 만원</label>'
-      + '<strong id="qTotal">' + (civil ? civilTotal(v) : quickTotal(v)) + '</strong><em>' + (civil ? '12개월 쉴 때 수당 어림' : '부부 중 한 사람만 12개월 쉴 때 어림') + '</em><small class="qnote" id="qNote">' + (civil ? civilNote(v) : quickNote(v)) + '</small>'
+      + '<strong id="qTotal">' + (civil ? civilTotal(v) : quickTotal(v)) + '</strong><em>' + (civil ? '12개월 쉴 때 수당 어림' : '부부 중 한 사람만 12개월 쉴 때 어림') + '</em><div class="qnote" id="qNote">' + (civil ? civilNote(v) : quickNote(v)) + '</div>'
       + calcSource(civil) + '</div></div>';
   }
   function bindCalcCard() {
@@ -467,7 +489,7 @@
   const agesRow = cur => '<div class="ages" id="ages" role="group" aria-label="아이 나이">' + AGES.map(x => '<button type="button" class="chip' + (x.key === cur ? ' on' : '') + '" data-age="' + x.key + '" aria-pressed="' + (x.key === cur) + '">' + esc(x.name) + '</button>').join('') + '</div>';
   function kidCard() {
     const line = kidLine();
-    return pageHead('👶', '우리 아이', line || '날짜를 넣으면 기한을 알려 드려요', '<button type="button" class="edit" id="kidEdit">' + (line ? '날짜 고치기' : '날짜 넣기') + '</button>');
+    return pageHead('👶', '우리 아이', line || '날짜를 입력하면 디데이를 알려줘요', '<button type="button" class="edit" id="kidEdit">' + (line ? '날짜 고치기' : '날짜 넣기') + '</button>');
   }
   // 날짜만 고치는 시트(11-04 휴먼쌤 "계산기로 이동해서 불편해"). 계산기 '내 아이 날짜'와 같은 값(calcS)을 쓴다. 날짜를 바꾸면 손으로 고른 나이 칸은 풀고 날짜를 따른다
   function openKidDates() {
@@ -557,7 +579,7 @@
   const tile = (e, t, h) => '<a class="tile" href="' + esc(h) + '"><span class="ge">' + esc(e) + '</span><b>' + esc(t) + '</b></a>';
   // 커뮤니티가 비어 있을 때: 솔직하게 모집 중이라고 말한다(검수 15)
   const emptyCommunity = () => '<div class="lockbox recruit"><div class="lk">👋</div><h2>첫 아빠들을 모으고 있어요</h2><p>지금 쓰는 글이 다음 아빠의 첫 답이 돼요.</p>'
-    + '<a class="btn primary" href="#/write">첫 글 쓰기</a><a class="btn line" href="#/me">초대 코드 보내기</a><a class="btn ghost" href="#/guide/faq">자주 묻는 질문은 가이드 Q&amp;A·정보에</a></div>';
+    + '<a class="btn primary" href="#/write">첫 글 쓰기</a><a class="btn line" href="#/me">초대 코드 보내기</a><a class="btn ghost" href="#/guide/faq">자주 묻는 질문은 가이드 Q&amp;A에</a></div>';
   async function renderHome() {
     setTab('home');
     bar(brandBar());
@@ -610,10 +632,10 @@
       { h: '탈퇴' }, { p: 'MY에서 언제든 탈퇴할 수 있고, 내 글과 댓글 내용이 함께 지워져요.' },
       { h: '문의' }, { p: mail }
     ] : [
-      { h: '받는 것' }, { ul: ['닉네임, 내가 쓴 글·댓글, 신고 내용', '인증 신청 답변(승인·거절하면 바로 지워요)', '이 기기 토큰과 복구 코드의 해시(원래 값은 서버에 없어요)', '누가 초대했는지, 마지막 접속 시각', '가입·코드·복구 시도 횟수 제한을 위한 기기 주소(IP)의 짧은 해시(이틀 안에 지워요)'] },
-      { h: '받지 않는 것' }, { p: '이메일, 전화번호, 서류, 아이 정보. 계산기에 넣은 아이 날짜와 월급은 이 기기에만 저장되고 서버로 보내지 않아요.' },
+      { h: '받는 것' }, { ul: ['닉네임(별명·거주지·자녀 출생연도 끝 2자리, 다른 아빠들에게 보여요), 내가 쓴 글·댓글, 신고 내용', '본인인증을 쓰면 중복 가입을 막는 값의 해시(이름·전화번호·생년월일·성별은 확인 뒤 바로 버려요)', '질문·제보 내용(쓴 사람은 저장하지 않아요. Q&A로 올리면 공개되고, 처리하면 지워요)', '인증 신청 답변(승인·거절하면 바로 지워요)', '이 기기 토큰과 복구 코드의 해시(원래 값은 서버에 없어요)', '누가 초대했는지, 마지막 접속 시각', '가입·코드·복구 시도 횟수 제한을 위한 기기 주소(IP)의 짧은 해시(이틀 안에 지워요)'] },
+      { h: '받지 않는 것' }, { p: '이메일, 서류, 아이 이름·사진. 전화번호는 본인인증 때 확인만 하고 저장하지 않아요. 계산기에 넣은 아이 날짜와 월급은 이 기기에만 저장되고 서버로 보내지 않아요.' },
       { h: '왜 쓰나' }, { p: '커뮤니티 운영, 아빠 인증, 도배·사칭 막기에만 써요. 광고나 판매에 쓰지 않고 다른 곳에 주지 않아요.' },
-      { h: '어디에 두나' }, { p: 'Cloudflare(Pages, D1)에 저장해요.' },
+      { h: '어디에 두나' }, { p: 'Cloudflare(Pages, D1)에 저장해요. 본인인증은 포트원과 본인확인기관이 처리해요.' },
       { h: '언제 지우나' }, { p: '글·댓글은 지우는 즉시 내용을 비워요. 탈퇴하면 글·댓글 내용과 계정을 지워요. 막힌 계정의 기록은 재가입을 막기 위해 남을 수 있어요.' },
       { h: '문의' }, { p: who + ' · ' + mail }
     ];
@@ -631,16 +653,63 @@
     return '<div class="chips">' + GD.cats.map(c => '<a class="chip' + (c.key === cur ? ' on' : '') + '" href="#/guide/' + c.key + '"><span class="e">' + c.e + '</span>' + esc(c.name) + '</a>').join('')
       + '<a class="chip' + (cur === 'library' ? ' on' : '') + '" href="#/library"><span class="e">🗂️</span>자료실</a></div>';
   }
-  function renderGuide(cat) {
+  // 근거 법령 표시(11-05 휴먼쌤 "'2026.11.04 법령기준'은 사실이 아니지 … 실제 법령의 명칭과 유효일자를 적어서 신뢰를 확보해"). 표는 law-data.js, 글과는 출처 주소로 잇는다
+  const LAW_DATA = window.YK_LAWS || { checked: '', items: [] };
+  const lawsFor = list => { const urls = list.reduce((a, g) => a.concat((g.sources || []).map(s => s.u || '')), []); return LAW_DATA.items.filter(l => urls.some(u => l.match.some(m => u.indexOf(m) >= 0))); };
+  function lawBox(laws) {
+    if (!laws.length) return '';
+    const row = l => '<li><a href="https://www.law.go.kr/법령/' + encodeURI(l.key) + '" target="_blank" rel="noopener">' + esc(l.name) + '</a><small>' + esc(l.no) + ' · ' + dotd(l.effective) + ' 시행' + (l.upcoming ? ' · ' + dotd(l.upcoming) + ' 개정 시행 예정' : '') + '</small></li>';
+    const rest = laws.slice(4);     // 많으면 앞의 넷만 보이고 나머지는 접는다(글자 수를 줄이면서 다 확인할 수 있게)
+    return '<div class="lawbox"><b>근거 법령과 시행일</b><ul>' + laws.slice(0, 4).map(row).join('') + '</ul>'
+      + (rest.length ? '<details class="dt"><summary>법령 ' + rest.length + '개 더 보기</summary><ul>' + rest.map(row).join('') + '</ul></details>' : '')
+      + '<small class="lawchk">국가법령정보센터 ' + dotd(LAW_DATA.checked) + ' 조회</small></div>';
+  }
+  // 글을 확인한 뒤 법령이 바뀌었거나 오래되면 스스로 알린다(최신화 장치). 시행일은 tools/check_laws.py --write가 표에 넣는다
+  const daysAgo = s => Math.floor((Date.now() - new Date(s).getTime()) / 86400000);
+  function lawWarn(g, laws) {
+    const newer = laws.filter(l => g.updated && l.effective > g.updated);
+    if (newer.length) return '<div class="warn">⚠️ 이 글을 확인한 뒤 ' + esc(newer[0].name) + '이 바뀌었어요(' + dotd(newer[0].effective) + ' 시행). 내용이 다를 수 있으니 1350에 확인해 주세요.</div>';
+    if (g.status !== '일반 조언' && g.updated && daysAgo(g.updated) > 180) return '<div class="warn">⚠️ 확인한 지 6개월이 넘은 글이에요. 신청 전에 1350에 확인해 주세요.</div>';
+    return '';
+  }
+  // 가이드 첫 화면(11-05 휴먼쌤 "'가이드' 누르면 이렇게 육아휴직/계산기/등 큰 네모 버튼이 바로 나오도록")
+  const HUB = [['💼', '육아휴직', '#/guide/leave'], ['🙋', 'Q&A', '#/guide/faq'], ['💰', '계산기', '#/calc'], ['🗂️', '자료실', '#/library'], ['🎮', '놀이', '#/guide/play'], ['🧠', '심리', '#/guide/mind'], ['📢', '정책', '#/guide/policy'], ['📌', '정보', '#/guide/info']];
+  function renderGuideHub() {
     setTab('guide');
     bar(brandBar());
-    const items = GD.items.filter(g => g.cat === cat);
+    view.innerHTML = '<section class="pad">' + pageHead('📚', '아빠 가이드') + '<div class="tiles big">' + HUB.map(x => tile(x[0], x[1], x[2])).join('') + '</div></section>';
+    window.scrollTo(0, 0);
+  }
+  // Q&A(11-05 휴먼쌤 "Q&A인데 그냥 읽기 자료같은 느낌이야"): 질문을 누르면 답이 펼쳐진다. 저장된 Q&A는 서버 없이 보이고, 관리자가 답한 질문을 위에 더한다
+  const qaItem = (q, a, more) => '<details class="qa"><summary><span class="qm">Q</span><b>' + esc(q) + '</b></summary><div class="qa-a"><span class="am">A</span><div><p>' + rich(a) + '</p>' + (more ? '<a class="lk2" href="' + esc(more) + '">자세히 보기 ›</a>' : '') + '</div></div></details>';
+  async function renderQna() {
+    setTab('guide');
+    bar(backBtn('#/guide') + '<div class="fill atitle">아빠 가이드</div>');
+    const items = GD.items.filter(g => g.cat === 'faq'), seq = renderSeq;
+    view.innerHTML = '<section class="pad">' + pageHead('🙋', 'Q&A') + guideChips('faq')
+      + '<div class="qalist"><div id="qaNew"></div>' + items.map(g => qaItem(g.q, g.a, '#/g/' + g.id)).join('') + '</div>'
+      + '<button type="button" class="btn primary qaask" data-ask="1">질문하기</button>'
+      + notes(['운영자가 확인해서 답을 여기에 올려요', '답은 법률 자문이 아니에요'])
+      + lawBox(lawsFor(items)) + '</section>';
+    window.scrollTo(0, 0);
+    try {
+      const r = await api('qnaList');
+      if (seq !== renderSeq) return;
+      const box = $('#qaNew'); if (box) box.innerHTML = (r.items || []).map(x => qaItem(x.question, x.answer, '')).join('');
+    } catch (e) { /* 끊겨도 저장된 Q&A는 보인다 */ }
+  }
+  function renderGuide(cat) {
+    if (!cat) { renderGuideHub(); return; }
+    if (cat === 'faq') { renderQna(); return; }
+    setTab('guide');
+    bar(backBtn('#/guide') + '<div class="fill atitle">아빠 가이드</div>');
+    const c = GCAT[cat], items = GD.items.filter(g => g.cat === cat);
     view.innerHTML = '<section class="pad">'
-      + pageHead('📚', '아빠 가이드')
+      + pageHead(c.e, c.name)
       + guideChips(cat)
       + (cat === 'leave' ? calcCard() + '<a class="grow" href="#/calc" style="margin-top:16px"><span class="ge">🧮</span><span class="tx"><b>계산기 모음</b><small>단축근무 · 출산휴가 · 아이 날짜</small></span></a>' : '')
       + '<div class="glist">' + (items.length ? items.map(grow).join('') : empty('준비 중이에요', '곧 글이 올라와요')) + '</div>'
-      + '<div class="draft"><span>📌</span><span>' + esc(K.RULES.checkedAt.replace(/-/g, '.')) + ' 법령 기준이에요. 내 경우는 1350이나 고용센터에 물어보세요.</span></div>'
+      + lawBox(lawsFor(items))
       + '</section>';
     window.scrollTo(0, 0);
     bindCalcCard();
@@ -657,14 +726,17 @@
     if (!g) { bar(backBtn('#/guide') + '<div class="fill atitle">아빠 가이드</div>'); view.innerHTML = '<section class="pad">' + empty('글을 찾을 수 없어요', '') + '</section>'; return; }
     const c = GCAT[g.cat] || {};
     bar(backBtn('#/guide/' + g.cat) + '<div class="fill atitle">아빠 가이드 · ' + esc(c.name || '') + '</div>');
-    const note = g.status === '공식 근거' ? '<div class="draft"><span>✅</span><span>' + esc(dot(g.updated)) + ' 법령과 정부 안내로 확인했어요. 내 경우는 1350이나 고용센터에 물어보세요.</span></div>'
+    const laws = lawsFor([g]);
+    const note = g.status === '공식 근거' ? '<div class="draft"><span>✅</span><span>' + dotd(g.updated) + ' 법령과 정부 안내로 확인. 내 경우는 1350이나 고용센터에 문의</span></div>'
       : g.status === '일반 조언' ? '<div class="draft"><span>✍️</span><span>일반적인 조언이에요. 집마다 다를 수 있어요.</span></div>'
-      : g.status === '자료 정리' ? '<div class="draft"><span>🗂️</span><span>' + esc(dot(g.updated)) + ' 출처가 있는 자료로 정리했어요. 내 경우는 1350이나 고용센터에 물어보세요.</span></div>' : '';
+      : g.status === '자료 정리' ? '<div class="draft"><span>🗂️</span><span>' + dotd(g.updated) + ' 출처가 있는 자료로 정리. 내 경우는 1350이나 고용센터에 문의</span></div>' : '';
     view.innerHTML = '<section class="pad"><article class="garticle">'
       + '<div class="meta"><span class="badge c-etc">' + esc(c.e || '') + ' ' + esc(c.name || '') + '</span>' + (g.tag ? '<span class="tag ' + tagCls(g.tag) + '">' + esc(g.tag) + '</span>' : '') + '</div>'
-      + '<h1>' + esc(g.title) + '</h1><p class="gsub">' + esc(g.sub) + '</p>' + note
+      + '<h1>' + esc(g.title) + '</h1><p class="gsub">' + esc(g.sub) + '</p>' + lawWarn(g, laws) + note
       + blocks(g.body)
+      + lawBox(laws)
       + (g.sources && g.sources.length ? '<div class="srcs"><b>출처</b><ul>' + g.sources.map(s => '<li><a href="' + esc(s.u) + '" target="_blank" rel="noopener">' + esc(s.t) + '</a></li>').join('') + '</ul></div>' : '')
+      + (g.status !== '일반 조언' ? '<button type="button" class="fixbtn" data-fix="' + esc(g.id) + '">내용이 달라졌나요? 알려 주기</button>' : '')
       + '</article>'
       + (g.community && CAT[g.community] ? '<a class="glink" href="#/community/' + esc(g.community) + '"><span>💬 커뮤니티 "' + esc(CAT[g.community].name) + '"에서 이야기 나누기</span><span>→</span></a>' : '')
       + '</section>';
@@ -672,9 +744,10 @@
   }
 
   // ----- 계산기 -----
+  // ----- 계산기 -----
   function renderCalc(tab) {
     setTab('guide');
-    bar(backBtn('#/guide/leave') + '<div class="fill atitle">계산기</div>');
+    bar(backBtn('#/guide') + '<div class="fill atitle">계산기</div>');
     const chips = '<div class="chips">' + CALC_TABS.map(t => '<a class="chip' + (t.key === tab ? ' on' : '') + '" href="#/calc/' + t.key + '"><span class="e">' + t.e + '</span>' + esc(t.name) + '</a>').join('') + '</div>';
     view.innerHTML = '<section class="pad">' + chips + '<div id="calcJob"></div><div id="calcForm"></div><div id="calcOut"></div></section>';
     window.scrollTo(0, 0);
@@ -682,7 +755,7 @@
     // 고용보험 근로자는 세 계산기 모두, 공무원·교원은 육아휴직 수당을 계산한다. 그 밖의 직종은 정보와 이동 단추. 날짜 칸은 누구나
     const paint = () => {
       if (tab === 'dates') { fill(); return; }
-      $('#calcJob').innerHTML = '<div class="about jobwrap">' + jobBox() + '</div>';
+      $('#calcJob').innerHTML = '<div class="' + (JOB_LINE[calcS.job] ? 'jobflat' : 'about jobwrap') + '">' + jobBox() + '</div>';
       if (calcS.job === 'worker') { fill(); return; }
       if (isCivilJob() && tab === 'leave') { calcCivil(); return; }
       $('#calcForm').innerHTML = isCivilJob() ? civilOther(tab) : ''; $('#calcOut').innerHTML = '';
@@ -777,7 +850,7 @@
           : '<li>회사에 신청: <b>' + dot(r.applyBy) + '</b>까지(시작 30일 전)</li>')
         + '<li>급여 신청: <b>' + dot(r.claimFrom) + '</b>부터 <b>' + dot(r.claimTo) + '</b>까지 고용24에서</li></ul></div>';
       $('#calcOut').innerHTML = warnBox(r.warnings) + birthNote + (r.rows.length && !noPay && !needBirth ? '<div class="result"><small>' + r.months + '개월 받는 돈(어림)' + (r.mode === 'both' && r.common ? ' · 6+6 ' + r.common + '개월' : '') + '</small><strong>' + won(r.total) + '</strong>' + compare + house + '<table class="calctbl">' + tbl + '</table></div>' + dates : '')
-        + basis('고용보험법 시행령 제95조·제95조의3·제98조(시행 2026.9.18.), 고용노동부 답변', W24_SIM, '고용보험 180일 이상이어야 받고, 실제 금액은 고용센터가 정해요.', '급여는 시작 전 고용보험 가입 기간(피보험 단위기간)이 180일 이상이어야 해요. 지난 직장 기간도 합쳐요(공백이 3년 이상이면 그 전은 빠지고, 실업급여를 받았으면 그 전은 빠져요). 그 회사에서 일한 기간이 6개월 미만이면 회사가 휴직을 거부할 수 있어요. 실제 금액은 고용센터가 정해요.');
+        + basis('고용보험법 시행령 제95조·제95조의3·제98조(시행 2026.9.18.), 고용노동부 답변', W24_SIM, ['고용보험 가입 180일 이상만 수급', '실제 금액은 고용센터 결정'], '급여는 시작 전 고용보험 가입 기간(피보험 단위기간)이 180일 이상이어야 해요. 지난 직장 기간도 합쳐요(공백이 3년 이상이면 그 전은 빠지고, 실업급여를 받았으면 그 전은 빠져요). 그 회사에서 일한 기간이 6개월 미만이면 회사가 휴직을 거부할 수 있어요. 실제 금액은 고용센터가 정해요.');
     };
     const setMonths = m => { calcS.end = K.addDays(K.addMonths(calcS.start, m), -1); $('#cEnd').value = calcS.end; saveCalc(); out(); };
     bindInputs({
@@ -809,7 +882,7 @@
           + (r.unpaidMonths ? '<p class="cline">수당은 ' + r.paidMonths + '개월까지예요. 나머지 ' + r.unpaidMonths + '개월은 수당이 없어요.</p>' : '')
           + '<table class="calctbl">' + tbl + '</table></div>' : '')
         + '<div class="about"><b>자녀 나이와 기간</b><ul><li>일반 공무원: 12세 이하 또는 초6 이하 자녀(국가공무원법 제71조, 지방공무원법 제63조)</li><li>교사: 만 8세 이하 또는 초2 이하 자녀(교육공무원법 제44조, 사립학교법 제59조)</li><li>자녀 1명당 3년 이내</li></ul><a class="lk2" href="#/g/leave-job">직종별 안내 보기</a></div>'
-        + '<p class="calcnote">육아맨이 수당 규정 숫자로 만든 어림이에요(고용24 아님). 실제 금액은 소속 기관이 정해요.</p>'
+        + notes(['수당 규정 숫자로 만든 육아맨 어림값(고용24 제공 아님)', '실제 금액은 소속 기관 결정'])
         + '<details class="dt"><summary>근거와 주의할 점</summary><p>' + (calcS.job === 'pteacher' ? '사립학교 교원은 국공립 교원 규정을 준용해요(사립학교법 시행령 제24조의9). 실제 지급은 학교 행정실에 확인해 주세요. ' : '') + '근거: 공무원수당 규정 제11조의3(시행 2026.10.2.), 지방공무원 수당 규정 제11조의2(시행 2026.10.1.), ' + esc(dot(K.RULES.checkedAt)) + ' 확인.</p></details>';
     };
     bindInputs({ cBong: el => { calcS.bong = parseFloat(el.value) || 0; }, cMon: el => { calcS.cMonths = parseInt(el.value, 10) || 0; }, cLong: el => { calcS.cLonger = el.checked; } }, out);
@@ -825,7 +898,7 @@
   }
   // 어림이라는 것과 꼭 알 것만 한 줄로 두고, 자세한 근거는 접어 둔다(11-04 휴먼쌤 "글자수도 너무 많고")
   function basis(law, simUrl, short, extra) {
-    return '<p class="calcnote">육아맨이 법령 숫자로 만든 어림이에요(고용24 아님). ' + esc(short) + '</p>'
+    return notes(['법령 숫자로 만든 육아맨 어림값(고용24 제공 아님)'].concat(short))
       + '<details class="dt"><summary>근거와 주의할 점</summary><p>' + esc(extra || '') + ' 근거: ' + esc(law) + ', ' + esc(dot(K.RULES.checkedAt)) + ' 확인.</p></details>'
       + '<a class="offi" href="' + esc(simUrl) + '" target="_blank" rel="noopener">고용24 공식 사이트에서 확인하기</a>';
   }
@@ -845,7 +918,7 @@
         + (r.reduced ? '<tr><td>감액<small>임금과 급여의 합이 통상임금을 넘는 만큼</small></td><td>-' + won(r.reduced) + '</td></tr>' : '')
         + '<tr class="sum"><td>정부 급여 ' + r.months + '개월 합계</td><td>' + won(r.totalGov) + '</td></tr></table>'
         + '<p class="cline">평소 통상임금보다 한 달에 <b>' + won(Math.max(0, r.lost)) + '</b> 줄고, 주 <b>' + r.cut + '시간</b>을 아이와 더 보내요.</p></div>' : '')
-        + basis('고용보험법 시행령 제104조의2(2026.1.1.부터 상한 250만·160만원, 하한 50만원)', 'https://m.work24.go.kr/cm/c/f/1100/selecSimulate13.do?systClId=SC00000252&systId=SI00000397&systCnntId=CI00001582', '회사 임금은 규정에 따라 달라요.', '회사 임금은 일한 시간에 비례해 어림했어요. 실제 회사 임금은 임금 규정에 따라 달라요.');
+        + basis('고용보험법 시행령 제104조의2(2026.1.1.부터 상한 250만·160만원, 하한 50만원)', 'https://m.work24.go.kr/cm/c/f/1100/selecSimulate13.do?systClId=SC00000252&systId=SI00000397&systCnntId=CI00001582', ['회사 임금은 임금 규정에 따라 변동'], '회사 임금은 일한 시간에 비례해 어림했어요. 실제 회사 임금은 임금 규정에 따라 달라요.');
     };
     bindInputs({ cPay: el => { calcS.pay = parseFloat(el.value) || 0; }, cBefore: el => { calcS.before = parseFloat(el.value) || 0; }, cAfter: el => { calcS.after = parseFloat(el.value) || 0; }, cMonths: el => { calcS.rMonths = parseInt(el.value, 10) || 1; }, cLast: el => { calcS.rLast = parseInt(el.value, 10) || 0; } }, out);
     const pickH = ev => { const b = ev.target.closest('[data-h]'); if (b) { calcS.after = +b.dataset.h; $('#cAfter').value = calcS.after; saveCalc(); out(); } };
@@ -866,7 +939,7 @@
         + '<table class="calctbl"><tr><td>정부 급여<small>' + (calcS.priority ? '20일 상한 ' + won(r.capAll) + ' · 하한 최저임금' : '우선지원대상기업이 아니면 없음') + '</small></td><td>' + won(r.gov) + '</td></tr>'
         + '<tr><td>회사가 주는 몫<small>유급 휴가라 나머지는 회사 몫</small></td><td>' + won(r.company) + '</td></tr></table></div>')
         + (d.paternityTo ? '<div class="about"><b>쓸 수 있는 기간</b><ul><li>' + (d.paternityFrom ? '<b>' + dot(d.paternityFrom) + '</b>부터' : '출산 예정일 50일 전부터') + ' <b>' + dot(d.paternityTo) + '</b>까지' + (d.birth ? '' : '(예정일 기준 어림)') + '. 마지막 날이 토·일·공휴일이면 다음 날까지예요.</li><li>20일을 네 번까지 나눠 쓸 수 있어요.</li><li>날짜를 적은 문서로 회사에 알려요.</li></ul></div>' : '<div class="about">출산 예정일이나 태어난 날을 넣으면 쓸 수 있는 기간을 알려 드려요.</div>')
-        + basis('남녀고용평등법 제18조의2(시행 2026.9.18.), 고용노동부 2026 급여 상한', 'https://www.work24.go.kr/', '실제 금액과 날짜는 회사와 확인해 주세요.', '1일 통상임금은 월 통상임금 ÷ 209시간 × 8시간으로 어림했어요. 끝나는 날은 태어난 날에 120일을 더한 값이니 회사와 확인해 주세요.');
+        + basis('남녀고용평등법 제18조의2(시행 2026.9.18.), 고용노동부 2026 급여 상한', 'https://www.work24.go.kr/', ['실제 금액과 날짜는 회사에 확인'], '1일 통상임금은 월 통상임금 ÷ 209시간 × 8시간으로 어림했어요. 끝나는 날은 태어난 날에 120일을 더한 값이니 회사와 확인해 주세요.');
     };
     bindInputs({ cPay: el => { calcS.pay = parseFloat(el.value) || 0; }, cDue: el => { calcS.due = el.value; }, cBirth: el => { calcS.birth = el.value; } }, out);
     $('#cPri').addEventListener('click', ev => { const b = ev.target.closest('[data-p]'); if (b) { calcS.priority = b.dataset.p === '1'; saveCalc(); out(); } });
@@ -892,7 +965,7 @@
         + row('6+6 시작 마지막 날', d.bothStartBy, '부모 모두 생후 18개월 안에 시작' + guess)
         + row('육아휴직 시작 마지막 날', d.leaveStartBy, '만 8세 이하 또는 초2 이하 중 늦은 날')
         + row('단축근무 시작 마지막 날', d.reduceStartBy, '만 12세 이하 또는 초6 이하 중 늦은 날')
-        + '</table></div><p class="calcnote">회사원 등 고용보험 근로자 기준이에요. 공무원·교원은 <a href="#/g/leave-job">직종별 안내</a>를 봐 주세요.</p>'
+        + '</table></div>' + notes(['회사원 등 고용보험 근로자 기준', '공무원·교원은 <a href="#/g/leave-job">직종별 안내</a> 참고'])
         + '<details class="dt"><summary>어떻게 계산했나요</summary><p>초등학교는 만 6세가 되는 해의 다음 해 3월 입학으로 계산했어요. 입학을 앞당기거나 늦췄으면 달라져요. 시작일이 이 날 안이면, 쉬는 도중 나이를 넘어도 이어서 쓸 수 있어요. 근거: 남녀고용평등법 제18조의2·제19조·제19조의2.</p></details>'
         : '<div class="about">태어난 날이나 출산 예정일을 넣으면 챙길 날짜를 보여 드려요.</div>';
     };
@@ -925,7 +998,7 @@
   }
   async function renderLibrary() {
     setTab('guide');
-    bar(brandBar());
+    bar(backBtn('#/guide') + '<div class="fill atitle">아빠 가이드</div>');
     view.innerHTML = '<section class="pad">' + pageHead('🗂️', '자료실') + guideChips('library') + '<div class="loading" id="libLoad">불러오는 중…</div></section>';
     window.scrollTo(0, 0);
     try { await loadLibrary(); } catch (e) { $('#libLoad').outerHTML = empty('자료를 못 불러왔어요', '잠시 뒤 다시 열어 주세요'); return; }
@@ -934,7 +1007,7 @@
     sec.insertAdjacentHTML('beforeend', '<div class="searchbar"><input id="libQ" type="search" placeholder="키워드 검색: 6+6, 복직, 판례, 후기" enterkeyhint="search" autocomplete="off" value="' + esc(lib.q) + '"></div>'
       + '<div class="chips" id="libTopics"><button type="button" class="chip' + (!lib.topic ? ' on' : '') + '" data-t="">전체</button>' + lib.topics.map(t => '<button type="button" class="chip' + (lib.topic === t ? ' on' : '') + '" data-t="' + esc(t) + '">' + esc(t) + '</button>').join('') + '</div>'
       + '<div class="sec" style="margin-top:4px"><h2 style="font-size:15px">' + (lib.updated ? esc(dot(lib.updated)) + ' 모음' : '자료') + '</h2><span id="libCount"></span></div><div class="list" id="libList"></div>'
-      + '<p class="calcnote">누르면 원문이 열려요. 숫자는 그 자료가 나온 때 기준이에요.</p>');
+      + notes(['누르면 원문으로 이동', '숫자는 그 자료가 나온 때 기준']));
     $('#libQ').addEventListener('input', ev => { lib.q = ev.target.value.trim(); paintLibrary(); });
     $('#libTopics').addEventListener('click', ev => { const b = ev.target.closest('[data-t]'); if (!b) return; lib.topic = b.dataset.t; $$('#libTopics .chip').forEach(x => x.classList.toggle('on', x === b)); paintLibrary(); });
     paintLibrary();
@@ -958,10 +1031,11 @@
       + '<div class="lockbox" id="lockBox"><div class="lk">🔒</div><h2>인증한 아빠만 볼 수 있어요</h2>'
       + '<p>아빠끼리 마음 놓고 이야기하는 곳이에요.</p>'
       + (me && me.blocked ? '<div class="vstate bad">이용이 제한된 계정이에요.</div>'
+        : identityOn() ? '<div id="lockCta"><button type="button" class="btn primary" id="lockGo">본인인증하고 시작하기</button><small class="hint">이름·전화번호는 저장하지 않아요.</small></div>'
         : '<div id="lockCta"><button type="button" class="btn primary" id="lockGo">초대 코드가 있어요</button><button type="button" class="btn line" id="lockNo">코드가 없어요 (신청서)</button><small class="hint">서류나 사진은 받지 않아요.</small></div>')
       + '</div>'
       + '<div class="sec"><h2>인증 전에도 볼 수 있어요</h2></div>'
-      + '<div class="tiles" style="margin-top:0">' + tile('📚', '아빠 가이드', '#/guide') + tile('🙋', 'Q&A·정보', '#/guide/faq') + tile('💰', '계산기', '#/calc') + tile('🗂️', '자료실', '#/library') + '</div></section>';
+      + '<div class="tiles" style="margin-top:0">' + tile('📚', '아빠 가이드', '#/guide') + tile('🙋', 'Q&A', '#/guide/faq') + tile('💰', '계산기', '#/calc') + tile('🗂️', '자료실', '#/library') + '</div></section>';
     window.scrollTo(0, 0);
     const after = () => render();
     const start = $('#lockGo');
@@ -999,6 +1073,7 @@
       + '<div class="chips ages" id="ages2" role="group" aria-label="아이 나이로 거르기">' + ageChip('', '전체 나이') + AGES.map(x => ageChip(x.key, x.name)).join('') + '</div>'
       + '<div class="searchbar" id="searchbar"' + (q ? '' : ' hidden') + '><input id="q" type="search" placeholder="키워드로 글 찾기 (예: 복직, 이유식)" enterkeyhint="search" autocomplete="off" value="' + esc(q) + '"><button type="button" class="sgo" id="qgo">찾기</button><button type="button" class="sx" id="qx" aria-label="검색 지우기">✕</button></div>'
       + (mode === 'local' ? mockBadge() : '')
+      + '<div id="hotBox"></div>'
       + '<div class="list" id="list"></div><button type="button" class="more" id="more" hidden>더 보기</button>'
       + '</section>';
     const syncBubble = () => { const b = $('#searchBubble'); if (b) b.hidden = !$('#searchbar').hidden; };
@@ -1010,7 +1085,18 @@
     $('#qx').addEventListener('click', () => { $('#q').value = ''; $('#searchbar').hidden = true; syncBubble(); if (listState.q) { listState.q = ''; loadList(false); } });
     $('#more').addEventListener('click', () => loadList(true));
     $('#ages2').addEventListener('click', ev => { const b = ev.target.closest('[data-age]'); if (!b) return; listState.age = b.dataset.age; $$('#ages2 .chip').forEach(x => { x.classList.toggle('on', x === b); x.setAttribute('aria-pressed', x === b); }); loadList(false); });
-    if (reuse) { paintList(); window.scrollTo(0, listState.scroll); } else { window.scrollTo(0, 0); await loadList(false); }
+    if (reuse) { paintList(); loadHot(); window.scrollTo(0, listState.scroll); } else { window.scrollTo(0, 0); await loadList(false); }
+  }
+  // 지금 뜨는 글(11-05 휴먼쌤 "핫한 글이 있으면 상위로 띄워서"). 분류·나이·검색을 고르면 그 결과만 보이게 숨긴다
+  async function loadHot() {
+    const box = $('#hotBox'); if (!box) return;
+    if (listState.cat || listState.age || listState.q) { box.innerHTML = ''; return; }
+    const seq = renderSeq;
+    try {
+      const r = await api('hotPosts');
+      if (seq !== renderSeq || !$('#hotBox')) return;
+      $('#hotBox').innerHTML = r.posts.length ? '<section class="hot"><h2>🔥 지금 뜨는 글</h2>' + r.posts.map((p, i) => '<a class="hotrow" href="#/p/' + p.id + '" data-keep="1"><i>' + (i + 1) + '</i><b>' + esc(p.title) + '</b><span>댓글 ' + (p.comments || 0) + '</span></a>').join('') + '</section>' : '';
+    } catch (e) { /* 인기 글은 없어도 목록은 보인다 */ }
   }
   async function loadList(more) {
     const list = $('#list'), btn = $('#more'); if (!list) return;
@@ -1023,6 +1109,7 @@
       listState.posts = more ? listState.posts.concat(r.posts) : r.posts; listState.next = r.next;
       if (mode === 'local' && !$('#mockBadge') && $('#list')) $('#list').insertAdjacentHTML('beforebegin', mockBadge());
       paintList();
+      if (!more) loadHot();
     } catch (e) {
       if (readDenied(e)) { listState.posts = []; bar(brandBar()); renderLock(); return; }
       if (!more) list.innerHTML = empty('글을 못 불러왔어요', '잠시 뒤 다시 열어 주세요');
@@ -1151,15 +1238,8 @@
 
   // ----- MY -----
   let meSeg = 'posts';
-  function aboutBox() {
-    return '<div class="about"><details class="dt" style="margin-top:0"><summary>육아맨이 저장하는 것</summary><ul>'
-      + '<li>저장하는 것: 닉네임, 이 기기 토큰과 복구 코드의 해시, 내가 쓴 글·댓글, 인증 신청 내용(결정 뒤 지움), 누가 초대했는지, 마지막 접속 시각. 가입·코드 시도 때는 기기 주소(IP)의 짧은 해시를 이틀 안에만. 이메일·전화번호·서류·아이 정보는 받지 않아요.</li>'
-      + '<li>사진·영상 없이 글로만. 커뮤니티는 인증한 아빠끼리만 읽고 써요.</li>'
-      + '<li>내 글·댓글은 내가 지울 수 있고, 지우면 내용이 바로 비워져요. 탈퇴하면 글·댓글 내용과 계정이 지워져요.</li>'
-      + '<li>브라우저 저장소가 지워지거나 폰을 바꾸면 복구 코드로 같은 닉네임에 돌아올 수 있어요. 코드는 MY에서 볼 수 있어요.</li>'
-      + (mode === 'local' ? '<li>지금은 시험 모드라 글이 이 기기에만 저장돼요.</li>' : '') + '</ul></details>'
-      + '<p class="sm" style="margin-top:10px">운영: ' + esc(CFG.OPERATOR || '') + ' · 문의: ' + (CFG.CONTACT ? '<a href="mailto:' + esc(CFG.CONTACT) + '">' + esc(CFG.CONTACT) + '</a>' : '준비 중') + '<br><a class="lk2" href="#/terms">이용약관</a> · <a class="lk2" href="#/privacy">개인정보 처리방침</a></p></div>';
-  }
+  // 11-05 휴먼쌤 "이런 어설픈건 빼주고 법적으로 필요할 때만 '이용약관'에 올려": 운영자·문의·저장 항목은 약관과 처리방침 안에 둔다. 처리방침은 공개 의무(개인정보 보호법 제30조)라 링크만 남긴다
+  function aboutBox() { return '<p class="foot-note"><a href="#/terms">이용약관</a> · <a href="#/privacy">개인정보 처리방침</a></p>'; }
   function themeBox() {
     const cur = store.get('theme', 'auto');
     return '<div class="about" id="themeBox"><b>화면 밝기</b><div class="seg" style="margin-top:8px">' + [['auto', '기기 따라'], ['light', '밝게'], ['dark', '어둡게']].map(x => '<button type="button" class="' + (cur === x[0] ? 'on' : '') + '" data-theme-pick="' + x[0] + '">' + x[1] + '</button>').join('') + '</div></div>';
@@ -1300,14 +1380,31 @@
     if (seq !== renderSeq) return;
     const STAGE = { raising: '아이를 키워요', expecting: '곧 아빠가 돼요' };
     const urow = u => {
-      const state = u.role === 'admin' ? '관리자' : u.blocked ? '막힘' : u.verified ? '인증(' + ({ invite: '초대', apply: '신청', admin: '관리자' }[u.verified_how] || '') + ')' : '인증 전';
+      const state = u.role === 'admin' ? '관리자' : u.blocked ? '막힘' : u.verified ? '인증(' + ({ invite: '초대', apply: '신청', admin: '관리자', identity: '본인인증' }[u.verified_how] || '') + ')' : '인증 전';
       const acts = u.role !== 'user' ? '' : (u.blocked ? '<button type="button" class="edit" data-u="' + u.id + '" data-a="unblock">풀기</button>'
         : (u.verified ? '<button type="button" class="edit" data-u="' + u.id + '" data-a="unverify">해제</button>' : '<button type="button" class="edit" data-u="' + u.id + '" data-a="verify">인증</button>') + '<button type="button" class="edit" data-u="' + u.id + '" data-a="block">막기</button>')
         + '<button type="button" class="edit" data-u="' + u.id + '" data-a="logout">끊기</button>'
         + (u.posts ? '<button type="button" class="edit" data-u="' + u.id + '" data-a="hide_all">글 숨김</button>' : '');
       return '<div class="urow"><div class="tx"><b>' + esc(u.nick) + '</b><small>' + state + (u.inviter ? ' · 초대: ' + esc(u.inviter) : '') + ' · 글 ' + u.posts + ' · ' + ymd(u.created) + '</small></div><div class="acts">' + acts + '</div></div>';
     };
+    // Q&A 질문 · 글 제보 · 올라간 Q&A · 최신화 점검(11-05 휴먼쌤)
+    const qaAll = r.qna || [], qaQ = qaAll.filter(x => x.kind !== 'fix'), qaFix = qaAll.filter(x => x.kind === 'fix'), qaPub = r.qna_published || [];
+    const guideTitle = id => { const g = GD.items.find(x => x.id === id); return g ? g.title : ''; };
+    const qaCard = x => '<div class="appl" data-qa="' + x.id + '"><div class="meta"><b>질문</b><span class="time">' + ago(x.created) + '</span></div>'
+      + '<textarea class="inp" data-f="q" rows="2" maxlength="300" style="min-height:64px;margin-top:6px" aria-label="질문">' + esc(x.question) + '</textarea>'
+      + '<textarea class="inp" data-f="a" rows="4" maxlength="1000" style="min-height:96px;margin-top:8px" aria-label="답변" placeholder="답을 적어 올리면 Q&amp;A에 바로 보여요. 근거 법령도 함께 적어 주세요."></textarea>'
+      + '<div class="two" style="margin-top:8px"><button type="button" class="btn primary small" data-qaa="answer">답변 올리기</button><button type="button" class="btn line small" data-qaa="delete">지우기</button></div></div>';
+    const fixCard = x => '<div class="appl" data-qa="' + x.id + '"><div class="meta"><b>' + esc(guideTitle(x.ref) || '일반') + '</b><span class="time">' + ago(x.created) + '</span></div><p>' + esc(x.question) + '</p>'
+      + '<div class="two" style="margin-top:8px">' + (x.ref ? '<a class="btn line small" href="#/g/' + esc(x.ref) + '" style="text-align:center">글 열기</a>' : '') + '<button type="button" class="btn primary small" data-qaa="delete">처리 완료</button></div></div>';
+    const pubCard = x => '<div class="appl" data-qa="' + x.id + '"><div class="meta"><b>' + esc(x.question) + '</b><span class="time">' + ago(x.answered_at) + '</span></div><p>' + esc(x.answer) + '</p><button type="button" class="btn line small" data-qaa="delete">내리기</button></div>';
+    const oldDocs = GD.items.filter(g => g.status !== '일반 조언' && g.updated && daysAgo(g.updated) > 90);
+    const upcoming = LAW_DATA.items.filter(l => l.upcoming).map(l => esc(l.name) + ' ' + dotd(l.upcoming));
     view.innerHTML = '<section class="pad">'
+      + '<div class="sec"><h2>Q&amp;A 질문</h2><span>' + qaQ.length + '건</span></div>' + (qaQ.length ? qaQ.map(qaCard).join('') : '<div class="about">대기 중인 질문이 없어요.</div>')
+      + '<div class="sec"><h2>글 제보</h2><span>' + qaFix.length + '건</span></div>' + (qaFix.length ? qaFix.map(fixCard).join('') : '<div class="about">대기 중인 제보가 없어요.</div>')
+      + (qaPub.length ? '<div class="sec"><h2>올라간 Q&amp;A</h2><span>' + qaPub.length + '건</span></div>' + qaPub.map(pubCard).join('') : '')
+      + '<div class="sec"><h2>최신화 점검</h2></div><div class="about">' + notes(['법령 표 확인: ' + dotd(LAW_DATA.checked) + ' (' + daysAgo(LAW_DATA.checked) + '일 전)', '예고된 개정: ' + (upcoming.join(', ') || '없음'), '확인한 지 90일 넘은 글: ' + oldDocs.length + '편'])
+      + oldDocs.slice(0, 20).map(g => '<a class="lk2" style="display:block" href="#/g/' + esc(g.id) + '">' + esc(g.title) + '</a>').join('') + '</div>'
       + '<div class="sec"><h2>인증 신청</h2><span>' + r.queue.length + '건</span></div>'
       + (r.queue.length ? r.queue.map(q => '<div class="appl" data-id="' + q.id + '"><div class="meta"><b>' + esc(q.nick) + '</b><span class="time">' + ago(q.created) + '</span></div><small>' + esc(STAGE[q.stage] || '') + '</small><p>' + esc(q.answer) + '</p><div class="two"><button type="button" class="btn primary small" data-d="1">승인</button><button type="button" class="btn line small" data-d="0">거절</button></div></div>').join('') : '<div class="about">대기 중인 신청이 없어요.</div>')
       + '<p class="calcnote">승인·거절하면 신청 내용은 바로 지워져요.</p>'
@@ -1330,7 +1427,21 @@
     const sh = ev.target.closest('[data-share]');
     const mk = ev.target.closest('#invMake');
     const rp = ev.target.closest('[data-rp]');
+    const qaa = ev.target.closest('[data-qaa]');
     try {
+      if (qaa) {
+        const card = qaa.closest('[data-qa]'), id = +card.dataset.qa;
+        if (qaa.dataset.qaa === 'answer') {
+          const answer = $('[data-f=a]', card).value.trim();
+          if (len(answer) < LIM.qa[0]) { toast('답변을 적어 주세요', 'err'); return; }
+          await api('adminQna', { id, action: 'answer', question: $('[data-f=q]', card).value.trim(), answer });
+          toast('Q&A에 올렸어요');
+        } else {
+          await api('adminQna', { id, action: 'delete' });
+          toast('처리했어요');
+        }
+        view.removeEventListener('click', adminClick); render(); return;
+      }
       if (rp) { const c = rp.closest('.appl'); if (rp.dataset.rp === 'hide' && !confirm('숨기면 내용이 지워지고 되돌릴 수 없어요. 숨길까요?')) return; await api('adminReport', c.dataset.rk, +c.dataset.rt, rp.dataset.rp); toast('처리했어요'); view.removeEventListener('click', adminClick); render(); return; }
       if (d) { const card = d.closest('.appl'); await api('adminDecide', +card.dataset.id, d.dataset.d === '1'); toast(d.dataset.d === '1' ? '승인했어요' : '거절했어요'); view.removeEventListener('click', adminClick); render(); }
       else if (u) {
@@ -1366,28 +1477,45 @@
     if (ev.shiftKey && document.activeElement === a) { ev.preventDefault(); z.focus(); }
     else if (!ev.shiftKey && document.activeElement === z) { ev.preventDefault(); a.focus(); }
   });
+  // 닉네임은 세 칸을 합쳐 만든다(11-05 휴먼쌤 "닉네임에 별명/거주지/자녀연생 끝2자리 입력"). 예: 든든이/청주/24
+  const nickNow = () => ($('#nName').value.trim() || '별명') + '/' + ($('#nPlace').value.trim() || '거주지') + '/' + ($('#nYear').value.trim() || '00');
   function openSheet(after, kind) {
-    const rename = kind === 'rename';
+    const rename = kind === 'rename', P = nickParts(rename && me ? me.nick : '');
     showSheet('<div class="sheet" role="dialog" aria-modal="true" aria-label="' + (rename ? '닉네임 바꾸기' : '닉네임 정하기') + '"><div class="grip"></div>'
       + '<h2>' + (rename ? '닉네임 바꾸기' : '육아맨에 온 걸 환영해요 👋') + '</h2>'
-      + '<p>' + (rename ? '일주일에 한 번 바꿀 수 있어요. 지난 글의 이름도 함께 바뀌어요.' : '아빠들이 서로 묻고, 알려 주고, 자랑하는 곳이에요. 이메일이나 서류는 받지 않아요.') + '</p>'
-      + '<label class="lbl" for="nick">닉네임</label><input class="inp" id="nick" maxlength="12" placeholder="예: 초보대디" autocomplete="off" enterkeyhint="done" value="' + (rename && me ? esc(me.nick) : '') + '">'
-      + '<small class="hint">2~12자 · 한글·영문·숫자 · 글에 그대로 보여요</small>'
+      + '<p>' + (rename ? '일주일에 한 번 바꿀 수 있어요. 지난 글의 이름도 함께 바뀌어요.' : '이메일이나 서류는 받지 않아요.') + '</p>'
+      + '<span class="lbl">닉네임</span><div class="nick3">'
+      + '<label>별명<input class="inp" id="nName" maxlength="8" placeholder="든든이" autocomplete="off" enterkeyhint="next" value="' + esc(P.name) + '"></label>'
+      + '<label>거주지<input class="inp" id="nPlace" maxlength="6" placeholder="청주" autocomplete="off" enterkeyhint="next" value="' + esc(P.place) + '"></label>'
+      + '<label>자녀 출생연도<input class="inp" id="nYear" maxlength="2" inputmode="numeric" placeholder="24" autocomplete="off" enterkeyhint="done" value="' + esc(P.year) + '"></label></div>'
+      + '<div class="nickshow" id="nickShow"></div>'
+      + '<small class="hint">거주지는 시·군까지만 · 출생연도는 끝 2자리(곧 태어나면 예정 연도) · 글에 그대로 보여요</small>'
       + (rename ? '' : '<label class="lbl" for="invite">초대 코드 (있으면)</label><input class="inp code" id="invite" maxlength="12" placeholder="없으면 비워 두세요" autocomplete="off" autocapitalize="characters" value="' + esc(pendingInvite) + '">'
         + '<label class="chk"><input type="checkbox" id="agree"> 서로 존중하고, 아이의 이름·얼굴 같은 개인정보는 올리지 않을게요.</label>')
       + '<div class="err" id="nickErr" hidden></div>'
       + '<button type="button" class="btn primary" id="joinBtn">' + (rename ? '바꾸기' : '다음') + '</button>'
       + '<button type="button" class="btn ghost" id="laterBtn">' + (rename ? '취소' : '둘러보기만 할래요') + '</button></div>', after);
+    const show = () => { $('#nickShow').textContent = '글에 이렇게 보여요: ' + nickNow(); };
+    show();
     $('#laterBtn').addEventListener('click', () => { invitePrompted = true; closeSheet(); });
     $('#joinBtn').addEventListener('click', () => doJoin(rename));
-    $('#nick').addEventListener('keydown', ev => { if (ev.key === 'Enter' && !ev.isComposing) { ev.preventDefault(); doJoin(rename); } });
-    setTimeout(() => { const n = $('#nick'); if (n) n.focus(); }, 60);
+    ['nName', 'nPlace', 'nYear'].forEach(id => {
+      const el = $('#' + id);
+      el.addEventListener('input', show);
+      el.addEventListener('keydown', ev => { if (ev.key === 'Enter' && !ev.isComposing) { ev.preventDefault(); doJoin(rename); } });
+    });
+    setTimeout(() => { const n = $('#nName'); if (n) n.focus(); }, 60);
   }
   async function doJoin(rename) {
-    const nickEl = $('#nick'), err = $('#nickErr'); if (!nickEl) return;
-    const nick = nickEl.value.trim();
-    const bad = checkNick(nick); if (bad) { err.hidden = false; err.textContent = MSG[bad]; return; }
-    if (!rename && !$('#agree').checked) { err.hidden = false; err.textContent = '약속에 체크해 주세요'; return; }
+    const nameEl = $('#nName'), err = $('#nickErr'); if (!nameEl) return;
+    const say = m => { err.hidden = false; err.textContent = m; };
+    const name = nameEl.value.trim(), place = $('#nPlace').value.trim(), year = $('#nYear').value.trim();
+    if (!/^[가-힣A-Za-z0-9]{2,8}$/.test(name)) return say('별명은 띄어쓰기 없이 2~8자로 적어 주세요');
+    if (!/^[가-힣]{2,6}$/.test(place)) return say('거주지는 한글 2~6자로 적어 주세요(예: 청주)');
+    if (!/^\d{2}$/.test(year)) return say('자녀 출생연도 끝 2자리를 숫자로 적어 주세요(예: 24)');
+    const nick = name + '/' + place + '/' + year;
+    const bad = checkNick(nick); if (bad) return say(MSG[bad]);
+    if (!rename && !$('#agree').checked) return say('약속에 체크해 주세요');
     const btn = $('#joinBtn'); btn.disabled = true;
     try {
       const invite = rename ? '' : ($('#invite').value || '').trim();
@@ -1404,7 +1532,7 @@
       };
       closeSheet();
       if (r.recovery) showRecovery(r.recovery, next); else next();     // 가입 직후 복구 코드를 한 번 보여 준다(서버는 해시만 둔다)
-    } catch (e) { err.hidden = false; err.textContent = errText(e); }
+    } catch (e) { say(errText(e)); }
     finally { btn.disabled = false; }
   }
   // 복구 코드 보여 주기(가입 직후 · 새로 만들 때 · 복구 뒤). 배경을 눌러 닫아도 다음 단계로 간다.
@@ -1444,9 +1572,32 @@
     $('#recIn').addEventListener('keydown', ev => { if (ev.key === 'Enter' && !ev.isComposing) { ev.preventDefault(); run(); } });
     setTimeout(() => { const n = $('#recIn'); if (n) n.focus(); }, 60);
   }
-  // 아빠 인증: 초대 코드(바로) · 신청서(운영자 승인)
+  // 본인인증(포트원). config.js IDENTITY가 채워져야 켜진다. 폰은 인증 화면으로 넘어갔다가 이 주소로 돌아오니(?identityVerificationId=…) 시작할 때도 마무리한다
+  function loadPortOne() { return new Promise((done, bad) => { if (window.PortOne) { done(); return; } const s = document.createElement('script'); s.src = 'https://cdn.portone.io/v2/browser-sdk.js'; s.onload = () => done(); s.onerror = () => bad(new ApiError('identity_bad')); document.head.appendChild(s); }); }
+  async function finishIdentity(id) { const r = await api('verifyIdentity', id); setMe(r.user); toast('본인인증이 끝났어요. 반가워요!'); return r; }
+  async function startIdentity() {
+    await loadPortOne();
+    const id = 'yk-' + randomToken().slice(0, 28);
+    const res = await window.PortOne.requestIdentityVerification({ storeId: CFG.IDENTITY.storeId, identityVerificationId: id, channelKey: CFG.IDENTITY.channelKey, redirectUrl: location.origin + location.pathname });
+    if (res && res.code) throw new ApiError('identity_bad');
+    return finishIdentity(id);
+  }
+  function openIdentity(after) {
+    showSheet('<div class="sheet" role="dialog" aria-modal="true" aria-label="본인인증"><div class="grip"></div><h2>본인인증</h2>'
+      + '<p>휴대폰 본인인증(PASS)을 마치면 바로 커뮤니티를 쓸 수 있어요. 이름·전화번호는 저장하지 않아요.</p>'
+      + '<div class="err" id="vErr" hidden></div><button type="button" class="btn primary" id="idGo">본인인증 하기</button>'
+      + '<label class="lbl" for="vcode">초대 코드가 있다면</label><div class="two"><input class="inp code" id="vcode" maxlength="12" placeholder="ABCD-2345" autocomplete="off" autocapitalize="characters" value="' + esc(pendingInvite) + '"><button type="button" class="btn line small" id="vCodeGo" style="margin-top:0">코드 넣기</button></div>'
+      + '<button type="button" class="btn ghost" id="vLater">나중에 할게요</button></div>', after);
+    const show = e => { const err = $('#vErr'); err.hidden = false; err.textContent = errText(e); };
+    const finish = () => { const f = sheetAfter; closeSheet(); if (f) f(); else render(); };
+    $('#vLater').addEventListener('click', () => { invitePrompted = true; closeSheet(); if (['me', 'community', 'home'].includes(parse().name)) render(); });
+    $('#idGo').addEventListener('click', async ev => { ev.target.disabled = true; try { await startIdentity(); finish(); } catch (e) { show(e); ev.target.disabled = false; } });
+    $('#vCodeGo').addEventListener('click', async () => { try { const r = await api('verifyCode', $('#vcode').value.trim()); if (r.user) setMe(r.user); clearInvite(); toast('인증됐어요. 반가워요!'); finish(); } catch (e) { show(e); } });
+  }
+  // 아빠 인증: 초대 코드(바로) · 신청서(운영자 승인). 본인인증을 켜면 본인인증과 초대 코드만
   function openVerify(after) {
     if (!me) { openSheet(after); return; }
+    if (identityOn()) { openIdentity(after); return; }
     let tab = 'code', stage = '';
     const startApply = verifyStartTab === 'apply'; verifyStartTab = 'code';
     showSheet('<div class="sheet" role="dialog" aria-modal="true" aria-label="아빠 인증"><div class="grip"></div><h2>아빠 인증</h2>'
@@ -1489,6 +1640,23 @@
       finally { btn.disabled = false; }
     });
   }
+  // 질문하기 · 글 제보(서버에 쌓이고 관리자가 본다. 쓴 사람은 저장하지 않는다)
+  function openAsk(kind, ref) {
+    const fix = kind === 'fix';
+    showSheet('<div class="sheet" role="dialog" aria-modal="true" aria-label="' + (fix ? '내용 알려 주기' : '질문하기') + '"><div class="grip"></div><h2>' + (fix ? '내용이 달라졌나요?' : '질문하기') + '</h2>'
+      + '<p>' + (fix ? '바뀐 내용이나 틀린 곳을 적어 주세요. 확인해서 고칠게요.' : '운영자가 확인해서 답을 Q&amp;A에 올려요.') + '</p>'
+      + '<label class="lbl" for="askIn">' + (fix ? '무엇이 다른가요' : '궁금한 것') + '</label><textarea class="inp" id="askIn" rows="4" maxlength="300" style="min-height:112px" placeholder="' + (fix ? '예: 상한액이 바뀌었어요' : '예: 육아휴직 중에 이사해도 되나요?') + '"></textarea>'
+      + '<small class="hint">아이 이름·회사 이름은 적지 말아 주세요.</small><div class="err" id="askErr" hidden></div>'
+      + '<button type="button" class="btn primary" id="askGo">보내기</button><button type="button" class="btn ghost" id="askNo">취소</button></div>');
+    $('#askNo').addEventListener('click', closeSheet);
+    $('#askGo').addEventListener('click', async ev => {
+      const text = $('#askIn').value.trim(), err = $('#askErr');
+      if (len(text) < LIM.ask[0]) { err.hidden = false; err.textContent = MSG.ask_len; return; }
+      ev.target.disabled = true;
+      try { await api('ask', { kind, ref: ref || '', text }); closeSheet(); toast(fix ? '고마워요. 확인해 볼게요' : '받았어요. 답이 달리면 Q&A에 올라와요'); }
+      catch (e) { err.hidden = false; err.textContent = errText(e); ev.target.disabled = false; }
+    });
+  }
   function closeSheet() {
     const sh = sheetEl(); if (!sh) return;
     const wasOpen = !sh.hidden;
@@ -1504,11 +1672,41 @@
     const b = ev.target.closest('[data-back]'); if (b) { ev.preventDefault(); back(b.dataset.back); return; }
     const dc = ev.target.closest('[data-del-cmt]'); if (dc) { delComment(+dc.dataset.delCmt); }
     const rb = ev.target.closest('[data-report]'); if (rb) { reportFlow(rb.dataset.report, +rb.dataset.rid); }
+    if (ev.target.closest('[data-ask]')) openAsk('question');
+    const fx = ev.target.closest('[data-fix]'); if (fx) openAsk('fix', fx.dataset.fix);
   });
+
+  // 옆으로 밀리는 칩 줄에 '오른쪽에 더 있어요' 표시(11-05 휴먼쌤). 더 있을 때만 보이고, 누르면 밀린다
+  const syncMore = (el, b) => { b.hidden = el.scrollLeft + el.clientWidth >= el.scrollWidth - 8; };
+  function markScrollers() {
+    $$('#view .chips, #view .ages').forEach(el => {
+      if (!el.parentNode.classList.contains('hs')) {
+        const w = document.createElement('div'); w.className = 'hs';
+        el.parentNode.insertBefore(w, el); w.appendChild(el);
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'hsmore'; b.setAttribute('aria-label', '오른쪽으로 더 보기'); b.innerHTML = '<span aria-hidden="true">›</span>';
+        b.addEventListener('click', () => el.scrollBy({ left: Math.round(el.clientWidth * 0.7), behavior: 'smooth' }));
+        w.appendChild(b);
+        el.addEventListener('scroll', () => syncMore(el, b), { passive: true });
+      }
+      syncMore(el, el.parentNode.querySelector('.hsmore'));
+    });
+  }
+  let markPending = false;
+  new MutationObserver(() => { if (markPending) return; markPending = true; setTimeout(() => { markPending = false; markScrollers(); }, 30); }).observe(view, { childList: true, subtree: true });
+  window.addEventListener('resize', markScrollers);
 
   // ----- 시작 -----
   if (mode === 'local') { const u = local.user(); setMe(u ? pub(u) : null); }
   render();
+  // 본인인증 화면에서 돌아왔을 때(폰): ?identityVerificationId=…&code=…
+  (function () {
+    const p = new URLSearchParams(location.search), id = p.get('identityVerificationId');
+    if (!id) return;
+    history.replaceState(null, '', location.pathname + '#/me');
+    if (p.get('code')) { toast(MSG.identity_bad, 'err'); render(); return; }
+    finishIdentity(id).then(() => render()).catch(e => { toast(errText(e), 'err'); render(); });
+  })();
   // 승인·해제가 다른 기기에서 일어나도 다음에 열 때 맞춘다(화면을 막지 않는다)
   // 읽기 자격이 바뀌었으면 커뮤니티가 보이는 화면을 다시 그린다(잠금 ↔ 글 목록)
   const syncMe = next => { const was = canRead(); setMe(next); if (!!was !== !!canRead() && ['home', 'community', 'post'].includes(parse().name)) render(); };

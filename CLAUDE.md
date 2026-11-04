@@ -5,16 +5,16 @@
 이 파일은 공개 파일이다 — 비밀 값·개인 정보·PC 경로를 적지 않는다. 경로는 모두 이 저장소 루트 기준.
 
 ## 짜임
-- `public/` 화면 그대로 올라간다(만드는 단계 없음). `index.html` 틀 · `style.css` · `app.js`(화면 전부, 해시 주소) · `calc.js`(계산, 법령 기준) · `guide-data.js`(가이드 글) · `official-data.js`(가이드 Q&A·정보, 만들어지는 파일) · `data/library.json`(자료실, 만들어지는 파일) · `config.js` · `sample-data.js`(서버 없을 때 시험 모드 견본) · `manifest.json` · `sw.js` · `icons/` · `_headers`(보안 응답 머리글: CSP · frame-ancestors · Referrer-Policy).
+- `public/` 화면 그대로 올라간다(만드는 단계 없음). `index.html` 틀 · `style.css` · `app.js`(화면 전부, 해시 주소) · `calc.js`(계산, 법령 기준) · `guide-data.js`(가이드 글) · `official-data.js`(가이드 Q&A와 정보 칸, 만들어지는 파일) · `law-data.js`(근거 법령 표, `tools/check_laws.py --write`가 만듦) · `data/library.json`(자료실, 만들어지는 파일) · `config.js` · `sample-data.js`(서버 없을 때 시험 모드 견본) · `manifest.json` · `sw.js` · `icons/` · `_headers`(보안 응답 머리글: CSP · frame-ancestors · Referrer-Policy).
 - `functions/api/[[path]].js` → `server/app.js`: Cloudflare Pages Functions 서버. 맨 위 주석에 API 약속.
-- `schema.sql` D1 표(users · invites · applications · posts · comments · reports · acts). 검색 색인 posts_fts(FTS5 trigram)와 트리거는 MIGRATIONS에. 이미 있는 표에 칸을 더할 때는 `deploy.py` MIGRATIONS에 ALTER 한 줄(`deploy.py migrate`).
-- `seed/official-posts.json` → `tools/build_seed.py` → `seed/official.sql`(자료실 계정의 글 넣기) + `seed/official-update.sql`(이미 있는 글 고치기) + `public/official-data.js`(같은 글을 가이드 'Q&A·정보'로, 인증 전에도 보임). 글을 고치면 `deploy.py seed`로 공개 D1도 맞춘다.
+- `schema.sql` D1 표(users · invites · applications · posts · comments · reports · qna · acts). 검색 색인 posts_fts(FTS5 trigram)와 트리거는 MIGRATIONS에. 이미 있는 표에 칸을 더할 때는 `deploy.py` MIGRATIONS에 ALTER 한 줄(`deploy.py migrate`).
+- `seed/official-posts.json` → `tools/build_seed.py` → `seed/official.sql`(자료실 계정의 글 넣기) + `seed/official-update.sql`(이미 있는 글 고치기) + `public/official-data.js`(같은 글을 가이드로, 인증 전에도 보임. 'Q.'으로 시작하는 글은 Q&A 칸, 나머지는 정보 칸). 글을 고치면 `deploy.py seed`로 공개 D1도 맞춘다.
 - `data-src/*.json` → `tools/build_library.py` → `public/data/library.json`: 자료실. `verdicts.json`은 재검증 결과.
 - `wrangler.toml` Pages `humanssaem-yukaman` + D1 `yukaman`. `deploy.py` 미리 보기·올리기.
 
 ## 돌리기
 - 미리 보기: `python -X utf8 deploy.py dev --fresh` → http://127.0.0.1:8799 (가짜 D1, 시험 코드는 `test/seed-local.sql`).
-- 시험: `node test/calc-test.js` · `node test/api-test.mjs`(미리 보기를 --fresh로 띄운 뒤, 내 컴퓨터 주소에만).
+- 시험: `node test/calc-test.js` · `node test/api-test.mjs`(미리 보기를 --fresh로 띄운 뒤, 내 컴퓨터 주소에만). 본인인증 시험은 가짜 포트원(8798)에 묻는다. 저장소 뿌리의 `.dev.vars`(gitignore)에 `PORTONE_API_SECRET=test-secret`과 `PORTONE_API_BASE=http://127.0.0.1:8798`을 두고 미리 보기를 띄운다.
 - 내 컴퓨터(localhost)에서 정적 서버로 `public/`만 열면 `/api`가 없어 화면이 알아서 **시험 모드**(견본 글 + 그 기기 localStorage)로 돈다. 운영 주소에서는 바꾸지 않는다 — 서버가 JSON이 아닌 것을 돌려주면 "서버에 연결할 수 없어요"만 보인다.
 - 처음 한 번: `deploy.py setup` → `deploy.py deploy` → `deploy.py admin-code`(첫 관리자 코드, 저장소에 남기지 않음). 공개 반영은 휴먼쌤이 시킨 때만.
 - 올릴 때: 저장소와 Cloudflare는 자동으로 연결하지 않았다(push가 곧 공개 반영이 되지 않게). 커밋한 뒤 `git push`와 `deploy.py deploy`를 함께 돌려 둘이 갈라지지 않게 한다. 표가 바뀌었으면 `deploy.py migrate`, 자료실 글이 바뀌었으면 `deploy.py seed`를 먼저.
@@ -24,8 +24,22 @@
 - 화면을 고쳐 올릴 때 `public/sw.js` CACHE 숫자를 하나 올린다.
 - 로고(2026-11-04 확정 '띠 로고 1'): 남색 타일 + '육아맨'(Gasoek One, OFL) + 노란 밑줄 띠. 글꼴 파일은 저장소에 없고, `tools/make_logo.py <GasoekOne-Regular.ttf>`가 글자를 선(path)으로 구워 `public/icons/logo.svg`·`wordmark.svg`·`tools/logo-paths.json`을 만든다(줄기 두께의 10%를 바탕색 선으로 깎아 가늘게). `app.js`의 LOGO·WORDMARK 문자열은 그 선을 그대로 넣은 것. 아이콘·OG 그림은 `python -X utf8 tools/build_icons.py`(크롬 headless, 환경 변수 CHROME).
 
+## 본인인증 켜기(코드는 있고 꺼져 있다)
+1. 포트원 가입과 다날 또는 KCP 본인인증 채널 신청(사업자 정보·계약은 휴먼쌤). 다날·KCP는 성별을 항상 준다.
+2. `public/config.js` IDENTITY에 storeId·channelKey.
+3. 비밀 키는 저장소에 두지 않는다: `wrangler pages secret put PORTONE_API_SECRET --project-name humanssaem-yukaman`.
+4. `public/_headers` CSP에 포트원 주소를 더한다(script-src `https://cdn.portone.io`, connect-src·frame-src는 포트원 문서대로). 켜지 않는 동안에는 더하지 않는다.
+5. 실제 폰으로 끝까지 시험한다. 화면 흐름(SDK·돌아오는 주소)은 계약 전이라 확인하지 못했다. 서버 판단은 가짜 포트원으로 시험했다.
+켜면 잠금 화면이 '본인인증하고 시작하기'로 바뀌고 신청서는 사라진다. 초대 코드는 남는다. 통과 기준은 만 19세 이상 남성, 1인 1계정(`server/app.js` verifyIdentity).
+
+## 정보 최신화(2026-11-05 휴먼쌤 "계속 정보가 최신화되어야 의미가 있을 테니")
+- 법령 감시: `.github/workflows/law-watch.yml`이 매주 월요일 `tools/check_laws.py`로 국가법령정보센터 시행일을 `public/law-data.js`와 비교하고, 바뀌면 이슈를 연다. 처음 올린 뒤 GitHub에서 한 번 손으로 돌려 해외 주소에서 사이트가 읽히는지 본다.
+- 바뀌면: 관련 글과 `calc.js`를 원문과 다시 대조 → 글의 updated를 올림 → `python -X utf8 tools/check_laws.py --write` → 올리기. 표만 먼저 올려도 화면이 그 법을 근거로 한 글에 '확인한 뒤 법령이 바뀌었어요'를 띄운다.
+- 화면: 글마다 근거 법령·번호·시행일·조회일 표시, 180일 넘은 글에 안내, 글 끝 '내용이 달라졌나요?' 제보, Q&A 질문하기. 제보와 질문은 관리자 화면에 쌓이고, 90일 넘은 글 목록도 거기 있다.
+- 사람 점검: 매년 1월(최저임금·상한액·아동수당 등 해마다 바뀌는 값)과 분기마다 자료실 링크·지자체 사업을 본다.
+
 ## 약속
-- 저장하는 개인정보는 닉네임 · 기기 토큰의 해시 · 복구 코드의 해시 · 쓴 글·댓글 · 대기 중인 신청 답변(결정 뒤 지움) · 누가 초대했는지 · 마지막 접속 시각. 가입·코드·복구 시도 때 기기 주소(IP)의 짧은 해시를 이틀 안에만. 이메일·전화·서류·아이 정보를 받지 않는다. 계산기의 아이 날짜는 기기에만.
+- 저장하는 개인정보는 닉네임(별명/거주지/자녀 출생연도 끝 2자리, 공개됨) · 기기 토큰의 해시 · 복구 코드의 해시 · 쓴 글·댓글 · 대기 중인 신청 답변(결정 뒤 지움) · 질문·제보 글(쓴 사람은 저장하지 않음) · 본인인증 중복 확인값의 해시 · 누가 초대했는지 · 마지막 접속 시각. 가입·코드·복구·질문 때 기기 주소(IP)의 짧은 해시를 이틀 안에만. 이메일·서류·아이 이름은 받지 않고, 이름·전화번호·생년월일·성별은 본인인증 판단 뒤 버린다. 계산기의 아이 날짜는 기기에만.
 - 지운 글·댓글은 내용을 바로 비우고 시각만 남긴다. 탈퇴(MY → 탈퇴하기)는 글·댓글 내용을 비우고 계정 줄을 지운다.
 - 사진·영상 없음. 글과 댓글은 D1에 글자로 저장해 파일 저장소가 필요 없다.
 - 지어낸 경험담을 서버에 넣지 않는다. `sample-data.js`는 시험 모드 표시와 함께 서버가 없을 때만 보인다.
@@ -42,6 +56,7 @@
 - 2026-11-04 밤: 계산기·제도 글 재검토 후 반영(0.3.2). 배우자가 공무원·교원이어도 근로자 쪽은 6+6(고용노동부 답변) · 계산기·카드 입구에 직종 고르기(고용보험 근로자만 금액 표시) · 직종별 글 새로 씀(사립 교원은 사립학교법 시행령 제24조의9로 수당 규정 준용, 일반 공무원 12세·초6, 교사 만 8세·초2) · 앞서 쓴 개월 입력(제95조 제2항) · 6+6은 아이 날짜 필수 · 통상임금 설명(2024-12 판례) · 부모급여 기한 출생일 포함 60일 · 나눠 쓰기 네 구간 · 가족돌봄 나이·무급 · 난임 유급 부칙. 앱 바 그림은 아이 안은 아빠(DAD), 홈 화면 아이콘은 띠 로고 그대로.
 - 2026-11-04 밤: 직종 고르기 다시(0.3.3, 휴먼쌤 "전부다 해당이 안되면 선택에 무슨 의미가 있지?"). 공무원·국공립 교원·사립학교 교원은 `K.civilBenefit`로 수당 계산(월봉급액 기준, 나오는 기간 표시), 사립학교 직원·자영업·프리랜서는 정보와 이동 단추, 잘 모르겠어요는 명세서 항목을 누르면 직종이 골라짐. 계산기는 고용24 것이 아니라 육아맨이 법령 숫자로 만든 어림이라고 화면에 밝히고 공식 계산기 단추를 둠.
 - 2026-11-04 밤: 0.3.3까지 시험 주소에 올림. 표에 칸과 그 칸의 색인을 더할 때 색인은 schema.sql이 아니라 `deploy.py` MIGRATIONS에 둔다(이미 있는 표에서 칸보다 먼저 돌아 멈춘다). 0.3.4: 앱 바 글자 로고 옆에 부제 '아빠 육아의 모든 정보'(휴먼쌤, 커뮤니티는 검색 단추 자리 때문에 두 줄).
-- 2026-11-05: 0.4.0 가독성 판(휴먼쌤 "한눈에 딱딱" · "글자수도 너무 많고"). 전역 word-break: keep-all, 홈은 '지금 챙길 것' 4개 + 더 보기와 타일, 긴 계산기 카드는 가이드 육아휴직 칸에만, 달마다 금액은 줄로, 근거·주의 전문은 지우지 않고 details로 접음. 탭 제목은 노란 띠(pageHead, 파랑은 누르는 것, 노랑은 제목), 홈 제목은 '우리 아이'. 시험 주소에는 아직 안 올림.
+- 2026-11-05: 0.4.0 가독성 판(휴먼쌤 "한눈에 딱딱" · "글자수도 너무 많고"). 전역 word-break: keep-all, 홈은 '지금 챙길 것' 4개 + 더 보기와 타일, 긴 계산기 카드는 가이드 육아휴직 칸에만, 달마다 금액은 줄로, 근거·주의 전문은 지우지 않고 details로 접음. 탭 제목은 노란 띠(pageHead, 파랑은 누르는 것, 노랑은 제목), 홈 제목은 '우리 아이'.
+- 2026-11-05: 0.5.0(휴먼쌤). 가이드 첫 화면은 큰 버튼 8개 · Q&A는 질문을 누르면 답이 펼쳐지는 꼴 + 질문하기 + 관리자 답변(`qna` 표) · 읽기 자료는 정보 칸으로 · 안내문 개조식 · 직종 기준 칸 눈에 띄게 · 칩 줄 오른쪽에 더 있음 표시 · 근거 법령 이름·번호·시행일 표시 · 닉네임 별명/거주지/자녀 출생연도 끝 2자리 · 본인인증 코드(꺼 둠) · 커뮤니티 지금 뜨는 글 · 법령 감시 · MY 안내 상자 뺌(약관·처리방침 링크만). 시험 주소에는 아직 안 올림. 올릴 때 backup → migrate → deploy(자료실 글 내용은 안 바뀌어 seed는 안 해도 된다).
 - 제도 문장을 쓸 때 조문만 보지 말고 담당 부처 답변·FAQ를 함께 본다(공개 빠른상담 답변이 조문 문구와 반대로 운영되는 경우가 있었다).
 - 남은 일(코드로 못 하는 것): 첫 아빠 열 명 모집, 이름 반응 조사, 문의 메일(`config.js` CONTACT), 약관·처리방침 확정, 공개 결정. 작은 것: 읽기·검색 횟수 제한, IP 해시 소금, 관리자 코드 만료, 푸시 알림, 경로 주소·사전 렌더링.

@@ -26,6 +26,11 @@
 //  POST   /api/admin/report {id, action}       관리자: hide(대상 글·댓글 숨기기 = 내용 비움) · keep(그대로 둠). 같은 대상의 신고는 함께 처리
 //  POST   /api/admin/user {user_id, action}    관리자: unverify(인증 해제) · block(해제 + 재신청 막기 + 안 쓴 초대 코드 폐기) · unblock · verify · logout(기기 토큰 끊기) · hide_all(그 회원의 글·댓글 모두 숨김)
 //  POST   /api/admin/invites {count, note}     관리자: 운영 초대 코드 만들기
+//  GET    /api/posts/hot                       지금 뜨는 글(최근 7일 다른 사람 2명 이상이 댓글, 인증 아빠만, 3개까지)
+//  GET    /api/qna                             답이 올라간 Q&A(누구나)
+//  POST   /api/qna {kind, ref, text}           질문하기(kind=question) · 가이드 글 제보(kind=fix, ref=글 번호). 누구나, 기기 주소당 하루 5건. 관리자 화면에 쌓인다
+//  POST   /api/admin/qna {id, action, question, answer}  관리자: answer(답을 올려 공개) · delete(지움)
+//  POST   /api/verify/identity {id}            본인인증(포트원 조회 결과로 만 19세 이상 남성 확인, 1인 1계정). PORTONE_API_SECRET이 없으면 identity_off
 //  GET    /api/health                          살아 있나
 // 저장하는 개인정보: 닉네임 · 기기 토큰 해시 · 복구 코드 해시 · 쓴 글·댓글 · 대기 중인 신청 답변(결정 뒤 지움) · 누가 초대했는지 · 마지막 접속 시각.
 //   횟수 제한용 기기 주소(IP)는 해시 16자로 짧게(가입·코드·복구 시도에만, 이틀 안에 지움). 지운 글·댓글은 내용을 비우고 시각만 남긴다. 탈퇴하면 계정 줄을 지운다.
@@ -33,10 +38,10 @@
 const CATS = ['question', 'tip', 'daily', 'leave', 'play', 'school', 'gear'];           // public/app.js CATS와 같게('school' = 학교·학습, 검수 23)
 const AGES = ['expect', 'baby', 'kid', 'low', 'high', 'teen'];   // 아이 나이 칸(public/app.js AGES와 같게). 글에 붙이면 또래 아빠들 글로 거른다(11-04 UI 3안 '아이 나이 길')
 const STAGES = ['raising', 'expecting'];
-const LIM = { nick: [2, 12], title: [2, 60], body: [1, 3000], comment: [1, 1000], answer: [20, 500], list: 20, listMax: 50 };
+const LIM = { title: [2, 60], body: [1, 3000], comment: [1, 1000], answer: [20, 500], ask: [5, 300], qa: [2, 1000], list: 20, listMax: 50 };
 const RATE = {                                        // [횟수, 기간 ms]
   join: [20, 600000], post: [10, 3600000], comment: [60, 3600000], nick: [1, 7 * 86400000],   // 닉네임은 7일에 1번(사칭 방어, 검수 16)
-  code: [10, 600000], apply: [3, 86400000], invite: [10, 86400000], recover: [10, 600000], report: [10, 86400000]
+  code: [10, 600000], apply: [3, 86400000], invite: [10, 86400000], recover: [10, 600000], report: [10, 86400000], ask: [5, 86400000], identity: [10, 600000]
 };
 const INVITE_MAX = 3;                                 // 인증 아빠 한 사람이 만들 수 있는 초대 코드
 // 운영진처럼 보이는 이름 막기(검수 16). 띄어쓰기·특수문자를 지우고 닮은 글자(0→o, 1→i, 3→e, 5→s)를 접은 뒤 본다.
@@ -62,10 +67,10 @@ async function sha256(s) {
   return Array.from(new Uint8Array(d), b => b.toString(16).padStart(2, '0')).join('');
 }
 
+// 닉네임 = 별명/거주지/자녀 출생연도 끝 2자리(11-05 휴먼쌤). 예: 든든이/청주/24. 이미 가입한 사람의 옛 닉네임은 바꿀 때까지 그대로 둔다. public/app.js NICK_RE와 같게
+const NICK_RE = /^[가-힣A-Za-z0-9]{2,8}\/[가-힣]{2,6}\/\d{2}$/;
 function checkNick(nick) {
-  const n = len(nick);
-  if (n < LIM.nick[0] || n > LIM.nick[1]) return 'nick_len';
-  if (!/^[가-힣A-Za-z0-9 _.]+$/.test(nick)) return 'nick_chars';
+  if (!NICK_RE.test(nick)) return 'nick_form';
   if (RESERVED.test(foldNick(nick))) return 'nick_reserved';
   return '';
 }
@@ -80,6 +85,11 @@ export async function handleApi(request, env) {
     if (seg[0] === 'posts' && !seg[1]) {
       if (m === 'GET') return listPosts(request, env, u.searchParams);
       if (m === 'POST') return createPost(request, env);
+    }
+    if (seg[0] === 'posts' && seg[1] === 'hot' && !seg[2] && m === 'GET') return hotPosts(request, env);
+    if (seg[0] === 'qna' && !seg[1]) {
+      if (m === 'GET') return qnaList(env);
+      if (m === 'POST') return ask(request, env);
     }
     if (seg[0] === 'posts' && isId(seg[1]) && !seg[2]) {
       if (m === 'GET') return getPost(request, env, +seg[1]);
@@ -100,6 +110,7 @@ export async function handleApi(request, env) {
     }
     if (seg[0] === 'verify' && seg[1] === 'code' && m === 'POST') return verifyCode(request, env);
     if (seg[0] === 'verify' && seg[1] === 'apply' && m === 'POST') return verifyApply(request, env);
+    if (seg[0] === 'verify' && seg[1] === 'identity' && m === 'POST') return verifyIdentity(request, env);
     if (seg[0] === 'invites' && !seg[1] && m === 'POST') return createInvite(request, env);
     if (seg[0] === 'admin') return admin(request, env, seg[1], m);
     if (seg[0] === 'health' && !seg[1] && m === 'GET') return json({ ok: true, app: 'yukaman', time: nowIso() });
@@ -195,6 +206,36 @@ async function listPosts(request, env, sp) {
   const more = rows.length > limit;
   if (more) rows.pop();
   return json({ ok: true, posts: rows.map(rowPost), next: more ? rows[rows.length - 1].id : null });
+}
+
+// 지금 뜨는 글(11-05 휴먼쌤 "핫한 글이 있으면 상위로"): 최근 7일 안에 글쓴이가 아닌 사람 2명 이상이 댓글을 단 글. 혼자 댓글을 달아 올릴 수 없게 사람 수로 센다
+const HOT_MIN = 2, HOT_DAYS = 7, HOT_MAX = 3;
+async function hotPosts(request, env) {
+  const a = await reader(request, env.DB);
+  if (a.err) return a.err;
+  const since = new Date(Date.now() - HOT_DAYS * 86400000).toISOString();
+  const rs = await env.DB.prepare('SELECT * FROM (SELECT p.id, p.cat, p.age, p.title, substr(p.body, 1, 140) AS preview, p.created, p.comment_count, u.nick, u.id AS uid, ' + BADGE + ', '
+    + '(SELECT COUNT(DISTINCT c.user_id) FROM comments c WHERE c.post_id = p.id AND c.deleted IS NULL AND c.user_id != p.user_id AND c.created > ?1) AS heat '
+    + "FROM posts p JOIN users u ON u.id = p.user_id WHERE p.deleted IS NULL AND u.role != 'official' AND p.comment_count >= ?2) WHERE heat >= ?2 ORDER BY heat DESC, comment_count DESC, id DESC LIMIT ?3")
+    .bind(since, HOT_MIN, HOT_MAX).all();
+  return json({ ok: true, posts: (rs.results || []).map(rowPost) });
+}
+
+// ----- Q&A · 제보(11-05 휴먼쌤 "하단에 '질문하기' 기능을 추가해서 관리자가 해당 질문을 보고 추가할 수 있도록") -----
+// 답을 올리기 전에는 공개되지 않는다. 쓴 사람은 저장하지 않고, 도배를 막는 횟수 기록(기기 주소 해시)만 이틀 안에 지운다.
+async function qnaList(env) {
+  const rs = await env.DB.prepare("SELECT id, question, answer, answered_at FROM qna WHERE status = 'published' ORDER BY answered_at DESC LIMIT 100").all();
+  return json({ ok: true, items: rs.results || [] });
+}
+async function ask(request, env) {
+  const b = await readJson(request);
+  if (!b) return no('bad_json');
+  const kind = b.kind === 'fix' ? 'fix' : 'question', ref = str(b.ref, 40), text = str(b.text, 600);
+  if (ref && !/^[A-Za-z0-9-]+$/.test(ref)) return no('bad_json');
+  if (len(text) < LIM.ask[0] || len(text) > LIM.ask[1]) return no('ask_len');
+  if (!(await allow(env.DB, await ipKey(request), 'ask'))) return no('limit', 429);
+  await env.DB.prepare('INSERT INTO qna (kind, ref, question, created) VALUES (?1, ?2, ?3, ?4)').bind(kind, ref, text, nowIso()).run();
+  return json({ ok: true });
 }
 
 async function getPost(request, env, id) {
@@ -380,6 +421,43 @@ async function verifyApply(request, env) {
   if (!(await allow(env.DB, 'u:' + a.user.id, 'apply'))) return no('limit', 429);
   await env.DB.prepare('INSERT INTO applications (user_id, stage, answer, created) VALUES (?1, ?2, ?3, ?4)').bind(a.user.id, stage, answer, nowIso()).run();
   return json({ ok: true, pending: true, user: pubUser(a.user) });
+}
+
+// 본인인증(11-05 휴먼쌤 "본인인증+닉네임"): 화면이 포트원으로 인증을 마치면 번호를 보내고, 서버가 포트원에 직접 물어 결과를 믿는다.
+// 만 19세 이상 남성만 통과. 저장하는 것은 중복 가입을 막는 값(DI, 없으면 CI)의 해시뿐이고 이름·전화번호·생년월일·성별은 판단 뒤 버린다.
+// 막힌 계정의 해시는 남아 다른 계정으로 다시 인증하지 못한다. 탈퇴하면 계정 줄과 함께 지워진다.
+async function verifyIdentity(request, env) {
+  const a = await auth(request, env.DB);
+  if (a.err) return a.err;
+  if (a.user.blocked) return no('blocked', 403);
+  if (!env.PORTONE_API_SECRET) return no('identity_off', 503);
+  if (a.user.verified === 1) return json({ ok: true, user: pubUser(a.user), already: true });
+  const b = await readJson(request);
+  const id = str(b && b.id, 80);
+  if (!/^[A-Za-z0-9_-]{8,80}$/.test(id)) return no('identity_bad');
+  if (!(await allow(env.DB, await ipKey(request), 'identity'))) return no('limit', 429);
+  let d;
+  try {
+    const res = await fetch((env.PORTONE_API_BASE || 'https://api.portone.io') + '/identity-verifications/' + encodeURIComponent(id), { headers: { Authorization: 'PortOne ' + env.PORTONE_API_SECRET } });
+    if (!res.ok) return no('identity_bad');
+    d = await res.json();
+  } catch (e) { return no('identity_bad', 502); }
+  const c = d && d.status === 'VERIFIED' ? d.verifiedCustomer : null;
+  const key = c && (c.di || c.ci);
+  const m = c && String(c.birthDate || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!key || !m) return no('identity_bad');
+  const adult = new Date(+m[1] + 19, +m[2] - 1, +m[3]).getTime() <= Date.now();
+  if (!adult || String(c.gender || '').toUpperCase() !== 'MALE') return no('identity_denied', 403);
+  const hash = await sha256('id|' + key);
+  const other = await env.DB.prepare('SELECT id FROM users WHERE identity_hash = ?1').bind(hash).first();
+  if (other && other.id !== a.user.id) return no('identity_dup', 409);
+  const at = nowIso();
+  await env.DB.batch([
+    env.DB.prepare("UPDATE users SET identity_hash = ?1, verified = 1, verified_how = 'identity', verified_at = ?2 WHERE id = ?3").bind(hash, at, a.user.id),
+    env.DB.prepare("UPDATE applications SET status = 'approved', answer = '', decided_at = ?1 WHERE user_id = ?2 AND status = 'pending'").bind(at, a.user.id)
+  ]);
+  const u = await env.DB.prepare('SELECT ' + USER_COLS + ' FROM users WHERE id = ?1').bind(a.user.id).first();
+  return json({ ok: true, user: pubUser(u) });
 }
 
 const ALPHA = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';       // 헷갈리는 글자(I·O·0·1) 뺌
@@ -576,7 +654,7 @@ async function admin(request, env, what, method) {
   if (!isAdmin(a.user)) return no('forbidden', 403);
   const db = env.DB;
   if (what === 'queue' && method === 'GET') {
-    const [q, us, inv, rp] = await db.batch([
+    const [q, us, inv, rp, qa, qp] = await db.batch([
       db.prepare("SELECT ap.id, ap.user_id, ap.stage, ap.answer, ap.created, u.nick FROM applications ap JOIN users u ON u.id = ap.user_id WHERE ap.status = 'pending' ORDER BY ap.id"),
       db.prepare("SELECT u.id, u.nick, u.created, u.verified, u.verified_how, u.blocked, u.role, i.nick AS inviter, (SELECT COUNT(*) FROM posts p WHERE p.user_id = u.id AND p.deleted IS NULL) AS posts "
         + "FROM users u LEFT JOIN users i ON i.id = u.invited_by WHERE u.role != 'official' ORDER BY u.id DESC LIMIT 200"),
@@ -588,10 +666,28 @@ async function admin(request, env, what, method) {
         + "CASE WHEN r.kind = 'post' THEN (SELECT u.nick FROM posts p JOIN users u ON u.id = p.user_id WHERE p.id = r.target_id) ELSE (SELECT u.nick FROM comments c JOIN users u ON u.id = c.user_id WHERE c.id = r.target_id) END AS author, "
         + "CASE WHEN r.kind = 'post' THEN r.target_id ELSE (SELECT c.post_id FROM comments c WHERE c.id = r.target_id) END AS post_id, "
         + "CASE WHEN r.kind = 'post' THEN (SELECT p.deleted FROM posts p WHERE p.id = r.target_id) ELSE (SELECT c.deleted FROM comments c WHERE c.id = r.target_id) END AS gone "
-        + "FROM reports r WHERE r.handled IS NULL GROUP BY r.kind, r.target_id ORDER BY first_at")
+        + "FROM reports r WHERE r.handled IS NULL GROUP BY r.kind, r.target_id ORDER BY first_at"),
+      db.prepare("SELECT id, kind, ref, question, created FROM qna WHERE status = 'pending' ORDER BY id"),
+      db.prepare("SELECT id, question, answer, answered_at FROM qna WHERE status = 'published' ORDER BY answered_at DESC LIMIT 50")
     ]);
-    return json({ ok: true, queue: q.results || [], users: us.results || [], reports: rp.results || [],
+    return json({ ok: true, queue: q.results || [], users: us.results || [], reports: rp.results || [], qna: qa.results || [], qna_published: qp.results || [],
       invites: (inv.results || []).map(x => ({ code: showCode(x.code), note: x.note, used: x.used_by != null })) });
+  }
+  if (what === 'qna' && method === 'POST') {
+    const b = await readJson(request);
+    const id = +(b && b.id) || 0, action = String(b && b.action || '');
+    const row = await db.prepare('SELECT id FROM qna WHERE id = ?1').bind(id).first();
+    if (!row) return no('not_found', 404);
+    if (action === 'delete') {
+      await db.prepare('DELETE FROM qna WHERE id = ?1').bind(id).run();
+      return json({ ok: true });
+    }
+    if (action !== 'answer') return no('bad_json');
+    const question = str(b.question, 600), answer = str(b.answer, 2000);       // 질문은 관리자가 다듬어(개인정보 지우기) 올릴 수 있다
+    if (len(question) < LIM.ask[0] || len(question) > LIM.ask[1]) return no('ask_len');
+    if (len(answer) < LIM.qa[0] || len(answer) > LIM.qa[1]) return no('answer_len');
+    await db.prepare("UPDATE qna SET question = ?1, answer = ?2, status = 'published', answered_at = ?3, answered_by = ?4 WHERE id = ?5").bind(question, answer, nowIso(), a.user.id, id).run();
+    return json({ ok: true });
   }
   if (what === 'report' && method === 'POST') {
     const b = await readJson(request);

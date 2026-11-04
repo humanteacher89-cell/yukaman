@@ -254,7 +254,64 @@ button.notice.vcta { display: flex; width: 100%; text-align: left; font: inherit
 .qrows > span + span { border-top: 1px solid var(--line); }
 .qrows i { font-style: normal; }
 .qrows b { color: var(--ink); font-weight: 800; }
-.qcap { display: block; margin-top: 8px; }
+/* 개조식 안내(11-05 휴먼쌤) */
+.nlist { margin: 12px 2px 0; padding: 0; list-style: none; text-align: left; font-size: 13.5px; font-weight: 600; line-height: 1.45; color: var(--sub); }
+.nlist li { position: relative; padding-left: 12px; }
+.nlist li + li { margin-top: 3px; }
+.nlist li:before { content: ""; position: absolute; left: 2px; top: .58em; width: 4px; height: 4px; border-radius: 50%; background: var(--mute); }
+.nlist a { color: var(--pri-d); text-decoration: underline; }
+/* 가이드 첫 화면 큰 버튼(11-05 휴먼쌤) */
+.tiles.big { gap: 14px; margin-top: 14px; }
+.tiles.big .tile { min-height: 124px; padding: 18px 16px; justify-content: space-between; }
+.tiles.big .ge { width: 52px; height: 52px; border-radius: 16px; font-size: 29px; }
+.tiles.big b { font-size: 18.5px; font-weight: 900; }
+/* 근거 법령과 시행일(11-05 휴먼쌤 "실제 법령의 명칭과 유효일자") */
+.lawbox { margin-top: 18px; padding: 14px 16px; border-radius: 16px; background: var(--card); box-shadow: var(--shadow); }
+.lawbox > b { display: block; font-size: 14.5px; font-weight: 900; }
+.lawbox ul { margin: 8px 0 0; padding: 0; list-style: none; }
+.lawbox li { padding: 8px 0; border-top: 1px solid var(--line); }
+.lawbox li a, .garticle .lawbox li a { display: block; font-size: 14px; font-weight: 800; line-height: 1.35; color: var(--ink); text-decoration: underline; text-underline-offset: 2px; }
+.lawbox li small { display: block; margin-top: 2px; font-size: 12.5px; font-weight: 600; color: var(--sub); }
+.lawchk { display: block; margin-top: 4px; font-size: 12.5px; font-weight: 600; color: var(--mute); }
+.garticle .lawbox { margin-top: 24px; padding: 14px 0 0; border-top: 1px solid var(--line); border-radius: 0; background: none; box-shadow: none; }
+.garticle .lawbox ul { margin: 8px 0 0; padding: 0; font-size: 14px; }
+.garticle .lawbox li + li { margin-top: 0; }
+.fixbtn { display: block; width: 100%; min-height: 44px; margin-top: 14px; border: 1.5px solid var(--line); border-radius: 12px; background: none; color: var(--sub); font-size: 13.5px; font-weight: 700; }
+/* Q&A */
+.qalist, #qaNew { display: flex; flex-direction: column; gap: 12px; }
+.qalist { margin-top: 12px; }
+#qaNew:empty { display: none; }
+.qa { border-radius: 16px; background: var(--card); box-shadow: var(--shadow); }
+.qa summary { display: flex; align-items: flex-start; gap: 10px; padding: 14px; list-style: none; cursor: pointer; }
+.qa summary::-webkit-details-marker { display: none; }
+.qa summary b { flex: 1; min-width: 0; font-size: 15.5px; font-weight: 800; line-height: 1.4; letter-spacing: -.02em; }
+.qa summary:after { content: "›"; flex: none; font-size: 20px; line-height: 1.1; font-weight: 700; color: var(--mute); transform: rotate(90deg); }
+.qa[open] summary:after { transform: rotate(-90deg); }
+.qm, .am { flex: none; display: grid; place-items: center; width: 24px; height: 24px; border-radius: 8px; font-size: 13px; font-weight: 900; }
+.qm { background: var(--pri); color: #fff; }
+.am { background: var(--but); color: #3D2E00; }
+.qa-a { display: flex; gap: 10px; padding: 0 14px 14px; }
+.qa-a p { margin: 1px 0 0; font-size: 15px; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }
+.qa-a a { color: var(--pri-d); }
+.qaask { margin-top: 16px; }
+/* 지금 뜨는 글 */
+.hot { margin-top: 12px; padding: 12px 14px 6px; border-radius: 16px; background: var(--but-l); }
+.hot h2 { margin: 0 0 2px; font-size: 15.5px; font-weight: 900; letter-spacing: -.02em; }
+.hotrow { display: flex; align-items: center; gap: 10px; min-height: 44px; }
+.hotrow i { flex: none; display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--ink); color: var(--bg); font-style: normal; font-size: 12px; font-weight: 900; }
+.hotrow b { flex: 1; min-width: 0; font-size: 14.5px; font-weight: 800; letter-spacing: -.02em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hotrow span { flex: none; font-size: 12.5px; font-weight: 800; color: var(--pri-d); }
+/* 칩 줄 오른쪽에 더 있다는 표시(11-05 휴먼쌤) */
+.hs { position: relative; }
+.hsmore { position: absolute; top: 0; bottom: 0; right: -16px; display: flex; align-items: center; justify-content: flex-end; width: 62px; padding: 0 8px 0 0; border: 0; background: linear-gradient(to right, transparent, var(--bg) 60%); }
+.hsmore span { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: var(--ink); color: var(--bg); font-size: 19px; line-height: 1; font-weight: 800; padding-bottom: 2px; animation: hsnudge 1.2s ease-in-out 2; }
+@keyframes hsnudge { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(3px); } }
+@media (prefers-reduced-motion: reduce) { .hsmore span { animation: none; } }
+/* 닉네임 세 칸(11-05 휴먼쌤) */
+.nick3 { display: grid; grid-template-columns: 1.25fr 1fr .95fr; gap: 8px; }
+.nick3 label { display: block; min-width: 0; font-size: 12.5px; font-weight: 800; color: var(--sub); }
+.nick3 .inp { margin-top: 4px; padding: 10px; min-width: 0; }
+.nickshow { margin-top: 8px; padding: 8px 12px; border-radius: 10px; background: var(--pri-l); color: var(--pri-d); font-size: 14px; font-weight: 800; overflow-wrap: anywhere; }
 .qpay { display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 13.5px; color: var(--sub); font-weight: 700; }
 .qpay input { width: 84px; padding: 6px 8px; border: 2px solid var(--line-s); border-radius: 10px; background: var(--card); font-size: 16px; font-weight: 800; text-align: right; color: var(--ink); }
 .unit { position: relative; }
@@ -300,6 +357,7 @@ input[type=date].inp { -webkit-appearance: none; appearance: none; min-height: 4
 /* 탭 제목 띠(11-05 휴먼쌤 "눈에 잘 안띄어"): 홈·가이드·자료실·커뮤니티·MY 맨 위. 파랑은 누르는 것, 노랑은 제목으로 나눈다 */
 .phead { position: relative; display: flex; align-items: center; gap: 13px; margin-top: 4px; padding: 15px 16px; border-radius: 22px; background: var(--hd); color: var(--hd-ink); overflow: hidden; }
 .phead:before { content: ""; position: absolute; right: -34px; top: -46px; width: 130px; height: 130px; border-radius: 50%; background: rgba(255,255,255,.26); }
+[data-theme=dark] .phead:before { background: rgba(255,255,255,.05); }
 .phead > * { position: relative; }
 .phead .pe { flex: none; width: 54px; height: 54px; border-radius: 17px; background: var(--hd-tile); display: grid; place-items: center; font-size: 31px; line-height: 1; }
 .phead .tx { flex: 1; min-width: 0; }
@@ -440,11 +498,16 @@ html[data-theme=dark] { background: #0D1119; }
 .jobnote p + .jobgo, .jobnote b + .jobgo { margin-top: 10px; }
 .offi { display: flex; align-items: center; justify-content: center; min-height: 44px; margin-top: 10px; padding: 9px 12px; border: 1.5px solid var(--line); border-radius: 12px; background: var(--card); color: var(--pri-d); font-size: 13.5px; font-weight: 800; text-align: center; }
 .qnote .offi { display: none; }
-.jobline { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 12px; font-size: 13px; font-weight: 600; color: var(--sub); text-align: left; }
-.jobline b { color: var(--ink); font-weight: 800; }
-.jobline button { position: relative; flex: none; border: 0; background: none; padding: 2px 0; color: var(--pri-d); font-size: 12.5px; font-weight: 800; text-decoration: underline; }
-.jobline button:after { content: ""; position: absolute; inset: -14px -8px; }
-.jobwrap .jobline { margin-bottom: 0; padding-bottom: 0; border-bottom: 0; }
+/* 어떤 직종 기준인지(11-05 휴먼쌤 "더 가시적으로"): 하늘색 칸에 그림 + 직종 + 기준 + 바꾸기 */
+.jobline { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; padding: 10px 12px; border-radius: 14px; background: var(--pri-l); text-align: left; }
+.jobline .je { flex: none; font-size: 26px; line-height: 1; }
+.jobline .tx { flex: 1; min-width: 0; }
+.jobline b { display: block; font-size: 15px; font-weight: 900; letter-spacing: -.02em; line-height: 1.3; color: var(--ink); }
+.jobline small, .gcalc .big .jobline small { display: block; margin-top: 1px; font-size: 12.5px; font-weight: 700; color: var(--pri-d); }
+.jobline button { position: relative; flex: none; min-height: 34px; padding: 0 10px; border: 0; border-radius: 999px; background: var(--card); color: var(--pri-d); font-size: 12.5px; font-weight: 800; white-space: nowrap; }
+.jobline button:after { content: ""; position: absolute; inset: -5px -2px; }
+.jobflat { margin-top: 12px; }
+.jobflat .jobline { margin-bottom: 0; }
 .qnote a { color: var(--pri-d); text-decoration: underline; }
 #cIns button { font-size: 12.5px; line-height: 1.3; word-break: keep-all; padding: 9px 3px; }
 [data-theme=dark] .jobnote { background: #33290F; color: #FDE68A; }

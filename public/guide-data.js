@@ -100,9 +100,11 @@
   window.YK_GUIDES = {
     cats: [
       { key: 'leave', name: '육아휴직', e: '💼' },
+      { key: 'faq', name: 'Q&A', e: '🙋' },       // 11-05 휴먼쌤 "'육아휴직' 오른쪽에 'Q&A'". 글은 official-data.js, 관리자가 답한 질문은 서버에서
       { key: 'play', name: '놀이', e: '🎮' },
       { key: 'mind', name: '심리', e: '🧠' },
-      { key: 'policy', name: '정책', e: '📢' }
+      { key: 'policy', name: '정책', e: '📢' },
+      { key: 'info', name: '정보', e: '📌' }      // Q&A에 섞여 있던 읽기 자료(official-data.js)
     ],
     items: [
       // ---------- 출산 직후(검수 10) ----------

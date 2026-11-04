@@ -1,0 +1,29 @@
+# 법령 감시(2026-11-05 휴먼쌤 "이 앱이 계속 정보가 최신화되어야"). 매주 월요일 아침 국가법령정보센터의 시행일을 public/law-data.js와 비교한다.
+# 바뀐 것이 있으면 이슈를 열고(GitHub가 저장소 주인에게 메일을 보낸다), 사이트를 못 읽으면 실패로 끝난다. 화면은 법령 표를 올린 뒤에야 안내를 띄우니 이 일이 공개에 영향을 주지는 않는다.
+name: law-watch
+on:
+  schedule:
+    - cron: '0 0 * * 1'      # 월요일 09:00(한국)
+  workflow_dispatch:
+permissions:
+  contents: read
+  issues: write
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: 법령 비교
+        id: check
+        run: |
+          set +e
+          python3 -X utf8 tools/check_laws.py
+          code=$?
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          if [ "$code" = "2" ]; then exit 1; fi
+          exit 0
+      - name: 바뀌었으면 이슈 열기
+        if: steps.check.outputs.code == '1'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh issue create --title "법령이 바뀌었어요 $(date +%F)" --body-file law-watch.md
