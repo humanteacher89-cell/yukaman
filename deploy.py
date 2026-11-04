@@ -1,15 +1,19 @@
 # 육아맨 미리 보기·올리기(2026-11-04). 화면은 public/ 그대로(만드는 단계 없음), 서버는 functions/·server/, 자료는 D1.
-#   python -X utf8 deploy.py dev [--port 8799] [--fresh]   내 컴퓨터에서 미리 보기(가짜 D1에 schema.sql + test/seed-local.sql, --fresh면 가짜 D1을 비우고 다시)
-#   python -X utf8 deploy.py setup                         처음 한 번(휴먼쌤 "올려" 뒤): D1 'yukaman' 만들기 → wrangler.toml database_id 채우기 → 표 만들기 → Pages 프로젝트 만들기
+#   python -X utf8 deploy.py dev [--port 8799] [--fresh]   내 컴퓨터에서 미리 보기(가짜 D1에 schema.sql + seed/official.sql + test/seed-local.sql, --fresh면 가짜 D1을 비우고 다시)
+#   python -X utf8 deploy.py setup                         처음 한 번(휴먼쌤 "올려" 뒤): D1 'yukaman' 만들기 → wrangler.toml database_id 채우기 → 표 → 자료실 글 → Pages 프로젝트 만들기
 #   python -X utf8 deploy.py migrate                       공개 D1에 schema.sql(몇 번 돌려도 그대로)
+#   python -X utf8 deploy.py seed                          공개 D1에 seed/official.sql(자료실 계정의 글, 몇 번 돌려도 그대로)
+#   python -X utf8 deploy.py admin-code                    공개 D1에 첫 관리자 코드 하나를 만들어 화면에 보여 준다(한 번 쓰면 끝. 저장소에 남기지 않는다)
 #   python -X utf8 deploy.py deploy                        Pages에 올리기(휴먼쌤이 시킨 때만)
+# 지어낸 견본 글(test/seed-local.sql)은 내 컴퓨터 미리 보기에서만 쓴다. 공개 D1에는 넣지 않는다.
 # wrangler: 환경 변수 WRANGLER_JS(wrangler.js 경로, NODE가 있으면 그 node로) → 위쪽 폴더 어딘가의 tools/cf-wrangler(포터블, 로그인 정보 config/ 포함) → npx wrangler.
-import os, re, shutil, subprocess, sys
+import os, re, secrets, shutil, subprocess, sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 PROJECT = 'humanssaem-yukaman'
 DB = 'yukaman'
 PLACEHOLDER = '00000000-0000-0000-0000-000000000000'
+ALPHA = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
 
 
 def portable():
@@ -57,15 +61,16 @@ def db_id():
 def dev():
     if '--fresh' in sys.argv:
         shutil.rmtree(os.path.join(HERE, '.wrangler', 'state'), ignore_errors=True)
-    if wrangler('d1', 'execute', DB, '--local', '--file', 'schema.sql') or wrangler('d1', 'execute', DB, '--local', '--file', os.path.join('test', 'seed-local.sql')):
-        sys.exit(1)
+    for f in ('schema.sql', os.path.join('seed', 'official.sql'), os.path.join('test', 'seed-local.sql')):
+        if wrangler('d1', 'execute', DB, '--local', '--file', f):
+            sys.exit(1)
     sys.exit(wrangler('pages', 'dev', 'public', '--port', opt('--port', '8799'), '--ip', '127.0.0.1'))
 
 
 def setup():
     if db_id() == PLACEHOLDER:
         r = wrangler('d1', 'create', DB, capture=True)
-        m = re.search(r'database_id\s*=\s*"([0-9a-f-]{36})"', r.stdout + r.stderr)
+        m = re.search(r'database_id"?\s*[=:]\s*"([0-9a-f-]{36})"', r.stdout + r.stderr)
         if not m:
             sys.exit('D1을 못 만들었어요(이미 있으면 `wrangler d1 list`에서 id를 보고 wrangler.toml에 직접 적어 주세요)')
         t = toml().replace(PLACEHOLDER, m.group(1))
@@ -73,8 +78,19 @@ def setup():
         print('wrangler.toml database_id =', m.group(1))
     if wrangler('d1', 'execute', DB, '--remote', '--file', 'schema.sql', '-y'):
         sys.exit(1)
+    if wrangler('d1', 'execute', DB, '--remote', '--file', os.path.join('seed', 'official.sql'), '-y'):
+        sys.exit(1)
     # --force가 없으면 Worker로 만들어 버린다(앱개발부 노하우 10-20). 이미 있으면 오류가 나도 괜찮다.
     wrangler('pages', 'project', 'create', PROJECT, '--production-branch', 'main', '--force')
+
+
+def admin_code():
+    code = ''.join(secrets.choice(ALPHA) for _ in range(8))
+    sql = "INSERT INTO invites (code, owner_id, kind, note, created) VALUES ('%s', NULL, 'admin', '첫 관리자', datetime('now'))" % code
+    rc = wrangler('d1', 'execute', DB, '--remote', '--command', sql, '-y')
+    if rc:
+        sys.exit(rc)
+    print('첫 관리자 코드(한 번 쓰면 끝):', code[:4] + '-' + code[4:], flush=True)
 
 
 def main():
@@ -85,6 +101,10 @@ def main():
         setup()
     elif what == 'migrate':
         sys.exit(wrangler('d1', 'execute', DB, '--remote', '--file', 'schema.sql', '-y'))
+    elif what == 'seed':
+        sys.exit(wrangler('d1', 'execute', DB, '--remote', '--file', os.path.join('seed', 'official.sql'), '-y'))
+    elif what == 'admin-code':
+        admin_code()
     elif what == 'deploy':
         if db_id() == PLACEHOLDER:
             sys.exit('먼저 `deploy.py setup`으로 D1을 만들고 database_id를 채워 주세요')
