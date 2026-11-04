@@ -3,7 +3,7 @@
 window.YK_CONFIG = {
   APP_NAME: '육아맨',
   API_URL: '/api',
-  VERSION: '0.3.4',
+  VERSION: '0.4.0',
   OPERATOR: '휴먼쌤 스튜디오',      // MY 아래 운영자 표기(검수 14)
   CONTACT: ''                       // 문의 메일(휴먼쌤이 정하면 적는다. 비우면 "문의처 준비 중"으로 보임)
 };
