@@ -4,8 +4,22 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#2563EB">
-<meta name="description" content="육아맨 — 육아하는 아빠들의 가이드와 게시판. 서로 묻고, 알려 주고, 자랑하는 곳.">
+<meta name="description" content="육아맨 — 육아하는 아빠들의 가이드와 게시판. 육아휴직 급여 계산기, 제도 안내, 아빠끼리 묻고 답하는 커뮤니티.">
 <meta name="robots" content="noindex">
+<!-- 링크를 보낼 때 카드(카카오톡·인스타 DM, 검수 13). 그림은 icons/og.png 1200×630 -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="육아맨">
+<meta property="og:title" content="육아맨 — 육아하는 아빠들의 동네">
+<meta property="og:description" content="육아휴직 급여 바로 계산, 제도 안내, 아빠끼리 솔직하게 묻고 답하는 곳. 사진·영상 없이 줄글로.">
+<meta property="og:image" content="https://humanssaem-yukaman.pages.dev/icons/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:url" content="https://humanssaem-yukaman.pages.dev/">
+<meta property="og:locale" content="ko_KR">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="육아맨 — 육아하는 아빠들의 동네">
+<meta name="twitter:description" content="육아휴직 급여 바로 계산, 제도 안내, 아빠끼리 솔직하게 묻고 답하는 곳.">
+<meta name="twitter:image" content="https://humanssaem-yukaman.pages.dev/icons/og.png">
 <title>육아맨</title>
 <!-- 홈 화면에 추가하면 주소창 없이 앱처럼 열린다(manifest.json · sw.js · icons/) -->
 <link rel="manifest" href="manifest.json">
@@ -17,7 +31,8 @@
 <meta name="apple-mobile-web-app-title" content="육아맨">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pretendard@1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<!-- 글꼴은 화면을 막지 않게 print로 받아 두고 app.js가 all로 바꾼다(검수 18). 그 사이엔 기기 글꼴(Apple SD Gothic·Noto Sans KR·맑은 고딕) -->
+<link rel="stylesheet" id="fontcss" href="https://cdn.jsdelivr.net/npm/pretendard@1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" media="print">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -42,7 +57,7 @@
     </a>
     <a href="#/me" class="tab" data-tab="me">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 12a4.5 4.5 0 1 0 0-9 4.5 4.5 0 0 0 0 9zm-8 8.5c0-4 3.6-7 8-7s8 3 8 7V21H4z"/></svg>
-      <span>MY</span>
+      <span>MY</span><i class="dot" id="meDot" hidden aria-label="새 댓글"></i>
     </a>
   </nav>
   <div class="sheet-wrap" id="sheet" hidden></div>

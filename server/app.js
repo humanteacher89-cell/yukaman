@@ -10,7 +10,7 @@
 //  POST   /api/recovery/new                    복구 코드 새로 만들기(이전 코드는 무효)
 //  POST   /api/logout                          이 기기의 토큰 끊기(계정은 남고, 복구 코드로만 돌아온다)
 //  GET    /api/me                              내 정보(인증 상태·신청 상태·초대 코드·복구 코드 있는지) + 내 글 + 내 댓글
-//  PATCH  /api/me {nick}                       닉네임 바꾸기(하루 3번)
+//  PATCH  /api/me {nick}                       닉네임 바꾸기(7일에 1번)
 //  DELETE /api/me {confirm:true}               탈퇴: 내 글·댓글 내용을 비우고 계정 줄을 지운다(관리자·자료실 계정은 안 됨)
 //  POST   /api/verify/code {code}              초대 코드로 인증
 //  POST   /api/verify/apply {stage,answer,pledge}  신청서(관리자가 읽고 승인)
@@ -19,23 +19,28 @@
 //  DELETE /api/posts/<id>                      내 글 지우기(관리자는 모두). deleted에 시각을 적고 제목·본문과 달린 댓글 내용을 비운다(11-04 검수 5)
 //  POST   /api/posts/<id>/comments {body}      댓글(한 시간 60개)
 //  DELETE /api/comments/<id>                   내 댓글 지우기(관리자는 모두). 내용을 비운다
-//  GET    /api/admin/queue                     관리자: 대기 신청서 + 최근 회원
+//  POST   /api/reports {kind, id, reason}      글·댓글 신고(인증 아빠, 하루 10건, 같은 대상은 한 번). 관리자 화면 신고함에 쌓인다
+//  POST   /api/me/seen                         내 글의 새 댓글을 봤다고 표시(MY 배지 끄기)
+//  GET    /api/admin/queue                     관리자: 대기 신청서 + 신고함 + 최근 회원
 //  POST   /api/admin/decide {id, approve}      관리자: 승인·거절(답변은 지움)
-//  POST   /api/admin/user {user_id, action}    관리자: unverify(인증 해제) · block(해제 + 재신청 막기) · unblock · verify · logout(그 회원의 기기 토큰 끊기)
+//  POST   /api/admin/report {id, action}       관리자: hide(대상 글·댓글 숨기기 = 내용 비움) · keep(그대로 둠). 같은 대상의 신고는 함께 처리
+//  POST   /api/admin/user {user_id, action}    관리자: unverify(인증 해제) · block(해제 + 재신청 막기 + 안 쓴 초대 코드 폐기) · unblock · verify · logout(기기 토큰 끊기) · hide_all(그 회원의 글·댓글 모두 숨김)
 //  POST   /api/admin/invites {count, note}     관리자: 운영 초대 코드 만들기
 //  GET    /api/health                          살아 있나
 // 저장하는 개인정보: 닉네임 · 기기 토큰 해시 · 복구 코드 해시 · 쓴 글·댓글 · 대기 중인 신청 답변(결정 뒤 지움) · 누가 초대했는지 · 마지막 접속 시각.
 //   횟수 제한용 기기 주소(IP)는 해시 16자로 짧게(가입·코드·복구 시도에만, 이틀 안에 지움). 지운 글·댓글은 내용을 비우고 시각만 남긴다. 탈퇴하면 계정 줄을 지운다.
 
-const CATS = ['question', 'tip', 'daily', 'leave', 'play', 'gear'];           // public/app.js CATS와 같게
+const CATS = ['question', 'tip', 'daily', 'leave', 'play', 'school', 'gear'];           // public/app.js CATS와 같게('school' = 학교·학습, 검수 23)
 const STAGES = ['raising', 'expecting'];
 const LIM = { nick: [2, 12], title: [2, 60], body: [1, 3000], comment: [1, 1000], answer: [20, 500], list: 20, listMax: 50 };
 const RATE = {                                        // [횟수, 기간 ms]
-  join: [5, 600000], post: [10, 3600000], comment: [60, 3600000], nick: [3, 86400000],
-  code: [10, 600000], apply: [3, 86400000], invite: [10, 86400000], recover: [10, 600000]
+  join: [20, 600000], post: [10, 3600000], comment: [60, 3600000], nick: [1, 7 * 86400000],   // 닉네임은 7일에 1번(사칭 방어, 검수 16)
+  code: [10, 600000], apply: [3, 86400000], invite: [10, 86400000], recover: [10, 600000], report: [10, 86400000]
 };
 const INVITE_MAX = 3;                                 // 인증 아빠 한 사람이 만들 수 있는 초대 코드
-const RESERVED = /(육아맨|운영자|관리자|자료실|공식|admin|official)/i;
+// 운영진처럼 보이는 이름 막기(검수 16). 띄어쓰기·특수문자를 지우고 닮은 글자(0→o, 1→i, 3→e, 5→s)를 접은 뒤 본다.
+const RESERVED = /(육아맨|운영|관리|자료실|공식|스태프|스탭|매니저|마스터|휴먼쌤|휴먼샘|admin|official|staff|manager|master|moderator|yukaman|humanssaem)/i;
+const foldNick = s => s.replace(/[\s_.\-]+/g, '').toLowerCase().replace(/0/g, 'o').replace(/1/g, 'i').replace(/3/g, 'e').replace(/5/g, 's');
 
 const json = (obj, status = 200) => new Response(JSON.stringify(obj), {
   status, headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' }
@@ -60,7 +65,7 @@ function checkNick(nick) {
   const n = len(nick);
   if (n < LIM.nick[0] || n > LIM.nick[1]) return 'nick_len';
   if (!/^[가-힣A-Za-z0-9 _.]+$/.test(nick)) return 'nick_chars';
-  if (RESERVED.test(nick.replace(/\s+/g, ''))) return 'nick_reserved';
+  if (RESERVED.test(foldNick(nick))) return 'nick_reserved';
   return '';
 }
 
@@ -81,6 +86,8 @@ export async function handleApi(request, env) {
     }
     if (seg[0] === 'posts' && isId(seg[1]) && seg[2] === 'comments' && !seg[3] && m === 'POST') return addComment(request, env, +seg[1]);
     if (seg[0] === 'comments' && isId(seg[1]) && !seg[2] && m === 'DELETE') return deleteComment(request, env, +seg[1]);
+    if (seg[0] === 'reports' && !seg[1] && m === 'POST') return report(request, env);
+    if (seg[0] === 'me' && seg[1] === 'seen' && !seg[2] && m === 'POST') return seenComments(request, env);
     if (seg[0] === 'join' && !seg[1] && m === 'POST') return join(request, env);
     if (seg[0] === 'recover' && !seg[1] && m === 'POST') return recover(request, env);
     if (seg[0] === 'recovery' && seg[1] === 'new' && !seg[2] && m === 'POST') return recoveryNew(request, env);
@@ -108,7 +115,7 @@ function bearer(request) {
   return h.startsWith('Bearer ') ? h.slice(7).trim() : '';
 }
 
-const USER_COLS = 'id, nick, created, role, verified, verified_how, blocked, recovery_hash';
+const USER_COLS = 'id, nick, created, role, verified, verified_how, blocked, recovery_hash, comments_seen';
 async function auth(request, db) {
   const token = bearer(request);
   if (!tokenOk(token)) return { err: no('login', 401) };
@@ -145,7 +152,8 @@ async function allow(db, who, kind) {
 }
 const ipKey = async request => 'ip:' + (await sha256('ip|' + (request.headers.get('CF-Connecting-IP') || 'local'))).slice(0, 16);
 
-const BADGE = "CASE WHEN u.role = 'official' THEN 'official' WHEN u.verified = 1 THEN 'dad' ELSE '' END AS badge";
+const BADGE = "CASE WHEN u.role = 'official' THEN 'official' WHEN u.role = 'admin' THEN 'admin' WHEN u.verified = 1 THEN 'dad' ELSE '' END AS badge";
+const badgeOf = u => (u.role === 'official' ? 'official' : u.role === 'admin' ? 'admin' : u.verified === 1 ? 'dad' : '');
 const rowPost = r => ({ id: r.id, cat: r.cat, title: r.title, preview: r.preview, created: r.created, comments: r.comment_count, nick: r.nick, uid: r.uid, badge: r.badge || '' });
 const pubUser = u => ({ id: u.id, nick: u.nick, created: u.created, verified: u.verified === 1 && !u.blocked, role: u.role, how: u.verified_how || '', blocked: !!u.blocked });
 
@@ -156,22 +164,32 @@ async function listPosts(request, env, sp) {
   const db = env.DB;
   const cat = str(sp.get('cat'), 20), q = str(sp.get('q'), 60), before = +sp.get('before') || 0;
   const limit = Math.min(Math.max(+sp.get('limit') || LIM.list, 1), LIM.listMax);
-  const where = ['p.deleted IS NULL'], args = [];
+  // 자료실 계정 글은 가이드 Q&A·정보에 있으니 커뮤니티 목록·검색에는 아빠들 글만(검수 15)
+  const where = ['p.deleted IS NULL', "u.role != 'official'"], args = [];
   if (cat && CATS.includes(cat)) { where.push('p.cat = ?'); args.push(cat); }
-  if (q) {
-    // 띄어 쓴 낱말은 모두 들어 있어야 찾는다(최대 5개)
-    q.split(/\s+/).filter(Boolean).slice(0, 5).forEach(w => {
-      const like = '%' + w.replace(/[\\%_]/g, c => '\\' + c) + '%';
-      where.push("(p.title LIKE ? ESCAPE '\\' OR p.body LIKE ? ESCAPE '\\')");
-      args.push(like, like);
-    });
-  }
+  const words = q ? q.split(/\s+/).filter(Boolean).slice(0, 5) : [];
   if (before) { where.push('p.id < ?'); args.push(before); }
-  args.push(limit + 1);
-  const sql = 'SELECT p.id, p.cat, p.title, substr(p.body, 1, 140) AS preview, p.created, p.comment_count, u.nick, u.id AS uid, ' + BADGE + ' '
-    + 'FROM posts p JOIN users u ON u.id = p.user_id WHERE ' + where.join(' AND ') + ' ORDER BY p.id DESC LIMIT ?';
-  const rs = await db.prepare(sql).bind(...args).all();
-  const rows = rs.results || [];
+  const head = 'SELECT p.id, p.cat, p.title, substr(p.body, 1, 140) AS preview, p.created, p.comment_count, u.nick, u.id AS uid, ' + BADGE + ' FROM posts p JOIN users u ON u.id = p.user_id WHERE ';
+  const tail = ' ORDER BY p.id DESC LIMIT ?';
+  let rows = null;
+  // 검색 색인(FTS5 trigram, 검수 27): 세 글자 이상인 낱말은 색인으로, 짧은 낱말이나 색인이 없을 때는 LIKE로(글 전체를 훑음)
+  if (words.length && words.every(w => Array.from(w).length >= 3)) {
+    const match = words.map(w => '"' + w.replace(/"/g, '""') + '"').join(' AND ');
+    try {
+      const rs = await db.prepare(head + where.concat(['p.id IN (SELECT rowid FROM posts_fts WHERE posts_fts MATCH ?)']).join(' AND ') + tail).bind(...args, match, limit + 1).all();
+      rows = rs.results || [];
+    } catch (e) { rows = null; }
+  }
+  if (rows === null) {
+    const w2 = where.slice(), a2 = args.slice();
+    words.forEach(w => {
+      const like = '%' + w.replace(/[\\%_]/g, c => '\\' + c) + '%';
+      w2.push("(p.title LIKE ? ESCAPE '\\' OR p.body LIKE ? ESCAPE '\\')");
+      a2.push(like, like);
+    });
+    const rs = await db.prepare(head + w2.join(' AND ') + tail).bind(...a2, limit + 1).all();
+    rows = rs.results || [];
+  }
   const more = rows.length > limit;
   if (more) rows.pop();
   return json({ ok: true, posts: rows.map(rowPost), next: more ? rows[rows.length - 1].id : null });
@@ -206,7 +224,7 @@ async function createPost(request, env) {
   const r = await env.DB.prepare('INSERT INTO posts (user_id, cat, title, body, created) VALUES (?1, ?2, ?3, ?4, ?5)')
     .bind(a.user.id, cat, title, text, created).run();
   const id = r.meta && r.meta.last_row_id;
-  return json({ ok: true, id, post: { id, cat, title, body: text, created, comments: 0, nick: a.user.nick, uid: a.user.id, badge: 'dad' } });
+  return json({ ok: true, id, post: { id, cat, title, body: text, created, comments: 0, nick: a.user.nick, uid: a.user.id, badge: badgeOf(a.user) } });
 }
 
 async function deletePost(request, env, id) {
@@ -242,7 +260,56 @@ async function addComment(request, env, postId) {
     env.DB.prepare('UPDATE posts SET comment_count = comment_count + 1 WHERE id = ?1').bind(postId)
   ]);
   const id = r.meta && r.meta.last_row_id;
-  return json({ ok: true, comment: { id, body: text, created, nick: a.user.nick, uid: a.user.id, badge: 'dad' } });
+  return json({ ok: true, comment: { id, body: text, created, nick: a.user.nick, uid: a.user.id, badge: badgeOf(a.user) } });
+}
+
+// ----- 신고(검수 21) -----
+async function report(request, env) {
+  const a = await auth(request, env.DB);
+  if (a.err) return a.err;
+  if (!canWrite(a.user)) return no(a.user.blocked ? 'blocked' : 'verify', 403);
+  const b = await readJson(request);
+  if (!b) return no('bad_json');
+  const kind = b.kind === 'comment' ? 'comment' : b.kind === 'post' ? 'post' : '';
+  const id = +b.id || 0, reason = str(b.reason, 300);
+  if (!kind || !id) return no('bad_json');
+  const row = kind === 'post'
+    ? await env.DB.prepare('SELECT user_id FROM posts WHERE id = ?1 AND deleted IS NULL').bind(id).first()
+    : await env.DB.prepare('SELECT user_id FROM comments WHERE id = ?1 AND deleted IS NULL').bind(id).first();
+  if (!row) return no('not_found', 404);
+  if (row.user_id === a.user.id) return no('own');
+  const dup = await env.DB.prepare('SELECT id FROM reports WHERE kind = ?1 AND target_id = ?2 AND user_id = ?3').bind(kind, id, a.user.id).first();
+  if (dup) return json({ ok: true, already: true });
+  if (!(await allow(env.DB, 'u:' + a.user.id, 'report'))) return no('limit', 429);
+  await env.DB.prepare('INSERT INTO reports (kind, target_id, user_id, reason, created) VALUES (?1, ?2, ?3, ?4, ?5)').bind(kind, id, a.user.id, reason, nowIso()).run();
+  return json({ ok: true });
+}
+
+// 글·댓글 숨기기 = 지우기와 같다(내용을 비움). 관리자 신고 처리와 '모두 숨김'이 쓴다.
+function hidePostStmts(db, id, at) {
+  return [
+    db.prepare("UPDATE posts SET deleted = COALESCE(deleted, ?1), title = '', body = '' WHERE id = ?2").bind(at, id),
+    db.prepare("UPDATE comments SET body = '', deleted = COALESCE(deleted, ?1) WHERE post_id = ?2").bind(at, id)
+  ];
+}
+function hideCommentStmts(db, id, postId, at) {
+  return [
+    db.prepare("UPDATE comments SET deleted = ?1, body = '' WHERE id = ?2 AND deleted IS NULL").bind(at, id),
+    db.prepare('UPDATE posts SET comment_count = (SELECT COUNT(*) FROM comments c WHERE c.post_id = posts.id AND c.deleted IS NULL) WHERE id = ?1').bind(postId)
+  ];
+}
+
+// 내 글에 새 댓글이 달렸는지(검수 22): 마지막으로 본 시각 뒤에 남이 단 댓글 수
+async function newCommentCount(db, user) {
+  const r = await db.prepare('SELECT COUNT(*) AS n FROM comments c JOIN posts p ON p.id = c.post_id WHERE p.user_id = ?1 AND c.user_id != ?1 AND c.deleted IS NULL AND p.deleted IS NULL AND c.created > ?2')
+    .bind(user.id, user.comments_seen || '').first();
+  return r ? r.n : 0;
+}
+async function seenComments(request, env) {
+  const a = await auth(request, env.DB);
+  if (a.err) return a.err;
+  await env.DB.prepare('UPDATE users SET comments_seen = ?1 WHERE id = ?2').bind(nowIso(), a.user.id).run();
+  return json({ ok: true });
 }
 
 async function deleteComment(request, env, id) {
@@ -270,8 +337,10 @@ async function useInvite(db, user, codeRaw) {
   const r = await db.prepare('UPDATE invites SET used_by = ?1, used_at = ?2 WHERE code = ?3 AND used_by IS NULL AND revoked = 0').bind(user.id, at, code).run();
   if (!r.meta || !r.meta.changes) return { error: 'code_used' };
   const role = inv.kind === 'admin' ? 'admin' : (user.role || 'user');
-  await db.prepare("UPDATE users SET verified = 1, verified_how = ?1, verified_at = ?2, invited_by = ?3, role = ?4 WHERE id = ?5")
-    .bind(inv.kind === 'admin' ? 'admin' : 'invite', at, inv.owner_id, role, user.id).run();
+  await db.batch([
+    db.prepare("UPDATE users SET verified = 1, verified_how = ?1, verified_at = ?2, invited_by = ?3, role = ?4 WHERE id = ?5").bind(inv.kind === 'admin' ? 'admin' : 'invite', at, inv.owner_id, role, user.id),
+    db.prepare("UPDATE applications SET status = 'approved', answer = '', decided_at = ?1 WHERE user_id = ?2 AND status = 'pending'").bind(at, user.id)   // 코드로 인증하면 대기 중인 신청 답변도 지운다
+  ]);
   return { ok: true, role };
 }
 
@@ -466,8 +535,13 @@ async function me(request, env) {
     db.prepare('UPDATE users SET last_seen = ?1 WHERE id = ?2').bind(nowIso(), uid)
   ]);
   const invites = a.user.verified === 1 ? await myInvites(db, uid) : [];
-  const badge = a.user.role === 'official' ? 'official' : (a.user.verified === 1 ? 'dad' : '');
+  const badge = badgeOf(a.user);
+  // 내 글에 달린 새 댓글(남이 단 것, 마지막으로 본 뒤): 수와 최근 20개
+  const newN = await newCommentCount(db, a.user);
+  const recent = newN ? await db.prepare('SELECT c.id, c.body, c.created, c.post_id, p.title AS post_title, u.nick FROM comments c JOIN posts p ON p.id = c.post_id JOIN users u ON u.id = c.user_id '
+    + 'WHERE p.user_id = ?1 AND c.user_id != ?1 AND c.deleted IS NULL AND p.deleted IS NULL AND c.created > ?2 ORDER BY c.id DESC LIMIT 20').bind(uid, a.user.comments_seen || '').all() : { results: [] };
   return json({ ok: true, user: pubUser(a.user), application: (ap.results || [])[0] || null, invites, invite_max: isAdmin(a.user) ? null : INVITE_MAX, has_recovery: !!a.user.recovery_hash,
+    new_comments: newN, new_list: (recent.results || []).map(c => ({ id: c.id, body: c.body, created: c.created, post_id: c.post_id, post_title: c.post_title, nick: c.nick })),
     posts: (ps.results || []).map(r => rowPost({ ...r, nick: a.user.nick, uid, badge })),
     comments: (cs.results || []).map(c => ({ id: c.id, body: c.body, created: c.created, post_id: c.post_id, post_title: c.post_title })) });
 }
@@ -499,14 +573,39 @@ async function admin(request, env, what, method) {
   if (!isAdmin(a.user)) return no('forbidden', 403);
   const db = env.DB;
   if (what === 'queue' && method === 'GET') {
-    const [q, us, inv] = await db.batch([
+    const [q, us, inv, rp] = await db.batch([
       db.prepare("SELECT ap.id, ap.user_id, ap.stage, ap.answer, ap.created, u.nick FROM applications ap JOIN users u ON u.id = ap.user_id WHERE ap.status = 'pending' ORDER BY ap.id"),
       db.prepare("SELECT u.id, u.nick, u.created, u.verified, u.verified_how, u.blocked, u.role, i.nick AS inviter, (SELECT COUNT(*) FROM posts p WHERE p.user_id = u.id AND p.deleted IS NULL) AS posts "
         + "FROM users u LEFT JOIN users i ON i.id = u.invited_by WHERE u.role != 'official' ORDER BY u.id DESC LIMIT 200"),
-      db.prepare("SELECT code, note, used_by, created FROM invites WHERE owner_id IS NULL OR owner_id = ?1 ORDER BY created DESC LIMIT 50").bind(a.user.id)
+      db.prepare("SELECT code, note, used_by, created FROM invites WHERE owner_id IS NULL OR owner_id = ?1 ORDER BY created DESC LIMIT 50").bind(a.user.id),
+      // 신고함: 대기 중인 신고를 대상별로 묶어 신고 수와 대상의 앞부분을 함께
+      db.prepare("SELECT r.kind, r.target_id, COUNT(*) AS n, MIN(r.created) AS first_at, GROUP_CONCAT(r.reason, ' / ') AS reasons, "
+        + "CASE WHEN r.kind = 'post' THEN (SELECT p.title FROM posts p WHERE p.id = r.target_id) ELSE '' END AS title, "
+        + "CASE WHEN r.kind = 'post' THEN (SELECT substr(p.body, 1, 160) FROM posts p WHERE p.id = r.target_id) ELSE (SELECT substr(c.body, 1, 160) FROM comments c WHERE c.id = r.target_id) END AS preview, "
+        + "CASE WHEN r.kind = 'post' THEN (SELECT u.nick FROM posts p JOIN users u ON u.id = p.user_id WHERE p.id = r.target_id) ELSE (SELECT u.nick FROM comments c JOIN users u ON u.id = c.user_id WHERE c.id = r.target_id) END AS author, "
+        + "CASE WHEN r.kind = 'post' THEN r.target_id ELSE (SELECT c.post_id FROM comments c WHERE c.id = r.target_id) END AS post_id, "
+        + "CASE WHEN r.kind = 'post' THEN (SELECT p.deleted FROM posts p WHERE p.id = r.target_id) ELSE (SELECT c.deleted FROM comments c WHERE c.id = r.target_id) END AS gone "
+        + "FROM reports r WHERE r.handled IS NULL GROUP BY r.kind, r.target_id ORDER BY first_at")
     ]);
-    return json({ ok: true, queue: q.results || [], users: us.results || [],
+    return json({ ok: true, queue: q.results || [], users: us.results || [], reports: rp.results || [],
       invites: (inv.results || []).map(x => ({ code: showCode(x.code), note: x.note, used: x.used_by != null })) });
+  }
+  if (what === 'report' && method === 'POST') {
+    const b = await readJson(request);
+    const kind = b && b.kind === 'comment' ? 'comment' : 'post', id = +(b && b.id) || 0, action = String(b && b.action || '');
+    if (!id || !['hide', 'keep'].includes(action)) return no('bad_json');
+    const at = nowIso();
+    const stmts = [];
+    if (action === 'hide') {
+      if (kind === 'post') stmts.push(...hidePostStmts(db, id, at));
+      else {
+        const c = await db.prepare('SELECT post_id FROM comments WHERE id = ?1').bind(id).first();
+        if (c) stmts.push(...hideCommentStmts(db, id, c.post_id, at));
+      }
+    }
+    stmts.push(db.prepare('UPDATE reports SET handled = ?1, handled_by = ?2, result = ?3 WHERE kind = ?4 AND target_id = ?5 AND handled IS NULL').bind(at, a.user.id, action === 'hide' ? 'hidden' : 'kept', kind, id));
+    await db.batch(stmts);
+    return json({ ok: true });
   }
   if (what === 'decide' && method === 'POST') {
     const b = await readJson(request);
@@ -525,6 +624,16 @@ async function admin(request, env, what, method) {
     const u = await db.prepare('SELECT id, role FROM users WHERE id = ?1').bind(id).first();
     if (!u) return no('not_found', 404);
     if (u.role !== 'user') return no('forbidden', 403);        // 관리자·자료실 계정은 여기서 못 바꾼다
+    const at = nowIso();
+    if (action === 'hide_all') {                                 // 그 회원의 글·댓글을 모두 숨긴다(내용 비움). 계정은 남는다
+      await db.batch([
+        db.prepare("UPDATE comments SET body = '', deleted = COALESCE(deleted, ?1) WHERE user_id = ?2").bind(at, id),
+        db.prepare('UPDATE posts SET comment_count = (SELECT COUNT(*) FROM comments c WHERE c.post_id = posts.id AND c.deleted IS NULL) WHERE id IN (SELECT post_id FROM comments WHERE user_id = ?1)').bind(id),
+        db.prepare("UPDATE comments SET body = '', deleted = COALESCE(deleted, ?1) WHERE post_id IN (SELECT id FROM posts WHERE user_id = ?2)").bind(at, id),
+        db.prepare("UPDATE posts SET title = '', body = '', deleted = COALESCE(deleted, ?1) WHERE user_id = ?2").bind(at, id)
+      ]);
+      return json({ ok: true });
+    }
     const sql = {
       verify: "UPDATE users SET verified = 1, blocked = 0, verified_how = 'admin', verified_at = ?1 WHERE id = ?2",
       unverify: "UPDATE users SET verified = 0, verified_how = '', verified_at = ?1 WHERE id = ?2",
@@ -533,7 +642,9 @@ async function admin(request, env, what, method) {
       logout: 'UPDATE users SET token_hash = ?1 WHERE id = ?2'            // 그 회원의 기기를 끊는다(복구 코드로만 돌아옴)
     }[action];
     if (!sql) return no('bad_json');
-    await db.prepare(sql).bind(action === 'logout' ? offToken(id) : nowIso(), id).run();
+    const stmts = [db.prepare(sql).bind(action === 'logout' ? offToken(id) : at, id)];
+    if (action === 'block') stmts.push(db.prepare('UPDATE invites SET revoked = 1 WHERE owner_id = ?1 AND used_by IS NULL').bind(id));   // 안 쓴 초대 코드로 새 기기가 돌아오지 못하게(검수 16)
+    await db.batch(stmts);
     return json({ ok: true });
   }
   if (what === 'invites' && method === 'POST') {

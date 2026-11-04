@@ -15,7 +15,8 @@ CREATE TABLE IF NOT EXISTS users (
   verified_how TEXT NOT NULL DEFAULT '',       -- invite(초대 코드) · apply(신청서 승인) · admin
   verified_at  TEXT,
   invited_by   INTEGER,                        -- 초대한 사람(문제가 생기면 초대 줄기를 본다)
-  blocked      INTEGER NOT NULL DEFAULT 0      -- 1 = 인증 취소하고 다시 신청 못 함
+  blocked      INTEGER NOT NULL DEFAULT 0,     -- 1 = 인증 취소하고 다시 신청 못 함
+  comments_seen TEXT                           -- 내 글의 새 댓글을 마지막으로 본 시각(MY 배지, 검수 22). 기존 표에는 MIGRATIONS로 더함
 );
 
 -- 초대 코드: 인증 아빠가 만들어 다른 아빠에게 준다. kind = dad(아빠 인증) · admin(첫 관리자, 한 번 쓰면 끝)
@@ -71,6 +72,23 @@ CREATE TABLE IF NOT EXISTS comments (
 );
 CREATE INDEX IF NOT EXISTS comments_post ON comments (post_id, id);
 CREATE INDEX IF NOT EXISTS comments_user ON comments (user_id);
+
+-- 신고(11-04 검수 21). kind = post · comment. handled = 처리 시각(NULL이면 대기), result = hidden(숨김) · kept(그대로 둠)
+CREATE TABLE IF NOT EXISTS reports (
+  id         INTEGER PRIMARY KEY,
+  kind       TEXT NOT NULL,
+  target_id  INTEGER NOT NULL,
+  user_id    INTEGER NOT NULL,
+  reason     TEXT NOT NULL DEFAULT '',
+  created    TEXT NOT NULL,
+  handled    TEXT,
+  handled_by INTEGER,
+  result     TEXT NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS reports_open ON reports (handled, id);
+CREATE INDEX IF NOT EXISTS reports_target ON reports (kind, target_id, user_id);
+
+-- 검색 색인(검수 27): posts_fts(FTS5, trigram)과 트리거는 deploy.py MIGRATIONS에서 한 문장씩 만든다(트리거의 BEGIN…END를 파일로 넘기면 문장이 쪼개진다).
 
 -- 횟수 제한(스팸·코드 맞히기 막기). who = 'u:<사용자 번호>' 또는 'ip:<기기 주소 해시 16자>', kind = join·post·comment·nick·code·apply·invite, at = 시각 ms.
 -- 기한이 지난 줄은 다음 시도 때 지운다(기기 주소는 가입·코드 제한에만, 짧게).

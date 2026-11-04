@@ -19,7 +19,7 @@
       minDays: 30, shortMinDays: 7, maxMonths: 18, baseMonths: 12, applyBeforeDays: 30
     },
     reduce: { firstHours: 10, firstCap: 2500000, restCap: 1600000, floor: 500000, restRate: 0.8, afterMin: 15, afterMax: 35, baseMonths: 12, maxMonths: 36 },
-    paternity: { days: 20, dailyCap: 84210, fullCap: 1684210, hoursPerDay: 8, monthlyHours: 209, beforeDue: 50, afterBirth: 120, splits: 3 }
+    paternity: { days: 20, dailyCap: 84210, fullCap: 1684210, hoursPerDay: 8, monthlyHours: 209, beforeDue: 50, afterBirth: 120, splits: 3, minHourly: 10320 }   // 하한 = 최저임금(2026년 시급 10,320원, 정부24 "지급 금액 하한: 최저임금액")
   };
 
   // ----- 날짜(시간대 영향이 없도록 'YYYY-MM-DD' 문자열과 UTC만 쓴다) -----
@@ -113,11 +113,12 @@
   }
 
   // ----- 육아기 근로시간 단축 급여(제104조의2) -----
-  // opts: {ordinary(원), before(단축 전 주 소정시간), after(단축 후), months}
+  // opts: {ordinary(원), before(단축 전 주 소정시간), after(단축 후), months, lastDays(마지막 달이 한 달을 못 채우면 그 일수, 선택)}
   function reduceBenefit(opts) {
     const R = RULES.reduce;
     const ordinary = Math.max(0, Math.floor(+opts.ordinary || 0));
     const before = +opts.before || 0, after = +opts.after || 0, months = Math.max(1, Math.floor(+opts.months || R.baseMonths));
+    const lastDays = Math.min(30, Math.max(0, Math.floor(+opts.lastDays || 0)));   // 0이면 모든 달이 온달
     const cut = before - after;
     const warnings = [];
     if (!ordinary) warnings.push('pay');
@@ -133,7 +134,10 @@
     const wage = Math.floor(ordinary * after / before);     // 회사 임금: 일한 시간에 비례한다고 본 어림값
     const over = Math.max(0, wage + first + rest - ordinary);   // 임금 + 급여가 통상임금을 넘으면 넘는 만큼 뺀다(찾기쉬운 생활법령 '감액')
     const gov = Math.max(0, first + rest - over);
-    return { ordinary, before, after, cut, months, firstHours, restHours, firstBase, restBase, first, rest, reduced: over, gov, wage, monthly: wage + gov, totalGov: gov * months, lost: ordinary - wage - gov, warnings };
+    // 한 달을 못 채운 마지막 달은 일수에 비례(제104조의2 제2항 준용 안내). lastDays가 있으면 마지막 달을 그만큼으로 본다
+    const lastGov = lastDays ? Math.floor(gov * lastDays / 30) : gov;
+    const totalGov = lastDays ? gov * (months - 1) + lastGov : gov * months;
+    return { ordinary, before, after, cut, months, lastDays, firstHours, restHours, firstBase, restBase, first, rest, reduced: over, gov, lastGov, wage, monthly: wage + gov, totalGov, lost: ordinary - wage - gov, warnings };
   }
 
   // ----- 배우자 출산전후휴가 -----
@@ -146,8 +150,9 @@
     const daily = ordinary / hours * P.hoursPerDay;
     const total = Math.floor(daily * days);
     const capAll = days === P.days ? P.fullCap : P.dailyCap * days;
-    const gov = opts.priority ? Math.min(total, capAll) : 0;
-    return { ordinary, days, daily: Math.floor(daily), total, gov, company: total - gov, capAll, warnings: ordinary ? [] : ['pay'] };
+    const floorAll = P.minHourly * P.hoursPerDay * days;         // 통상임금이 최저임금보다 낮아도 정부 급여는 최저임금만큼은 준다
+    const gov = opts.priority ? Math.max(Math.min(total, capAll), floorAll) : 0;
+    return { ordinary, days, daily: Math.floor(daily), total, gov, company: Math.max(0, total - gov), capAll, floorAll, atFloor: opts.priority && total < floorAll, warnings: ordinary ? [] : ['pay'] };
   }
 
   // ----- 내 아이 기준 날짜 -----
@@ -166,6 +171,15 @@
       out.reduceAgeEnd = addDays(addYears(base, 13), -1);
       out.reduceGradeEnd = lastFeb(yearOf(base) + 13);
       out.reduceStartBy = later(out.reduceAgeEnd, out.reduceGradeEnd);
+    }
+    // 태어난 뒤 기한(검수 10). 예정일만 있으면 계산하지 않는다
+    if (birth) {
+      out.birthReportBy = addMonths(birth, 1);        // 출생신고: 출생 후 1개월 이내(가족관계등록법 제44조)
+      out.parentPayBy = addDays(birth, 60);           // 부모급여: 60일 안에 신청하면 태어난 달부터
+      out.bcgBy = addDays(birth, 28);                 // BCG: 생후 4주 이내
+      out.check1From = addDays(birth, 14);            // 영유아 건강검진 1차: 생후 14~35일
+      out.check1To = addDays(birth, 35);
+      out.firstVoucherBy = addYears(birth, 2);        // 첫만남이용권: 2년 안에 신청·사용(2024년 이후 출생아)
     }
     return out;
   }

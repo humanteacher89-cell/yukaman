@@ -106,8 +106,17 @@ r = C.paternityPay({ ordinary: 350 * MAN, priority: false });
 eq(r.gov, 0, '우선지원 아니면 회사 전액');
 r = C.paternityPay({ ordinary: 350 * MAN, priority: true, days: 3 });
 eq(r.capAll, 252630, '3일 상한(고용노동부 표)');
-r = C.paternityPay({ ordinary: 200 * MAN, priority: true });
-eq(r.gov, r.total, '상한 아래면 전부 정부');
+r = C.paternityPay({ ordinary: 218 * MAN, priority: true });
+eq(r.gov, r.total, '하한과 상한 사이면 전부 정부');
+r = C.paternityPay({ ordinary: 100 * MAN, priority: true });
+eq(r.gov, 10320 * 8 * 20, '통상임금이 최저임금보다 낮으면 정부 급여 하한은 최저임금(20일)');
+eq(r.atFloor, true, '하한 표시');
+eq(r.company, 0, '하한이 통상임금보다 크면 회사 몫 0');
+
+// 단축 마지막 달 일할
+r = C.reduceBenefit({ ordinary: 300 * MAN, before: 40, after: 30, months: 3, lastDays: 15 });
+eq(r.totalGov, 625000 * 2 + Math.floor(625000 * 15 / 30), '마지막 달 15일은 절반');
+eq(C.reduceBenefit({ ordinary: 300 * MAN, before: 40, after: 30, months: 3 }).totalGov, 625000 * 3, 'lastDays 없으면 온달');
 
 // 아이 기준 날짜
 r = C.childDates({ birth: '2024-12-05' });
@@ -118,6 +127,13 @@ eq(r.leaveStartBy, '2033-12-04', '둘 중 늦은 날');
 eq(r.reduceStartBy, '2037-12-04', '단축: 만 13세 생일 전날');
 r = C.childDates({ birth: '2026-01-10' });
 eq(r.leaveStartBy, '2035-02-28', '1월생은 초2 끝이 더 늦다');
+r = C.childDates({ birth: '2026-11-04' });
+eq(r.birthReportBy, '2026-12-04', '출생신고 1개월');
+eq(r.parentPayBy, '2027-01-03', '부모급여 60일');
+eq(r.bcgBy, '2026-12-02', 'BCG 4주');
+eq([r.check1From, r.check1To], ['2026-11-18', '2026-12-09'], '검진 1차 14~35일');
+eq(r.firstVoucherBy, '2028-11-04', '첫만남이용권 2년');
+eq(C.childDates({ due: '2027-03-01' }).birthReportBy, undefined, '예정일만이면 출생 뒤 기한 없음');
 r = C.childDates({ due: '2027-03-01' });
 eq(r.paternityFrom, '2027-01-10', '예정일 50일 전');
 r = C.childDates({ due: '2027-03-01', birth: '2027-02-20' });

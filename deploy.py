@@ -5,6 +5,8 @@
 #   python -X utf8 deploy.py seed                          공개 D1에 seed/official.sql(자료실 계정의 글 넣기) + seed/official-update.sql(이미 있는 글의 제목·본문 맞추기). 몇 번 돌려도 그대로
 #   python -X utf8 deploy.py admin-code                    공개 D1에 첫 관리자 코드 하나를 만들어 화면에 보여 준다(한 번 쓰면 끝. 저장소에 남기지 않는다)
 #   python -X utf8 deploy.py logout-user <회원 번호>        공개 D1에서 그 회원의 기기 토큰을 끊는다(폰을 잃은 관리자 등. 복구 코드로만 돌아온다)
+#   python -X utf8 deploy.py backup                        공개 D1 표를 backups/yukaman-YYYYMMDD-HHMM.json으로 내려받는다(gitignore). 시점 되돌리기는 wrangler d1 time-travel
+#   python -X utf8 deploy.py logs                          공개 서버 오류를 실시간으로 본다(wrangler pages deployment tail, Ctrl+C로 끝)
 #   python -X utf8 deploy.py deploy                        Pages에 올리기(휴먼쌤이 시킨 때만)
 # 지어낸 견본 글(test/seed-local.sql)은 내 컴퓨터 미리 보기에서만 쓴다. 공개 D1에는 넣지 않는다.
 # wrangler: 환경 변수 WRANGLER_JS(wrangler.js 경로, NODE가 있으면 그 node로) → 위쪽 폴더 어딘가의 tools/cf-wrangler(포터블, 로그인 정보 config/ 포함) → npx wrangler.
@@ -18,6 +20,13 @@ ALPHA = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
 # schema.sql은 새 표만 만든다. 이미 있는 표에 칸을 더할 때는 여기에 한 줄(이미 있으면 'duplicate column' 오류가 나고 그냥 넘어간다)
 MIGRATIONS = [
     'ALTER TABLE users ADD COLUMN recovery_hash TEXT',      # 2026-11-04 복구 코드(검수 3)
+    'ALTER TABLE users ADD COLUMN comments_seen TEXT',      # 2026-11-04 새 댓글 배지(검수 22)
+    # 검색 색인(검수 27): trigram이라 한국어 조사가 붙어도 세 글자 조각으로 찾는다. 글을 넣고·고치고·지울 때 트리거가 따라간다. 이미 있으면 그대로.
+    "CREATE VIRTUAL TABLE IF NOT EXISTS posts_fts USING fts5(title, body, content='posts', content_rowid='id', tokenize='trigram')",
+    'CREATE TRIGGER IF NOT EXISTS posts_ai AFTER INSERT ON posts BEGIN INSERT INTO posts_fts(rowid, title, body) VALUES (new.id, new.title, new.body); END',
+    "CREATE TRIGGER IF NOT EXISTS posts_ad AFTER DELETE ON posts BEGIN INSERT INTO posts_fts(posts_fts, rowid, title, body) VALUES ('delete', old.id, old.title, old.body); END",
+    "CREATE TRIGGER IF NOT EXISTS posts_au AFTER UPDATE OF title, body ON posts BEGIN INSERT INTO posts_fts(posts_fts, rowid, title, body) VALUES ('delete', old.id, old.title, old.body); INSERT INTO posts_fts(rowid, title, body) VALUES (new.id, new.title, new.body); END",
+    "INSERT INTO posts_fts(posts_fts) VALUES ('rebuild')",  # 기존 글을 색인에 채운다(몇 번 돌려도 그대로)
 ]
 SEEDS = [os.path.join('seed', 'official.sql'), os.path.join('seed', 'official-update.sql')]
 
@@ -128,6 +137,21 @@ def main():
                 sys.exit(1)
     elif what == 'admin-code':
         admin_code()
+    elif what == 'backup':
+        # wrangler d1 export는 검색 색인(가상 표)이 있으면 안 되어 표마다 JSON으로 받는다. 시점 되돌리기는 wrangler d1 time-travel restore yukaman --timestamp=<시각>
+        import datetime, json
+        os.makedirs(os.path.join(HERE, 'backups'), exist_ok=True)
+        data = {}
+        for t in ('users', 'invites', 'applications', 'posts', 'comments', 'reports'):
+            r = subprocess.run(wrangler_cmd() + ['d1', 'execute', DB, '--remote', '--json', '--command', 'SELECT * FROM ' + t], cwd=HERE, capture_output=True, text=True, encoding='utf-8', errors='replace')
+            if r.returncode:
+                sys.exit('백업 실패: ' + t + '\n' + r.stderr)
+            data[t] = json.loads(r.stdout)[0]['results']
+        out = os.path.join('backups', 'yukaman-' + datetime.datetime.now().strftime('%Y%m%d-%H%M') + '.json')
+        json.dump(data, open(os.path.join(HERE, out), 'w', encoding='utf-8'), ensure_ascii=False)
+        print('백업:', out, {k: len(v) for k, v in data.items()}, flush=True)
+    elif what == 'logs':
+        sys.exit(wrangler('pages', 'deployment', 'tail', '--project-name', PROJECT))
     elif what == 'logout-user':
         uid = int(opt('logout-user', '0'))
         if uid <= 0:

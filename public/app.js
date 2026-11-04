@@ -17,20 +17,22 @@
     { key: 'daily', name: '일상·자랑', e: '🎉' },
     { key: 'leave', name: '육아휴직·제도', e: '📋' },
     { key: 'play', name: '놀이·나들이', e: '⚽' },
+    { key: 'school', name: '학교·학습', e: '🏫' },
     { key: 'gear', name: '용품·장비', e: '🍼' }
   ];
   const CAT = {}; CATS.forEach(c => { CAT[c.key] = c; });
   const GCAT = {}; GD.cats.forEach(c => { GCAT[c.key] = c; });
   const LIM = { nick: [2, 12], title: [2, 60], body: [1, 3000], comment: [1, 1000], answer: [20, 500] };   // server/app.js LIM과 같게
   const PAGE = 20;
-  const RESERVED = /(육아맨|운영자|관리자|자료실|공식|admin|official)/i;
+  const RESERVED = /(육아맨|운영|관리|자료실|공식|스태프|스탭|매니저|마스터|휴먼쌤|휴먼샘|admin|official|staff|manager|master|moderator|yukaman|humanssaem)/i;   // server/app.js와 같게
+  const foldNick = s => s.replace(/[\s_.\-]+/g, '').toLowerCase().replace(/0/g, 'o').replace(/1/g, 'i').replace(/3/g, 'e').replace(/5/g, 's');
   const MSG = {
     login: '닉네임을 먼저 정해 주세요', unknown_user: '이 기기의 닉네임 기록이 없어요. 다시 정해 주세요',
     nick_taken: '이미 쓰는 닉네임이에요', nick_len: '닉네임은 2~12자로 해 주세요', nick_chars: '닉네임은 한글·영문·숫자만 쓸 수 있어요', nick_reserved: '운영 계정과 헷갈리는 이름은 쓸 수 없어요',
     limit: '너무 자주 했어요. 잠시 뒤에 다시 해 주세요', title_len: '제목은 2~60자로 해 주세요', body_len: '내용을 적어 주세요(3000자까지)',
     comment_len: '댓글은 1~1000자로 해 주세요', cat: '분류를 골라 주세요', not_found: '글을 찾을 수 없어요(지워졌을 수 있어요)',
     forbidden: '내가 쓴 것만 지울 수 있어요', bad_json: '보낼 내용이 잘못됐어요', server: '서버에 문제가 있어요. 잠시 뒤 다시 해 주세요', network: '인터넷 연결을 확인해 주세요',
-    no_api: '서버에 연결할 수 없어요. 잠시 뒤 다시 열어 주세요', recovery_bad: '맞지 않는 복구 코드예요', token_in_use: '이 기기에 이미 다른 닉네임이 있어요',
+    own: '내가 쓴 글은 신고할 수 없어요', no_api: '서버에 연결할 수 없어요. 잠시 뒤 다시 열어 주세요', recovery_bad: '맞지 않는 복구 코드예요', token_in_use: '이 기기에 이미 다른 닉네임이 있어요',
     verify: '커뮤니티는 인증한 아빠만 읽고 쓸 수 있어요', blocked: '이용이 제한된 계정이에요',
     code_bad: '맞지 않는 초대 코드예요', code_used: '이미 쓴 초대 코드예요', stage: '지금 상황을 골라 주세요', answer_len: '이야기는 20자 이상으로 적어 주세요', pledge: '약속에 체크해 주세요', invite_max: '초대 코드는 3개까지 만들 수 있어요'
   };
@@ -39,7 +41,8 @@
   const $ = (s, el) => (el || document).querySelector(s);
   const $$ = (s, el) => Array.prototype.slice.call((el || document).querySelectorAll(s));
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
-  const rich = s => esc(s).replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" rel="noopener">$1</a>');
+  // 주소에 쓰는 글자만 링크로(한글 조사 "…com에서"가 붙지 않게). 끝의 문장 부호는 뺀다
+  const rich = s => esc(s).replace(/https?:\/\/[A-Za-z0-9\-._~:\/?#\[\]@!$&;=%+,*()]+/g, m => { const t = m.replace(/(&#39;|&quot;|[.,;:!?)\]])+$/, ''); return '<a href="' + t + '" target="_blank" rel="noopener">' + t + '</a>' + m.slice(t.length); });
   const len = s => Array.from(String(s || '')).length;
   const fmtNum = n => Number(n || 0).toLocaleString('ko-KR');
   // 1,684,210 → '168만 4,210원' / 25,000,000 → '2,500만원'
@@ -69,12 +72,12 @@
   function ymd(iso) { const dt = new Date(iso); if (!dt.getTime()) return ''; return dt.getFullYear() + '.' + String(dt.getMonth() + 1).padStart(2, '0') + '.' + String(dt.getDate()).padStart(2, '0'); }
   const first = s => Array.from(String(s || '?'))[0] || '?';
   const CHECK = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 8.5 6.7 11.5 12.5 5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-  const vbadge = b => (b === 'official' ? '<span class="vb of">자료</span>' : b === 'dad' ? '<span class="vb" title="인증 아빠" aria-label="인증 아빠">' + CHECK + '</span>' : '');
+  const vbadge = b => (b === 'official' ? '<span class="vb of">자료</span>' : b === 'admin' ? '<span class="vb of">운영</span>' : b === 'dad' ? '<span class="vb" title="인증 아빠" aria-label="인증 아빠">' + CHECK + '</span>' : '');
   const avatar = nick => '<span class="avatar">' + esc(first(nick)) + '</span>';
   const who = (nick, badge) => '<span class="nick">' + avatar(nick) + esc(nick) + vbadge(badge) + '</span>';
   const nickKey = s => String(s).replace(/\s+/g, '').toLowerCase();
   const clean = (s, n) => String(s == null ? '' : s).replace(/\r\n?/g, '\n').trim().slice(0, n);
-  function checkNick(nick) { const n = len(nick); if (n < LIM.nick[0] || n > LIM.nick[1]) return 'nick_len'; if (!/^[가-힣A-Za-z0-9 _.]+$/.test(nick)) return 'nick_chars'; if (RESERVED.test(nick.replace(/\s+/g, ''))) return 'nick_reserved'; return ''; }
+  function checkNick(nick) { const n = len(nick); if (n < LIM.nick[0] || n > LIM.nick[1]) return 'nick_len'; if (!/^[가-힣A-Za-z0-9 _.]+$/.test(nick)) return 'nick_chars'; if (RESERVED.test(foldNick(nick))) return 'nick_reserved'; return ''; }
   function checkPost(p) { if (!CAT[p.cat]) return 'cat'; const t = len(p.title), b = len(p.body); if (t < LIM.title[0] || t > LIM.title[1]) return 'title_len'; if (b < LIM.body[0] || b > LIM.body[1]) return 'body_len'; return ''; }
   const ICON = {
     search: '<svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>',
@@ -82,7 +85,19 @@
     send: '<svg viewBox="0 0 24 24"><path d="M4 12 20 4l-4 16-4-7z"/></svg>',
     chat: '<svg viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4z"/></svg>'
   };
-  const LOGO = '<svg viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="18" fill="#2563EB"/><circle cx="25" cy="23" r="9.5" fill="#fff"/><path d="M9 51c0-9.5 7.2-16 16-16s16 6.5 16 16z" fill="#fff"/><circle cx="46" cy="33" r="6.5" fill="#FFD166"/><path d="M35 51c0-6.5 4.9-11 11-11s11 4.5 11 11z" fill="#FFD166"/></svg>';
+  const LOGO = '<svg viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="18" fill="#2563EB"/><g fill="none" stroke="#FFD166" stroke-linecap="round"><path d="M32 17v7" stroke-width="11"/><path d="M27 18l-8.500-8.500M37 18l8.500-8.500" stroke-width="4.200"/><path d="M24 25h16" stroke-width="4.400"/></g><circle cx="32" cy="9.500" r="6" fill="#FFD166"/><circle cx="32" cy="30.500" r="7.500" fill="#fff"/><path d="M12 59.500a20 20 0 0 1 40 0z" fill="#fff"/><path d="M24 25l-2.500 17M40 25l2.500 17" fill="none" stroke="#FFD166" stroke-width="4.400" stroke-linecap="round"/></svg>';   // 아빠가 아이를 목마 태운 모습. icons/logo.svg · tools/build_icons.py와 같게
+
+  // 글꼴은 화면을 막지 않게(index.html media=print → 여기서 all)
+  (function () { const f = document.getElementById('fontcss'); if (f) requestAnimationFrame(() => { f.media = 'all'; }); })();
+  // 다크 모드: 저장값 auto(기기 따름) · light · dark. <html data-theme>로 CSS가 바뀐다(검수 25)
+  function applyTheme() {
+    const pref = store.get('theme', 'auto');
+    const dark = pref === 'dark' || (pref === 'auto' && window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches);
+    document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+    const m = document.querySelector('meta[name=theme-color]'); if (m) m.setAttribute('content', dark ? '#141A26' : '#2563EB');
+  }
+  applyTheme();
+  if (window.matchMedia) { const q = matchMedia('(prefers-color-scheme: dark)'); if (q.addEventListener) q.addEventListener('change', applyTheme); }
 
   // ----- 나(닉네임 + 기기 토큰) -----
   function randomToken() { const a = new Uint8Array(24); crypto.getRandomValues(a); let s = ''; a.forEach(b => { s += String.fromCharCode(b); }); return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); }
@@ -139,7 +154,10 @@
     recover: code => remote.call('POST', '/recover', { code }),
     recoveryNew: () => remote.call('POST', '/recovery/new', {}),
     logout: () => remote.call('POST', '/logout', {}),
-    deleteMe: () => remote.call('DELETE', '/me', { confirm: true })
+    deleteMe: () => remote.call('DELETE', '/me', { confirm: true }),
+    report: (kind, id, reason) => remote.call('POST', '/reports', { kind, id, reason }),
+    seen: () => remote.call('POST', '/me/seen', {}),
+    adminReport: (kind, id, action) => remote.call('POST', '/admin/report', { kind, id, action })
   };
 
   // 시험 모드: 견본 글 + 이 기기(localStorage). 서버와 같은 응답 꼴. 코드는 아무 글자나, 신청서는 바로 승인된다.
@@ -182,6 +200,8 @@
       const u = { id: d.seq.user++, nick, created: new Date().toISOString(), token: token(), verified: !!invite, how: invite ? 'invite' : '', recovery: this.newRec() }; d.users.push(u); this.save();
       return { ok: true, user: pub(u), recovery: u.recovery };
     },
+    async report() { this.needDad(); return { ok: true }; },
+    async seen() { return { ok: true }; },
     newRec() { const d = this.load(); d.seq.rec = (d.seq.rec || 0) + 1; return 'TEST-' + String(1000 + d.seq.rec) + '-RCVR'; },
     async recover(code) {
       const d = this.load(), c = String(code || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
@@ -260,9 +280,18 @@
   const brandBar = (right) => '<div class="brand"><span class="logo">' + LOGO + '</span><span>육아맨</span></div><div class="fill"></div>' + (right || '');
   const backBtn = to => '<button class="circ" data-back="' + esc(to) + '" aria-label="뒤로">' + ICON.back + '</button>';
   function setTab(name) { $$('.tab').forEach(t => t.classList.toggle('on', t.dataset.tab === name)); }
-  function go(h, replace) { if (replace) location.replace(h); else location.hash = h; }
-  let navDepth = 0;
-  function back(to) { if (navDepth > 0 && history.length > 1) { navDepth -= 2; history.back(); } else go(to); }
+  function go(h, replace) { if (replace) { if (location.hash !== h) navReplace = true; location.replace(h); } else location.hash = h; }
+  // 앱 안에서 지나온 주소를 기억한다. 시스템 뒤로 가기로 돌아와도 어긋나지 않고, 앱 첫 화면이면 밖으로 나가는 대신 목록으로 간다.
+  const navStack = [location.hash];
+  let navReplace = false;
+  function trackNav() {
+    const h = location.hash;
+    if (navReplace) { navReplace = false; navStack[navStack.length - 1] = h; return; }
+    if (navStack.length > 1 && navStack[navStack.length - 2] === h) navStack.pop(); else navStack.push(h);
+  }
+  function back(to) { if (navStack.length > 1) history.back(); else go(to, true); }
+  // 늦게 온 응답이 지금 화면을 덮어쓰지 않게 화면마다 번호를 둔다
+  let renderSeq = 0;
 
   function parse() {
     const s = location.hash.replace(/^#\/?/, '').split('/').map(x => { try { return decodeURIComponent(x); } catch (e) { return x; } });
@@ -276,10 +305,13 @@
     if (s[0] === 'me') return { name: 'me' };
     if (s[0] === 'join') return { name: 'join', code: s[1] || '' };
     if (s[0] === 'admin') return { name: 'admin' };
+    if (s[0] === 'terms') return { name: 'legal', kind: 'terms' };
+    if (s[0] === 'privacy') return { name: 'legal', kind: 'privacy' };
     return { name: 'home' };
   }
   async function render() {
     const r = parse();
+    renderSeq++;
     closeSheet(); app.classList.remove('notab', 'composing'); fab.hidden = true;
     try {
       if (r.name === 'home') await renderHome();
@@ -292,10 +324,11 @@
       else if (r.name === 'write') renderWrite();
       else if (r.name === 'me') await renderMe();
       else if (r.name === 'admin') await renderAdmin();
+      else if (r.name === 'legal') renderLegal(r.kind);
       else if (r.name === 'join') { if (r.code) { keepInvite(r.code); invitePrompted = false; } go('#/me', true); }
     } catch (e) { fail(e); }
   }
-  window.addEventListener('hashchange', () => { navDepth++; render(); });
+  window.addEventListener('hashchange', () => { trackNav(); render(); });
 
   // ----- 계산기 공통 상태(이 기기에만 저장) -----
   const CALC_TABS = [
@@ -333,28 +366,94 @@
   }
 
   // ----- 홈 -----
+  // 내 아이 나이로 보기(검수 11). 고른 값은 이 기기에만. ids = 지금 쓸 수 있는 글
+  const AGES = [
+    { key: 'expect', name: '곧 태어나요', note: '배우자 출산휴가는 예정일 50일 전부터, 위험이 있으면 임신 중에도 육아휴직을 쓸 수 있어요.', ids: ['policy-pregnancy', 'policy-paternity', 'leave-66', 'leave-apply', 'ivf-leave'] },
+    { key: 'baby', name: '0~18개월', note: '6+6은 부모 모두 고용보험 가입자이고 생후 18개월 안에 시작할 때만이에요. 지금이 기회일 수 있어요.', ids: ['birth-2weeks', 'policy-paternity', 'leave-66', 'leave-apply', 'policy-shorter-hours', 'baby-care', 'mind-dad-blues', 'play-0-12'] },
+    { key: 'kid', name: '미취학', note: '육아휴직과 단축근무 모두 쓸 수 있어요. 어린이집이 쉬는 날에는 단기 육아휴직과 가족돌봄휴가가 있어요.', ids: ['leave-apply', 'leave-short', 'policy-shorter-hours', 'family-care', 'play-weekend', 'mind-anger'] },
+    { key: 'low', name: '초1~2', note: '육아휴직은 초2까지(또는 만 8세 이하)예요. 방학에는 단기 육아휴직 1~2주를 쓸 수 있어요.', ids: ['leave-apply', 'leave-short', 'policy-shorter-hours', 'family-care', 'play-school'] },
+    { key: 'high', name: '초3~6', note: '육아휴직은 만 9세 생일 전까지만 돼요. 주로 쓰는 것은 단축근무(초6 또는 만 12세까지)와 가족돌봄휴가예요.', ids: ['policy-shorter-hours', 'family-care', 'play-school', 'mind-anger', 'leave-rights'] },
+    { key: 'teen', name: '중학생~', note: '단축근무는 만 13세 생일 전까지만 돼요. 아이가 아플 때는 나이 제한 없는 가족돌봄휴가가 있어요.', ids: ['family-care', 'policy-shorter-hours', 'mind-couple'] }
+  ];
+  function ageBox() {
+    const cur = store.get('age', '');
+    const a = AGES.find(x => x.key === cur);
+    return '<div class="agebox" id="ageBox"><b>우리 아이는?</b><div class="catpick" role="group" aria-label="아이 나이">' + AGES.map(x => '<button type="button" class="chip' + (x.key === cur ? ' on' : '') + '" data-age="' + x.key + '" aria-pressed="' + (x.key === cur) + '">' + esc(x.name) + '</button>').join('') + '</div>'
+      + (a ? '<p class="agenote">' + esc(a.note) + '</p><div class="glist" style="margin-top:8px">' + a.ids.map(id => GD.items.find(g => g.id === id)).filter(Boolean).map(grow).join('') + '</div>' : '<p class="agenote">고르면 지금 쓸 수 있는 제도와 글만 보여 드려요. 고른 값은 이 기기에만 남아요.</p>') + '</div>';
+  }
+  function bindAge() {
+    const box = $('#ageBox'); if (!box) return;
+    box.addEventListener('click', ev => { const b = ev.target.closest('[data-age]'); if (!b) return; store.set('age', store.get('age', '') === b.dataset.age ? '' : b.dataset.age); box.outerHTML = ageBox(); bindAge(); });
+  }
+  // 첫 방문 '홈 화면에 추가' 안내(검수 19). 닫으면 다시 안 뜬다
+  function installBanner() {
+    const standalone = (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || navigator.standalone;
+    const coarse = window.matchMedia && matchMedia('(pointer: coarse)').matches;
+    if (standalone || !coarse || store.get('installDone')) return '';
+    const ios = /iPhone|iPad|iPod/.test(navigator.userAgent);
+    const SHARE = '<svg class="ishare" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V4m0 0L8 8m4-4 4 4M6 11H5v9h14v-9h-1" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    return '<div class="install" id="installBanner"><span class="logo">' + LOGO + '</span><div class="tx"><b>홈 화면에 추가하면 앱처럼 열려요</b><small>' + (ios ? '사파리 아래 ' + SHARE + ' 공유 단추 → "홈 화면에 추가". 카카오톡 안에서 열었으면 사파리로 먼저 여세요.' : '앱스토어 없이 설치돼요.') + '</small></div>'
+      + (ios ? '' : '<button type="button" class="inbtn" id="installBtn">추가</button>') + '<button type="button" class="ix" id="installX" aria-label="안내 닫기">✕</button></div>';
+  }
+  function bindInstallBanner() {
+    const x = $('#installX'); if (x) x.addEventListener('click', () => { store.set('installDone', true); const b = $('#installBanner'); if (b) b.remove(); });
+    bindInstall();
+  }
+  // 커뮤니티가 비어 있을 때: 솔직하게 모집 중이라고 말한다(검수 15)
+  const emptyCommunity = () => '<div class="lockbox recruit"><div class="lk">👋</div><h2>첫 아빠들을 모으고 있어요</h2><p>아직 아빠들의 글이 많지 않아요. 지금 쓰는 글이 다음 아빠의 첫 답이 돼요. 아는 아빠에게 초대 코드를 보내 함께 시작해 주세요.</p>'
+    + '<a class="btn primary" href="#/write">첫 글 쓰기</a><a class="btn line" href="#/me">초대 코드 보내기</a><a class="btn ghost" href="#/guide/faq">자주 묻는 질문은 가이드 Q&amp;A·정보에</a></div>';
   async function renderHome() {
     setTab('home');
     bar(brandBar());
-    view.innerHTML = '<section class="pad"><div class="loading">불러오는 중…</div></section>';
-    let posts = [], err = null, locked = !canRead();
-    if (!locked) { try { posts = (await api('listPosts', { limit: 4 })).posts; } catch (e) { if (readDenied(e)) locked = true; else err = e; } }
+    const seq = renderSeq;
     const feat = GD.items.filter(g => g.home).slice(0, 3);
+    // 가이드·계산기는 서버를 기다리지 않고 바로 그린다(검수 18). 커뮤니티 칸만 나중에 채운다
     view.innerHTML = '<section class="pad">'
-      + '<div class="hero"><p class="hi">' + (me ? esc(me.nick) + '님, 안녕하세요' : '육아하는 아빠들의 동네') + '</p><h1>서로 묻고, 알려 주고,<br>자랑하는 곳</h1><p>아빠 가이드로 제도를 챙기고,<br>커뮤니티에서 아빠끼리 솔직하게.</p><div class="mascot">' + LOGO + '</div></div>'
+      + '<div class="hero"><p class="hi">' + (me ? esc(me.nick) + '님, 안녕하세요' : '육아하는 아빠들의 동네') + '</p><h1>내 월급으로 육아휴직 급여,<br>바로 계산해 보세요</h1><p>제도는 가이드로, 고민은 아빠끼리 솔직하게.</p><div class="mascot">' + LOGO + '</div></div>'
       + (mode === 'local' ? mockBadge() : '')
-      + '<div class="sec"><h2>아빠 가이드</h2><a class="all" href="#/guide">전체 보기 →</a></div>'
+      + installBanner()
       + calcCard()
+      + ageBox()
+      + '<div class="sec"><h2>아빠 가이드</h2><a class="all" href="#/guide">전체 보기 →</a></div>'
       + '<div class="glist" style="margin-top:8px">' + feat.map(grow).join('') + '<a class="grow" href="#/library"><span class="ge">🗂️</span><span class="tx"><b>남성 육아휴직 자료실</b><small>법령 · 통계 · 연구 · 판례 · 경험담을 키워드로</small></span></a></div>'
-      + (locked
-        ? '<div class="sec"><h2>커뮤니티</h2></div><a class="notice vcta" id="homeLock" href="#/community"><span class="e">🔒</span><span>커뮤니티 글은 인증한 아빠만 볼 수 있어요. <b>' + (me ? '아빠 인증하기' : '시작하기') + '</b></span></a>'
-        : '<div class="sec"><h2>커뮤니티 새 글</h2><a class="all" href="#/community">전체 보기 →</a></div>'
-          + '<div class="list" id="homeList">' + (err ? empty('글을 못 불러왔어요', '잠시 뒤 다시 열어 주세요') : (posts.length ? posts.map(pcard).join('') : empty('아직 글이 없어요', '첫 글을 써 보세요!'))) + '</div>')
-      + '<p class="foot-note">육아맨 ' + esc(CFG.VERSION || '') + ' · 사진·영상 없이 줄글로 · 인증한 아빠끼리</p>'
+      + '<div id="homeCom">' + (canRead() ? '<div class="sec"><h2>커뮤니티 새 글</h2><a class="all" href="#/community">전체 보기 →</a></div><div class="loading">불러오는 중…</div>' : '') + '</div>'
+      + '<p class="foot-note">사진·영상 없이 줄글로 · 인증한 아빠끼리<br><a href="#/terms">이용약관</a> · <a href="#/privacy">개인정보 처리방침</a></p>'
       + '</section>';
     window.scrollTo(0, 0);
-    bindCalcCard();
+    bindCalcCard(); bindAge(); bindInstallBanner();
+    let posts = [], err = null, locked = !canRead();
+    if (!locked) { try { posts = (await api('listPosts', { limit: 4 })).posts; } catch (e) { if (readDenied(e)) locked = true; else err = e; } }
+    if (seq !== renderSeq) return;
+    const box = $('#homeCom'); if (!box) return;
+    box.innerHTML = locked
+      ? '<div class="sec"><h2>커뮤니티</h2></div><a class="notice vcta" id="homeLock" href="#/community"><span class="e">🔒</span><span>커뮤니티 글은 인증한 아빠만 볼 수 있어요. <b>' + (me ? '아빠 인증하기' : '시작하기') + '</b></span></a>'
+      : '<div class="sec"><h2>커뮤니티 새 글</h2><a class="all" href="#/community">전체 보기 →</a></div>'
+        + '<div class="list" id="homeList">' + (err ? empty('글을 못 불러왔어요', '잠시 뒤 다시 열어 주세요') : (posts.length ? posts.map(pcard).join('') : emptyCommunity())) + '</div>';
     if (err) fail(err);
+  }
+
+  // ----- 약관 · 개인정보 처리방침(검수 14). 초안이다: 공개 전에 휴먼쌤이 읽고 정한다 -----
+  function renderLegal(kind) {
+    setTab('me');
+    bar(backBtn('#/me') + '<div class="fill atitle">' + (kind === 'terms' ? '이용약관' : '개인정보 처리방침') + '</div>');
+    const who = esc(CFG.OPERATOR || '운영자'), mail = CFG.CONTACT ? esc(CFG.CONTACT) : '문의처 준비 중';
+    const T = kind === 'terms' ? [
+      { h: '서비스' }, { p: '육아맨은 ' + who + '가 운영하는 아빠 육아 가이드와 커뮤니티예요. 가이드·계산기·자료실은 누구나, 커뮤니티는 인증한 아빠만 쓸 수 있어요.' },
+      { h: '안내의 한계' }, { p: '제도·금액 안내와 계산 결과는 참고 자료이고 법률·의료·세무 자문이 아니에요. 실제 지급액과 자격은 고용센터 등 담당 기관이 정해요.' },
+      { h: '지켜 주세요' }, { ul: ['아이의 이름·얼굴·어린이집 이름처럼 누구인지 알 수 있는 정보를 올리지 않아요.', '다른 사람을 비방하거나 광고·사칭 글을 올리지 않아요.', '인증 신청 내용을 거짓으로 쓰지 않아요.'] },
+      { h: '운영' }, { p: '신고된 글이나 위 약속을 어긴 글은 숨길 수 있고, 되풀이되면 이용을 제한할 수 있어요. 글의 권리는 쓴 사람에게 있어요.' },
+      { h: '탈퇴' }, { p: 'MY에서 언제든 탈퇴할 수 있고, 내 글과 댓글 내용이 함께 지워져요.' },
+      { h: '문의' }, { p: mail }
+    ] : [
+      { h: '받는 것' }, { ul: ['닉네임, 내가 쓴 글·댓글, 신고 내용', '인증 신청 답변(승인·거절하면 바로 지워요)', '이 기기 토큰과 복구 코드의 해시(원래 값은 서버에 없어요)', '누가 초대했는지, 마지막 접속 시각', '가입·코드·복구 시도 횟수 제한을 위한 기기 주소(IP)의 짧은 해시(이틀 안에 지워요)'] },
+      { h: '받지 않는 것' }, { p: '이메일, 전화번호, 서류, 아이 정보. 계산기에 넣은 아이 날짜와 월급은 이 기기에만 저장되고 서버로 보내지 않아요.' },
+      { h: '왜 쓰나' }, { p: '커뮤니티 운영, 아빠 인증, 도배·사칭 막기에만 써요. 광고나 판매에 쓰지 않고 다른 곳에 주지 않아요.' },
+      { h: '어디에 두나' }, { p: 'Cloudflare(Pages, D1)에 저장해요.' },
+      { h: '언제 지우나' }, { p: '글·댓글은 지우는 즉시 내용을 비워요. 탈퇴하면 글·댓글 내용과 계정을 지워요. 막힌 계정의 기록은 재가입을 막기 위해 남을 수 있어요.' },
+      { h: '문의' }, { p: who + ' · ' + mail }
+    ];
+    view.innerHTML = '<section class="pad"><article class="garticle"><div class="draft"><span>📝</span><span>초안이에요. 정식 공개 전에 확정해요.</span></div>' + blocks(T) + '</article></section>';
+    window.scrollTo(0, 0);
   }
 
   // ----- 아빠 가이드 -----
@@ -511,9 +610,11 @@
     $('#calcForm').innerHTML = '<div class="form">' + manField('cPay', '내 월 통상임금', calcS.pay) + ORD_HELP
       + '<div class="two" style="margin-top:12px"><label class="dfield"><span>단축 전 주 근로시간</span><input class="inp" id="cBefore" type="number" inputmode="numeric" value="' + esc(calcS.before) + '"></label><label class="dfield"><span>단축 후 주 근로시간</span><input class="inp" id="cAfter" type="number" inputmode="numeric" value="' + esc(calcS.after) + '"></label></div>'
       + '<div class="quick" id="cHours">' + [35, 30, 25, 20, 15].map(h => '<button type="button" class="chip" data-h="' + h + '">주 ' + h + '시간</button>').join('') + '</div>'
-      + '<label class="lbl" for="cMonths">단축 기간</label><div class="unit"><input class="inp" id="cMonths" type="number" inputmode="numeric" min="1" max="36" value="' + esc(calcS.rMonths) + '"><span>개월</span></div></div>';
+      + '<span class="lbl">하교 시간에 맞춰 퇴근 시각으로 고르기</span><div class="quick" id="cOut">' + [[14, 20], [15, 25], [16, 30], [17, 35]].map(x => '<button type="button" class="chip" data-h="' + x[1] + '">오후 ' + (x[0] - 12) + '시 퇴근</button>').join('') + '</div><small class="hint">9시 출근, 점심 1시간, 주 5일로 계산했어요. 오후 3시 퇴근이면 주 25시간이에요.</small>'
+      + '<label class="lbl" for="cMonths">단축 기간</label><div class="unit"><input class="inp" id="cMonths" type="number" inputmode="numeric" min="1" max="36" value="' + esc(calcS.rMonths) + '"><span>개월</span></div>'
+      + '<details class="dt"><summary>마지막 달이 한 달을 못 채우나요?</summary><p>못 채운 달의 급여는 일수에 비례해 줄어요. 그 달에 쓰는 일수를 넣으면 합계에 반영해요.</p><div class="unit"><input class="inp" id="cLast" type="number" inputmode="numeric" min="0" max="30" value="' + esc(calcS.rLast || '') + '" aria-label="마지막 달 일수"><span>일</span></div></details></div>';
     const out = () => {
-      const r = K.reduceBenefit({ ordinary: toWon(calcS.pay), before: calcS.before, after: calcS.after, months: calcS.rMonths });
+      const r = K.reduceBenefit({ ordinary: toWon(calcS.pay), before: calcS.before, after: calcS.after, months: calcS.rMonths, lastDays: calcS.rLast });
       $('#calcOut').innerHTML = warnBox(r.warnings) + (r.cut > 0 && !r.warnings.includes('pay') ? '<div class="result"><small>단축근무 중 한 달 수입(어림)</small><strong>' + won(r.monthly) + '</strong>'
         + '<table class="calctbl"><tr><td>회사 임금<small>일한 시간에 비례한 어림값</small></td><td>' + won(r.wage) + '</td></tr>'
         + '<tr><td>정부 급여 · 첫 ' + r.firstHours + '시간<small>통상임금 100%, 상한 250만원</small></td><td>' + won(r.first) + '</td></tr>'
@@ -523,8 +624,9 @@
         + '<p class="cline">평소 통상임금보다 한 달에 <b>' + won(Math.max(0, r.lost)) + '</b> 줄고, 주 <b>' + r.cut + '시간</b>을 아이와 더 보내요.</p></div>' : '')
         + basis('고용보험법 시행령 제104조의2(2026.1.1.부터 상한 250만·160만원, 하한 50만원)', 'https://m.work24.go.kr/cm/c/f/1100/selecSimulate13.do?systClId=SC00000252&systId=SI00000397&systCnntId=CI00001582', '실제 회사 임금은 임금 규정에 따라 달라요.');
     };
-    bindInputs({ cPay: el => { calcS.pay = parseFloat(el.value) || 0; }, cBefore: el => { calcS.before = parseFloat(el.value) || 0; }, cAfter: el => { calcS.after = parseFloat(el.value) || 0; }, cMonths: el => { calcS.rMonths = parseInt(el.value, 10) || 1; } }, out);
-    $('#cHours').addEventListener('click', ev => { const b = ev.target.closest('[data-h]'); if (b) { calcS.after = +b.dataset.h; $('#cAfter').value = calcS.after; saveCalc(); out(); } });
+    bindInputs({ cPay: el => { calcS.pay = parseFloat(el.value) || 0; }, cBefore: el => { calcS.before = parseFloat(el.value) || 0; }, cAfter: el => { calcS.after = parseFloat(el.value) || 0; }, cMonths: el => { calcS.rMonths = parseInt(el.value, 10) || 1; }, cLast: el => { calcS.rLast = parseInt(el.value, 10) || 0; } }, out);
+    const pickH = ev => { const b = ev.target.closest('[data-h]'); if (b) { calcS.after = +b.dataset.h; $('#cAfter').value = calcS.after; saveCalc(); out(); } };
+    $('#cHours').addEventListener('click', pickH); $('#cOut').addEventListener('click', pickH);
     bindOrd(out);
     out();
   }
@@ -553,7 +655,14 @@
     const out = () => {
       const d = K.childDates({ birth: calcS.birth, due: calcS.due });
       const row = (t, v, n) => '<tr><td>' + esc(t) + (n ? '<small>' + esc(n) + '</small>' : '') + '</td><td>' + dot(v) + '</td></tr>';
-      $('#calcOut').innerHTML = d.paternityFrom ? '<div class="result"><table class="calctbl">'
+      const after = d.birthReportBy ? '<div class="result"><small>태어난 뒤 챙길 기한</small><table class="calctbl">'
+        + row('출생신고', d.birthReportBy, '출생 후 1개월 안. 늦으면 과태료')
+        + row('부모급여 신청', d.parentPayBy, '60일 안에 신청하면 태어난 달부터')
+        + row('BCG 접종', d.bcgBy, '생후 4주 안')
+        + '<tr><td>영유아 건강검진 1차<small>생후 14~35일</small></td><td>' + dot(d.check1From) + '~<br>' + dot(d.check1To) + '</td></tr>'
+        + row('첫만남이용권 신청·사용', d.firstVoucherBy, '2024년 이후 출생아는 2년 안')
+        + '</table></div><a class="grow" href="#/g/birth-2weeks" style="margin-top:8px"><span class="ge">👶</span><span class="tx"><b>2주 안에 아빠가 할 일</b><small>순서대로 보기</small></span></a>' : '';
+      $('#calcOut').innerHTML = d.paternityFrom ? after + '<div class="result"><table class="calctbl">'
         + row('배우자 출산전후휴가 시작 가능', d.paternityFrom, '출산 예정일 50일 전')
         + row('배우자 출산전후휴가 마지막', d.paternityTo, '출산 후 120일')
         + row('6+6 시작 마지막 날', d.bothStartBy, '부모 모두 생후 18개월 안에 시작')
@@ -624,7 +733,7 @@
       + '<p>회사 이야기, 아이 이야기를 마음 놓고 나눌 수 있게 글과 댓글, 검색을 아빠끼리만 열어 두었어요.</p>'
       + '<div class="catpick lockcats">' + CATS.map(c => '<span class="chip"><span class="e">' + c.e + '</span>' + esc(c.name) + '</span>').join('') + '</div>'
       + (me && me.blocked ? '<div class="vstate bad">이용이 제한된 계정이에요.</div>'
-        : '<div id="lockCta"><button type="button" class="btn primary" id="lockGo">' + (me ? '아빠 인증하기' : '시작하기') + '</button><small class="hint">초대 코드가 있으면 바로, 없으면 신청서를 쓰면 운영자가 읽고 승인해요. 서류나 사진은 받지 않아요.</small></div>')
+        : '<div id="lockCta"><button type="button" class="btn primary" id="lockGo">초대 코드가 있어요</button><button type="button" class="btn line" id="lockNo">코드가 없어요 (신청서)</button><small class="hint">코드가 있으면 바로, 신청서를 쓰면 운영자가 읽고 승인해요. 서류나 사진은 받지 않아요.</small></div>')
       + '</div>'
       + '<div class="sec"><h2>인증 전에도 볼 수 있어요</h2></div>'
       + '<div class="glist" style="margin-top:0">'
@@ -637,11 +746,14 @@
     const after = () => render();
     const start = $('#lockGo');
     if (start) start.addEventListener('click', () => { if (!me) openSheet(after); else openVerify(after); });
+    const noCode = $('#lockNo');
+    if (noCode) noCode.addEventListener('click', () => { verifyStartTab = 'apply'; if (!me) openSheet(after); else openVerify(after); });
     if (!me) return;
     // 승인·해제가 다른 곳에서 일어났을 수 있으니 서버에 맞춘다. 신청 중이면 그 상태를 보여 준다.
     const wasBlocked = !!me.blocked;
     api('me').then(r => {
       if (!$('#lockBox')) return;
+      setDot(r.new_comments);
       setMe(r.user);
       if (canRead()) { render(); return; }
       if (!!me.blocked !== wasBlocked) { renderLock(); return; }
@@ -682,8 +794,10 @@
     const list = $('#list'), btn = $('#more'); if (!list) return;
     if (!more) list.innerHTML = '<div class="loading">불러오는 중…</div>';
     if (btn) { btn.disabled = true; btn.textContent = '불러오는 중…'; }
+    const seq = renderSeq;
     try {
       const r = await api('listPosts', { cat: listState.cat, q: listState.q, before: more ? listState.next : '', limit: PAGE });
+      if (seq !== renderSeq) return;
       listState.posts = more ? listState.posts.concat(r.posts) : r.posts; listState.next = r.next;
       if (mode === 'local' && !$('#mockBadge') && $('#list')) $('#list').insertAdjacentHTML('beforebegin', mockBadge());
       paintList();
@@ -698,7 +812,7 @@
     const list = $('#list'), btn = $('#more'); if (!list) return;
     const q = listState.q;
     list.innerHTML = (q ? '<div class="sec" style="margin:4px 2px 2px"><h2 style="font-size:15px">"' + esc(q) + '" 검색 결과</h2><span>' + listState.posts.length + (listState.next ? '+' : '') + '개</span></div>' : '')
-      + (listState.posts.length ? listState.posts.map(pcard).join('') : empty(q ? '검색 결과가 없어요' : '아직 글이 없어요', q ? '다른 말로 찾아보세요' : '첫 글을 써 보세요!'));
+      + (listState.posts.length ? listState.posts.map(pcard).join('') : (q ? empty('검색 결과가 없어요', '다른 말로 찾아보세요') : listState.cat ? empty('이 분류에는 아직 글이 없어요', '첫 글을 써 보세요!') : emptyCommunity()));
     if (btn) btn.hidden = !listState.next;
   }
 
@@ -707,7 +821,8 @@
   function cmtItem(c) {
     const mine = me && (c.uid === me.id || me.role === 'admin');
     return '<div class="cmt-item" id="c' + c.id + '"><div class="top">' + who(c.nick, c.badge) + '<span class="right"><span class="time">' + ago(c.created) + '</span>'
-      + (mine ? '<button type="button" class="del" data-del-cmt="' + c.id + '">삭제</button>' : '') + '</span></div><div class="txt">' + rich(c.body) + '</div></div>';
+      + (mine ? '<button type="button" class="del" data-del-cmt="' + c.id + '">삭제</button>' : '')
+      + (me && c.uid !== me.id && canWrite() ? '<button type="button" class="del" data-report="comment" data-rid="' + c.id + '">신고</button>' : '') + '</span></div><div class="txt">' + rich(c.body) + '</div></div>';
   }
   async function renderPost(id) {
     setTab('community');
@@ -718,10 +833,12 @@
     view.innerHTML = '<section class="pad"><div class="loading">불러오는 중…</div></section>';
     window.scrollTo(0, 0);
     let r;
-    try { r = await api('getPost', id); }
-    catch (e) { if (readDenied(e)) { lockPost(); return; } view.innerHTML = '<section class="pad">' + empty('글을 찾을 수 없어요', '지워졌거나 주소가 틀렸어요') + '</section>'; app.classList.remove('composing'); if (!(e && e.code === 'not_found')) fail(e); return; }
+    const seq = renderSeq;
+    try { r = await api('getPost', id); if (seq !== renderSeq) return; }
+    catch (e) { if (seq !== renderSeq) return; if (readDenied(e)) { lockPost(); return; } view.innerHTML = '<section class="pad">' + empty('글을 찾을 수 없어요', '지워졌거나 주소가 틀렸어요') + '</section>'; app.classList.remove('composing'); if (!(e && e.code === 'not_found')) fail(e); return; }
     const p = r.post, c = CAT[p.cat] || { name: p.cat, e: '' }, mine = me && (p.uid === me.id || me.role === 'admin');
-    if (mine) $('#postAct').innerHTML = '<button type="button" class="abtn danger" id="delPost">삭제</button>';
+    $('#postAct').innerHTML = (mine ? '<button type="button" class="abtn danger" id="delPost">삭제</button>' : '')
+      + (me && p.uid !== me.id && canWrite() ? '<button type="button" class="abtn ghosty" data-report="post" data-rid="' + p.id + '">신고</button>' : '');
     const ph = !me ? '닉네임을 정하면 댓글을 쓸 수 있어요' : canWrite() ? '댓글을 남겨 보세요' : '아빠 인증을 하면 댓글을 쓸 수 있어요';
     view.innerHTML = '<section class="pad">'
       + '<article class="post"><div class="meta"><span class="badge c-' + (CAT[p.cat] ? esc(p.cat) : 'etc') + '">' + c.e + ' ' + esc(c.name) + '</span><span class="time">' + ago(p.created) + '</span></div>'
@@ -763,6 +880,11 @@
     try { await api('deleteComment', cid); const el = $('#c' + cid); if (el) el.remove(); const n = $('#cmtN'); if (n) n.textContent = $$('#cmts .cmt-item').length; listState.posts = []; toast('댓글을 지웠어요'); }
     catch (e) { fail(e); }
   }
+  async function reportFlow(kind, id) {
+    const reason = window.prompt('무엇이 문제인가요? 운영자가 읽고 판단해요. (아이 개인정보 노출, 비방, 광고 등)', '');
+    if (reason === null) return;
+    try { const r = await api('report', kind, id, reason.trim()); toast(r.already ? '이미 신고했어요' : '신고를 받았어요. 고마워요'); } catch (e) { fail(e); }
+  }
   function autosize(ta) { const fit = () => { ta.style.height = 'auto'; ta.style.height = Math.min(ta.scrollHeight, 120) + 'px'; }; ta.addEventListener('input', fit); fit(); }
 
   // ----- 글쓰기 -----
@@ -775,7 +897,7 @@
       + '<form class="form" id="wform" novalidate>'
       + '<span class="lbl">분류</span><div class="catpick" id="catpick">' + CATS.map(c => '<button type="button" class="chip' + (d.cat === c.key ? ' on' : '') + '" data-pick="' + c.key + '"><span class="e">' + c.e + '</span>' + esc(c.name) + '</button>').join('') + '</div>'
       + '<label class="lbl" for="wtitle">제목</label><input class="inp" id="wtitle" maxlength="60" placeholder="한 줄로 요약해 주세요" value="' + esc(d.title || '') + '" autocomplete="off">'
-      + '<label class="lbl" for="wbody">내용</label><textarea class="inp" id="wbody" maxlength="3000" placeholder="아빠들에게 묻고 싶은 것, 알려 주고 싶은 것을 편하게 적어 주세요. 사진·영상 없이 글로만 올라가요.">' + esc(d.body || '') + '</textarea>'
+      + '<label class="lbl" for="wbody">내용</label><textarea class="inp" id="wbody" maxlength="3000" placeholder="아빠들에게 묻고 싶은 것, 알려 주고 싶은 것을 편하게 적어 주세요. 사진·영상 없이 글로만 올라가요. 용품 이야기는 쇼핑몰 링크를 붙여 넣어도 돼요.">' + esc(d.body || '') + '</textarea>'
       + '<div class="cnt"><span id="wcnt">' + len(d.body || '') + '</span>/3000</div>'
       + '<div class="notice"><span class="e">🔒</span><span>아이의 이름·얼굴·어린이집 이름 같은 개인정보는 적지 말아 주세요. 글은 인증한 아빠들에게 보여요.</span></div>'
       + '<button class="btn primary" type="submit" style="margin-top:14px">올리기</button>'
@@ -811,7 +933,23 @@
       + '<li>사진·영상 없이 글로만. 커뮤니티는 인증한 아빠끼리만 읽고 써요.</li>'
       + '<li>내 글·댓글은 내가 지울 수 있고, 지우면 내용이 바로 비워져요. 탈퇴하면 글·댓글 내용과 계정이 지워져요.</li>'
       + '<li>브라우저 저장소가 지워지거나 폰을 바꾸면 복구 코드로 같은 닉네임에 돌아올 수 있어요. 코드는 MY에서 볼 수 있어요.</li>'
-      + (mode === 'local' ? '<li>지금은 시험 모드라 글이 이 기기에만 저장돼요.</li>' : '') + '</ul></div>';
+      + (mode === 'local' ? '<li>지금은 시험 모드라 글이 이 기기에만 저장돼요.</li>' : '') + '</ul>'
+      + '<p class="sm" style="margin-top:10px">운영: ' + esc(CFG.OPERATOR || '') + ' · 문의: ' + (CFG.CONTACT ? '<a href="mailto:' + esc(CFG.CONTACT) + '">' + esc(CFG.CONTACT) + '</a>' : '준비 중') + '<br><a class="lk2" href="#/terms">이용약관</a> · <a class="lk2" href="#/privacy">개인정보 처리방침</a></p></div>';
+  }
+  function themeBox() {
+    const cur = store.get('theme', 'auto');
+    return '<div class="about" id="themeBox"><b>화면 밝기</b><div class="seg" style="margin-top:8px">' + [['auto', '기기 따라'], ['light', '밝게'], ['dark', '어둡게']].map(x => '<button type="button" class="' + (cur === x[0] ? 'on' : '') + '" data-theme-pick="' + x[0] + '">' + x[1] + '</button>').join('') + '</div></div>';
+  }
+  function bindTheme() {
+    const b = $('#themeBox'); if (!b) return;
+    b.addEventListener('click', ev => { const x = ev.target.closest('[data-theme-pick]'); if (!x) return; store.set('theme', x.dataset.themePick); applyTheme(); $$('#themeBox button').forEach(y => y.classList.toggle('on', y === x)); });
+  }
+  // 새 댓글 표시(아래 탭 MY의 점, 검수 22)
+  function setDot(n) { const d = $('#meDot'); if (d) d.hidden = !n; }
+  function newCommentsBox(r) {
+    if (!r.new_comments) return '';
+    return '<div class="sec"><h2>내 글의 새 댓글</h2><span>' + r.new_comments + '개</span></div><div class="list" style="margin-top:0">'
+      + (r.new_list || []).map(c => '<a class="mycmt" href="#/p/' + c.post_id + '#c' + c.id + '"><small>' + esc(c.nick) + ' · ' + esc(c.post_title) + ' · ' + ago(c.created) + '</small><p>' + esc(c.body) + '</p></a>').join('') + '</div>';
   }
   let deferredPrompt = null;
   window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); deferredPrompt = e; });
@@ -852,7 +990,8 @@
         + '<div class="profile" style="margin-top:12px"><span class="big">👋</span><div class="tx"><b>아직 닉네임이 없어요</b><small>닉네임을 정하고 아빠 인증을 하면 커뮤니티를 읽고 쓸 수 있어요. 이메일·서류는 받지 않아요.</small></div></div>'
         + (pendingInvite ? '<div class="notice vcta" style="margin-top:12px"><span class="e">🎟️</span><span>받은 초대 코드 <b>' + esc(pendingInvite) + '</b>가 있어요. 시작하기를 누르면 바로 인증돼요.</span></div>' : '')
         + '<button type="button" class="btn primary" id="startBtn" style="margin-top:12px">시작하기</button>'
-        + '<button type="button" class="btn ghost" id="recoverBtn">다른 폰에서 쓰던 닉네임이 있어요 (복구 코드)</button>' + installBox() + aboutBox() + '</section>';
+        + '<button type="button" class="btn ghost" id="recoverBtn">다른 폰에서 쓰던 닉네임이 있어요 (복구 코드)</button>' + themeBox() + installBox() + aboutBox() + '</section>';
+      bindTheme();
       $('#startBtn').addEventListener('click', () => openSheet(() => render()));
       $('#recoverBtn').addEventListener('click', () => openRecover(() => render()));
       bindInstall(); window.scrollTo(0, 0);
@@ -861,22 +1000,28 @@
     }
     view.innerHTML = '<section class="pad"><div class="loading">불러오는 중…</div></section>';
     let r;
-    try { r = await api('me'); } catch (e) { view.innerHTML = '<section class="pad">' + empty('내 정보를 못 불러왔어요', '잠시 뒤 다시 열어 주세요') + '</section>'; fail(e, () => render()); return; }
+    const seq = renderSeq;
+    try { r = await api('me'); } catch (e) { if (seq !== renderSeq) return; view.innerHTML = '<section class="pad">' + empty('내 정보를 못 불러왔어요', '잠시 뒤 다시 열어 주세요') + '</section>'; fail(e, () => render()); return; }
+    if (seq !== renderSeq) return;
     setMe(r.user);
+    setDot(0);
+    if (r.new_comments) api('seen').catch(() => {});      // 이 화면에 보였으니 다음에는 안 뜬다
     view.innerHTML = '<section class="pad"><h1 class="htitle">MY</h1>'
       + '<div class="profile" style="margin-top:12px"><span class="big">' + esc(first(r.user.nick)) + '</span><div class="tx"><b>' + esc(r.user.nick) + '</b><small>' + ymd(r.user.created) + '부터 육아맨 · 글 ' + r.posts.length + ' · 댓글 ' + r.comments.length + '</small></div><button type="button" class="edit" id="editNick">닉네임 바꾸기</button></div>'
       + statusBox(r)
       + (r.user.role === 'admin' ? '<a class="glink" href="#/admin"><span>🛠️ 관리자 화면: 인증 신청 · 초대 코드 · 회원</span><span>→</span></a>' : '')
       + (canWrite() ? inviteBox(r) : '')
-      + '<div class="seg" style="margin-top:16px"><button type="button" class="' + (meSeg === 'posts' ? 'on' : '') + '" data-seg="posts">내 글 ' + r.posts.length + '</button><button type="button" class="' + (meSeg === 'comments' ? 'on' : '') + '" data-seg="comments">내 댓글 ' + r.comments.length + '</button></div>'
-      + '<div class="list" id="meList"></div>' + accountBox(r) + installBox() + aboutBox() + '</section>';
+      + newCommentsBox(r)
+      + '<div class="seg" id="meSegs" style="margin-top:16px"><button type="button" class="' + (meSeg === 'posts' ? 'on' : '') + '" data-seg="posts">내 글 ' + r.posts.length + '</button><button type="button" class="' + (meSeg === 'comments' ? 'on' : '') + '" data-seg="comments">내 댓글 ' + r.comments.length + '</button></div>'
+      + '<div class="list" id="meList"></div>' + accountBox(r) + themeBox() + installBox() + aboutBox() + '</section>';
     const paint = () => {
       $('#meList').innerHTML = meSeg === 'posts'
         ? (r.posts.length ? r.posts.map(pcard).join('') : empty('아직 쓴 글이 없어요', canWrite() ? '커뮤니티에서 첫 글을 써 보세요' : '아빠 인증을 하면 쓸 수 있어요'))
         : (r.comments.length ? r.comments.map(c => '<a class="mycmt" href="#/p/' + c.post_id + '"><small>' + esc(c.post_title) + ' · ' + ago(c.created) + '</small><p>' + esc(c.body) + '</p></a>').join('') : empty('아직 쓴 댓글이 없어요', ''));
     };
     paint();
-    $$('.seg[style] button').forEach(b => b.addEventListener('click', () => { meSeg = b.dataset.seg; $$('.seg[style] button').forEach(x => x.classList.toggle('on', x === b)); paint(); }));
+    $$('#meSegs button').forEach(b => b.addEventListener('click', () => { meSeg = b.dataset.seg; $$('#meSegs button').forEach(x => x.classList.toggle('on', x === b)); paint(); }));
+    bindTheme();
     $('#editNick').addEventListener('click', () => openSheet(() => render(), 'rename'));
     const dv = $('#doVerify'); if (dv) dv.addEventListener('click', () => openVerify(() => render()));
     const ni = $('#newInvite');
@@ -926,19 +1071,27 @@
     if (!me || me.role !== 'admin' || mode === 'local') { view.innerHTML = '<section class="pad">' + empty('관리자만 볼 수 있어요', '') + '</section>'; return; }
     view.innerHTML = '<section class="pad"><div class="loading">불러오는 중…</div></section>';
     let r;
-    try { r = await api('adminQueue'); } catch (e) { view.innerHTML = '<section class="pad">' + empty('못 불러왔어요', '') + '</section>'; fail(e); return; }
+    const seq = renderSeq;
+    try { r = await api('adminQueue'); } catch (e) { if (seq !== renderSeq) return; view.innerHTML = '<section class="pad">' + empty('못 불러왔어요', '') + '</section>'; fail(e); return; }
+    if (seq !== renderSeq) return;
     const STAGE = { raising: '아이를 키워요', expecting: '곧 아빠가 돼요' };
     const urow = u => {
       const state = u.role === 'admin' ? '관리자' : u.blocked ? '막힘' : u.verified ? '인증(' + ({ invite: '초대', apply: '신청', admin: '관리자' }[u.verified_how] || '') + ')' : '인증 전';
       const acts = u.role !== 'user' ? '' : (u.blocked ? '<button type="button" class="edit" data-u="' + u.id + '" data-a="unblock">풀기</button>'
         : (u.verified ? '<button type="button" class="edit" data-u="' + u.id + '" data-a="unverify">해제</button>' : '<button type="button" class="edit" data-u="' + u.id + '" data-a="verify">인증</button>') + '<button type="button" class="edit" data-u="' + u.id + '" data-a="block">막기</button>')
-        + '<button type="button" class="edit" data-u="' + u.id + '" data-a="logout">끊기</button>';
+        + '<button type="button" class="edit" data-u="' + u.id + '" data-a="logout">끊기</button>'
+        + (u.posts ? '<button type="button" class="edit" data-u="' + u.id + '" data-a="hide_all">글 숨김</button>' : '');
       return '<div class="urow"><div class="tx"><b>' + esc(u.nick) + '</b><small>' + state + (u.inviter ? ' · 초대: ' + esc(u.inviter) : '') + ' · 글 ' + u.posts + ' · ' + ymd(u.created) + '</small></div><div class="acts">' + acts + '</div></div>';
     };
     view.innerHTML = '<section class="pad">'
       + '<div class="sec"><h2>인증 신청</h2><span>' + r.queue.length + '건</span></div>'
       + (r.queue.length ? r.queue.map(q => '<div class="appl" data-id="' + q.id + '"><div class="meta"><b>' + esc(q.nick) + '</b><span class="time">' + ago(q.created) + '</span></div><small>' + esc(STAGE[q.stage] || '') + '</small><p>' + esc(q.answer) + '</p><div class="two"><button type="button" class="btn primary small" data-d="1">승인</button><button type="button" class="btn line small" data-d="0">거절</button></div></div>').join('') : '<div class="about">대기 중인 신청이 없어요.</div>')
       + '<p class="calcnote">승인·거절하면 신청 내용은 바로 지워져요.</p>'
+      + '<div class="sec"><h2>신고함</h2><span>' + (r.reports || []).length + '건</span></div>'
+      + ((r.reports || []).length ? r.reports.map(x => '<div class="appl" data-rk="' + esc(x.kind) + '" data-rt="' + x.target_id + '"><div class="meta"><b>' + (x.kind === 'post' ? '글' : '댓글') + ' · ' + esc(x.author || '(탈퇴)') + '</b><span class="time">' + x.n + '명 · ' + ago(x.first_at) + '</span></div>'
+        + (x.gone ? '<small>이미 지워진 글이에요</small>' : '<p>' + (x.title ? '<b>' + esc(x.title) + '</b>\n' : '') + esc(x.preview || '') + '</p>') + (x.reasons ? '<small>사유: ' + esc(x.reasons) + '</small>' : '')
+        + (x.post_id && !x.gone ? '<a class="lk2" href="#/p/' + x.post_id + '">글 열기</a>' : '')
+        + '<div class="two"><button type="button" class="btn primary small" data-rp="hide">숨기기</button><button type="button" class="btn line small" data-rp="keep">그대로 두기</button></div></div>').join('') : '<div class="about">대기 중인 신고가 없어요.</div>')
       + '<div class="sec"><h2>초대 코드</h2></div><div class="about"><div class="two"><input class="inp" id="invNote" placeholder="어디에 쓸 코드인가요(메모)" maxlength="60"><button type="button" class="btn primary small" id="invMake">5개 만들기</button></div>'
       + '<div id="invList">' + r.invites.map(i => '<div class="irow"><code>' + esc(i.code) + '</code><span class="time">' + (i.used ? '사용함' : esc(i.note || '안 씀')) + '</span>' + (i.used ? '' : '<button type="button" class="edit" data-share="' + esc(i.code) + '">보내기</button>') + '</div>').join('') + '</div></div>'
       + '<div class="sec"><h2>회원</h2><span>' + r.users.length + '명</span></div>' + r.users.map(urow).join('')
@@ -952,11 +1105,14 @@
     const u = ev.target.closest('[data-u]');
     const sh = ev.target.closest('[data-share]');
     const mk = ev.target.closest('#invMake');
+    const rp = ev.target.closest('[data-rp]');
     try {
+      if (rp) { const c = rp.closest('.appl'); if (rp.dataset.rp === 'hide' && !confirm('숨기면 내용이 지워지고 되돌릴 수 없어요. 숨길까요?')) return; await api('adminReport', c.dataset.rk, +c.dataset.rt, rp.dataset.rp); toast('처리했어요'); view.removeEventListener('click', adminClick); render(); return; }
       if (d) { const card = d.closest('.appl'); await api('adminDecide', +card.dataset.id, d.dataset.d === '1'); toast(d.dataset.d === '1' ? '승인했어요' : '거절했어요'); view.removeEventListener('click', adminClick); render(); }
       else if (u) {
         if (u.dataset.a === 'block' && !confirm('이 회원을 막을까요? 인증이 풀리고 다시 신청할 수 없어요.')) return;
         if (u.dataset.a === 'logout' && !confirm('이 회원의 기기를 끊을까요? 복구 코드로만 돌아올 수 있어요.')) return;
+        if (u.dataset.a === 'hide_all' && !confirm('이 회원의 글과 댓글을 모두 숨길까요? 내용이 지워지고 되돌릴 수 없어요.')) return;
         await api('adminUser', +u.dataset.u, u.dataset.a); toast('바꿨어요'); view.removeEventListener('click', adminClick); render();
       }
       else if (sh) shareInvite(sh.dataset.share);
@@ -965,18 +1121,32 @@
   }
 
   // ----- 바텀시트: 닉네임 · 아빠 인증 -----
-  let sheetAfter = null;
+  let sheetAfter = null, sheetDismiss = null, sheetFocus = null, verifyStartTab = 'code';
   const sheetEl = () => $('#sheet');
   function showSheet(html, after) {
     sheetAfter = typeof after === 'function' ? after : null;
+    sheetDismiss = closeSheet;
+    if (!sheetFocus) sheetFocus = document.activeElement;
     const sh = sheetEl(); sh.hidden = false; sh.innerHTML = html;
-    sh.onclick = ev => { if (ev.target === sh) closeSheet(); };
+    sh.onclick = ev => { if (ev.target === sh && sheetDismiss) sheetDismiss(); };
+    const first = sh.querySelector('button, input, textarea, a[href]'); if (first) setTimeout(() => { if (document.activeElement === document.body || !sh.contains(document.activeElement)) first.focus(); }, 80);
   }
+  // 시트 안에 초점을 가두고 Esc로 닫는다(검수 17)
+  document.addEventListener('keydown', ev => {
+    const sh = sheetEl(); if (!sh || sh.hidden) return;
+    if (ev.key === 'Escape') { if (sheetDismiss) sheetDismiss(); return; }
+    if (ev.key !== 'Tab') return;
+    const f = $$('button, input, textarea, select, a[href]', sh).filter(x => !x.disabled && x.offsetParent !== null);
+    if (!f.length) return;
+    const a = f[0], z = f[f.length - 1];
+    if (ev.shiftKey && document.activeElement === a) { ev.preventDefault(); z.focus(); }
+    else if (!ev.shiftKey && document.activeElement === z) { ev.preventDefault(); a.focus(); }
+  });
   function openSheet(after, kind) {
     const rename = kind === 'rename';
     showSheet('<div class="sheet" role="dialog" aria-modal="true" aria-label="' + (rename ? '닉네임 바꾸기' : '닉네임 정하기') + '"><div class="grip"></div>'
       + '<h2>' + (rename ? '닉네임 바꾸기' : '육아맨에 온 걸 환영해요 👋') + '</h2>'
-      + '<p>' + (rename ? '하루 3번까지 바꿀 수 있어요. 지난 글의 이름도 함께 바뀌어요.' : '아빠들이 서로 묻고, 알려 주고, 자랑하는 곳이에요. 이메일이나 서류는 받지 않아요.') + '</p>'
+      + '<p>' + (rename ? '일주일에 한 번 바꿀 수 있어요. 지난 글의 이름도 함께 바뀌어요.' : '아빠들이 서로 묻고, 알려 주고, 자랑하는 곳이에요. 이메일이나 서류는 받지 않아요.') + '</p>'
       + '<label class="lbl" for="nick">닉네임</label><input class="inp" id="nick" maxlength="12" placeholder="예: 초보대디" autocomplete="off" enterkeyhint="done" value="' + (rename && me ? esc(me.nick) : '') + '">'
       + '<small class="hint">2~12자 · 한글·영문·숫자 · 글에 그대로 보여요</small>'
       + (rename ? '' : '<label class="lbl" for="invite">초대 코드 (있으면)</label><input class="inp code" id="invite" maxlength="12" placeholder="없으면 비워 두세요" autocomplete="off" autocapitalize="characters" value="' + esc(pendingInvite) + '">'
@@ -1021,7 +1191,7 @@
       + '<button type="button" class="btn line" id="recCopy">복사하기</button>'
       + '<button type="button" class="btn primary" id="recOk">적어 두었어요</button></div>', null);
     const done = () => { closeSheet(); if (next) next(); };
-    sheetEl().onclick = ev => { if (ev.target === sheetEl()) done(); };
+    sheetDismiss = done;
     $('#recCopy').addEventListener('click', async () => { try { await navigator.clipboard.writeText(code); toast('복사했어요. 메모 앱에 붙여 두세요'); } catch (e) { window.prompt('이 코드를 적어 두세요', code); } });
     $('#recOk').addEventListener('click', done);
   }
@@ -1054,6 +1224,7 @@
   function openVerify(after) {
     if (!me) { openSheet(after); return; }
     let tab = 'code', stage = '';
+    const startApply = verifyStartTab === 'apply'; verifyStartTab = 'code';
     showSheet('<div class="sheet" role="dialog" aria-modal="true" aria-label="아빠 인증"><div class="grip"></div><h2>아빠 인증</h2>'
       + '<p>커뮤니티는 인증한 아빠만 읽고 쓸 수 있어요. 서류나 사진은 받지 않아요.</p>'
       + '<div class="seg" id="vTabs"><button type="button" class="on" data-t="code">초대 코드</button><button type="button" data-t="apply">코드가 없어요</button></div>'
@@ -1067,6 +1238,7 @@
       + '<button type="button" class="btn ghost" id="vLater">나중에 할게요</button></div>', after);
     const setTabV = t => { tab = t; $$('#vTabs button').forEach(b => b.classList.toggle('on', b.dataset.t === t)); $('#vCode').hidden = t !== 'code'; $('#vApply').hidden = t !== 'apply'; $('#vGo').textContent = t === 'code' ? '인증하기' : '신청하기'; $('#vErr').hidden = true; };
     $('#vTabs').addEventListener('click', ev => { const b = ev.target.closest('[data-t]'); if (b) setTabV(b.dataset.t); });
+    if (startApply) setTabV('apply');
     $('#vStage').addEventListener('click', ev => { const b = ev.target.closest('[data-s]'); if (!b) return; stage = b.dataset.s; $$('#vStage .chip').forEach(x => x.classList.toggle('on', x === b)); });
     $('#vLater').addEventListener('click', () => { invitePrompted = true; closeSheet(); if (['me', 'community', 'home'].includes(parse().name)) render(); });
     $('#vGo').addEventListener('click', async () => {
@@ -1093,7 +1265,13 @@
       finally { btn.disabled = false; }
     });
   }
-  function closeSheet() { const sh = sheetEl(); if (!sh) return; sh.hidden = true; sh.innerHTML = ''; sheetAfter = null; }
+  function closeSheet() {
+    const sh = sheetEl(); if (!sh) return;
+    const wasOpen = !sh.hidden;
+    sh.hidden = true; sh.innerHTML = ''; sheetAfter = null; sheetDismiss = null;
+    if (wasOpen && sheetFocus && sheetFocus.focus && document.contains(sheetFocus)) sheetFocus.focus();
+    sheetFocus = null;
+  }
 
   // ----- 공통 클릭 -----
   document.addEventListener('click', ev => {
@@ -1101,6 +1279,7 @@
     const keep = ev.target.closest('a[data-keep]'); if (keep) { listState.keep = true; listState.scroll = window.scrollY; }
     const b = ev.target.closest('[data-back]'); if (b) { ev.preventDefault(); back(b.dataset.back); return; }
     const dc = ev.target.closest('[data-del-cmt]'); if (dc) { delComment(+dc.dataset.delCmt); }
+    const rb = ev.target.closest('[data-report]'); if (rb) { reportFlow(rb.dataset.report, +rb.dataset.rid); }
   });
 
   // ----- 시작 -----
@@ -1109,6 +1288,6 @@
   // 승인·해제가 다른 기기에서 일어나도 다음에 열 때 맞춘다(화면을 막지 않는다)
   // 읽기 자격이 바뀌었으면 커뮤니티가 보이는 화면을 다시 그린다(잠금 ↔ 글 목록)
   const syncMe = next => { const was = canRead(); setMe(next); if (!!was !== !!canRead() && ['home', 'community', 'post'].includes(parse().name)) render(); };
-  if (me && mode === 'server') api('me').then(r => { syncMe(r.user); }).catch(e => { if (e && e.code === 'unknown_user') syncMe(null); });
+  if (me && mode === 'server') api('me').then(r => { syncMe(r.user); if (parse().name !== 'me') setDot(r.new_comments); }).catch(e => { if (e && e.code === 'unknown_user') syncMe(null); });
   if ('serviceWorker' in navigator && location.protocol !== 'file:') window.addEventListener('load', () => { navigator.serviceWorker.register('sw.js').catch(() => {}); });
 })();

@@ -64,8 +64,9 @@ ok(r.data.error === 'code_bad', '틀린 코드');
 r = await call('POST', '/verify/code', A, { code: 'test-dads' });
 ok(r.data.ok && r.data.user.verified === true && r.data.user.how === 'invite', '코드로 인증(대소문자·하이픈 무시)');
 r = await call('GET', '/posts?limit=2', A);
-ok(r.status === 200 && r.data.posts.length === 2, '인증 뒤 읽기');
-ok(r.data.posts[0].badge === 'official', '자료실 글 표시');
+ok(r.status === 200 && r.data.posts.every(p => p.badge !== 'official'), '인증 뒤 읽기, 자료실 글은 목록에 없음');
+r = await call('GET', '/posts/1', A);
+ok(r.status === 200 && r.data.post.badge === 'official', '자료실 글은 번호로는 열림');
 r = await call('POST', '/join', C, { nick: '시험C' + stamp, invite: 'TESTDADS' });
 ok(r.data.ok && r.data.user.verified === false && r.data.invite_error === 'code_used', '쓴 코드는 다시 못 씀, 가입은 됨');
 
@@ -79,8 +80,12 @@ r = await call('GET', '/posts?q=' + encodeURIComponent('독특한낱말' + stamp
 ok(r.data.posts.length === 0, '낱말 모두 있어야 찾음');
 r = await call('GET', '/posts?q=' + encodeURIComponent('100%_'), A);
 ok(r.status === 200, '특수문자 검색 오류 없음');
-r = await call('GET', '/posts?cat=leave&limit=50', A);
-ok(r.data.posts.every(p => p.cat === 'leave') && r.data.posts.length > 0, '분류');
+r = await call('GET', '/posts?q=' + encodeURIComponent('낱말'), A);
+ok(r.data.posts.some(p => p.id === pid), '두 글자 검색(색인 대신 LIKE)');
+r = await call('GET', '/posts?cat=daily&limit=50', A);
+ok(r.data.posts.every(p => p.cat === 'daily') && r.data.posts.length > 0, '분류');
+r = await call('POST', '/posts', A, { cat: 'school', title: '돌봄교실 질문 ' + stamp, body: '학교 분류' });
+ok(r.data.ok, '학교·학습 분류');
 r = await call('POST', `/posts/${pid}/comments`, A, { body: '<script>alert(1)</script> 댓글' });
 ok(r.data.ok, '댓글');
 const cid = r.data.comment.id;
@@ -108,6 +113,41 @@ ok(r.status === 200 && r.data.posts.length === 1, '받은 코드로 인증한 �
 r = await call('GET', '/me', A);
 ok(r.data.invites.length === 3 && r.data.invites[0].used === true && r.data.invites[0].nick === '시험C' + stamp, '누가 썼는지 보임');
 
+// 사칭 이름 막기
+for (const bad of ['운영진', '휴먼쌤', 'yukaman', 'adm1n', 'a d m i n', '매니저1']) {
+  r = await call('POST', '/join', rnd(), { nick: bad });
+  ok(r.data.error === 'nick_reserved', '사칭 이름 막기 ' + bad);
+}
+
+// 새 댓글 배지: A의 글에 C가 댓글 → A에게 1, 보면 0. 내 댓글은 세지 않는다(앞서 A가 단 댓글)
+r = await call('GET', '/me', A);
+ok(r.data.new_comments === 0, '내가 단 댓글은 새 댓글 아님');
+r = await call('POST', `/posts/${pid}/comments`, C, { body: 'C의 댓글' });
+const ccid = r.data.comment.id;
+r = await call('GET', '/me', A);
+ok(r.data.new_comments === 1 && r.data.new_list[0].nick === '시험C' + stamp && r.data.new_list[0].post_id === pid, '새 댓글 1');
+r = await call('POST', '/me/seen', A, {});
+ok(r.data.ok, '봤음');
+r = await call('GET', '/me', A);
+ok(r.data.new_comments === 0, '본 뒤 0');
+
+// 신고
+r = await call('POST', '/reports', A, { kind: 'post', id: pid, reason: '내 글' });
+ok(r.data.error === 'own', '내 글은 신고 못 함');
+r = await call('POST', '/reports', C, { kind: 'post', id: pid, reason: '광고 같아요' });
+ok(r.data.ok && !r.data.already, '글 신고');
+r = await call('POST', '/reports', C, { kind: 'post', id: pid, reason: '또' });
+ok(r.data.already === true, '같은 대상은 한 번');
+r = await call('POST', '/reports', A, { kind: 'comment', id: ccid, reason: '욕설' });
+ok(r.data.ok, '댓글 신고');
+r = await call('POST', '/reports', rnd(), { kind: 'post', id: pid });
+ok(r.status === 401, '모르는 기기는 신고 못 함');
+r = await call('POST', '/reports', C, { kind: 'post', id: 999999 });
+ok(r.status === 404, '없는 글 신고');
+// C의 초대 코드: 막히면 폐기돼야 한다
+r = await call('POST', '/invites', C, {});
+const cCode = r.data.invite.code;
+
 // 신청서 → 관리자 승인 → 답변 지움
 r = await call('POST', '/join', B, { nick: '시험B' + stamp });
 ok(r.data.ok, 'B 가입');
@@ -124,6 +164,24 @@ ok(r.status === 403, '일반 회원은 관리자 화면 금지');
 r = await call('POST', '/join', ADMIN, { nick: '시험관' + stamp, invite: 'TESTADMN' });
 ok(r.data.user.role === 'admin' && r.data.user.verified === true, '관리자 코드');
 const recAdmin = r.data.recovery;
+r = await call('POST', '/posts', ADMIN, { cat: 'tip', title: '운영 안내 ' + stamp, body: '운영 글' });
+ok(r.data.post.badge === 'admin', '관리자 글에 운영 표시');
+await call('DELETE', `/posts/${r.data.id}`, ADMIN);
+// 신고함: 대상별로 묶임, 그대로 두기 · 숨기기
+r = await call('GET', '/admin/queue', ADMIN);
+ok(r.data.reports.length === 2 && r.data.reports.find(x => x.kind === 'post').target_id === pid && r.data.reports.find(x => x.kind === 'post').reasons.includes('광고'), '신고함');
+r = await call('POST', '/admin/report', A, { kind: 'post', id: pid, action: 'keep' });
+ok(r.status === 403, '일반 회원은 신고 처리 금지');
+r = await call('POST', '/admin/report', ADMIN, { kind: 'post', id: pid, action: 'keep' });
+ok(r.data.ok, '그대로 둠');
+r = await call('GET', `/posts/${pid}`, A);
+ok(r.status === 200 && r.data.comments.length === 2, '그대로 두면 글이 남음');
+r = await call('POST', '/admin/report', ADMIN, { kind: 'comment', id: ccid, action: 'hide' });
+ok(r.data.ok, '댓글 숨김');
+r = await call('GET', `/posts/${pid}`, A);
+ok(r.data.comments.length === 1 && r.data.post.comments === 1, '숨긴 댓글 사라짐, 수도 맞음');
+r = await call('GET', '/admin/queue', ADMIN);
+ok(r.data.reports.length === 0, '신고함 비움');
 r = await call('GET', '/admin/queue', ADMIN);
 const app = r.data.queue.find(q => q.nick === '시험B' + stamp);
 ok(app && app.answer.includes('밤에'), '대기 목록');
@@ -142,6 +200,8 @@ ok(r.status === 200, '관리자 읽기');
 const uid = (await call('GET', '/me', C)).data.user.id;
 r = await call('POST', '/admin/user', ADMIN, { user_id: uid, action: 'block' });
 ok(r.data.ok, '막기');
+r = await call('POST', '/join', rnd(), { nick: '새기기' + stamp, invite: cCode });
+ok(r.data.invite_error === 'code_bad' && r.data.user.verified === false, '막힌 회원의 안 쓴 초대 코드는 폐기됨');
 r = await call('POST', '/posts', C, { cat: 'tip', title: '제목입니다', body: '내용' });
 ok(r.status === 403 && r.data.error === 'blocked', '막힌 회원 글 금지');
 r = await call('GET', '/posts?limit=1', C);
@@ -163,6 +223,15 @@ r = await call('DELETE', `/posts/${pid}`, ADMIN);
 ok(r.data.ok, '관리자 삭제');
 r = await call('GET', `/posts/${pid}`, A);
 ok(r.status === 404, '지운 글 404');
+r = await call('GET', '/posts?q=' + encodeURIComponent('독특한낱말' + stamp), A);
+ok(r.data.posts.length === 0, '지운 글은 색인 검색에도 없음');
+// 그 회원 글 모두 숨김
+r = await call('POST', '/posts', A, { cat: 'tip', title: '숨길 글 ' + stamp, body: '숨길내용' + stamp });
+const aid = (await call('GET', '/me', A)).data.user.id;
+r = await call('POST', '/admin/user', ADMIN, { user_id: aid, action: 'hide_all' });
+ok(r.data.ok, '모두 숨김');
+r = await call('GET', '/me', A);
+ok(r.data.posts.length === 0, '그 회원 글이 모두 사라짐');
 
 // 복구 코드: 새 기기(D)가 A의 코드로 들어오면 A의 옛 기기는 끊기고 코드는 새것으로 바뀐다
 const D = rnd(), E = rnd();
