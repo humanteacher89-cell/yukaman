@@ -449,6 +449,12 @@ html[data-theme=dark] { background: #0D1119; }
 .brand .wm { display: inline-flex; align-items: center; color: var(--ink); }
 .brand .wm svg { display: block; height: 24px; width: auto; }
 
+/* 앱 바 부제(11-04 휴먼쌤): 글자 로고 옆에 세로줄을 두고 한 줄. 커뮤니티는 검색 단추 자리 때문에 두 줄, 아주 좁은 폰에서는 뺌 */
+.brand .tagline { padding-left: 9px; border-left: 2px solid var(--but); font-size: 13.5px; line-height: 1.25; font-weight: 800; letter-spacing: -.02em; color: var(--ink); white-space: nowrap; }
+.brand.compact .tagline { font-size: 11.5px; }
+.brand.compact .tagline > span { display: block; }
+@media (max-width: 339px) { .brand.compact .tagline { display: none; } }
+
 /* 홈 아이 나이 길(UI 3안, 11-04 휴먼쌤 선택): 나이 칸 → 우리 아이 → 지금 챙길 것(시간순, D-데이) */
 .ages { display: flex; gap: 6px; margin: 10px -16px 0; padding: 2px 16px 6px; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
 .ages::-webkit-scrollbar { display: none; }
