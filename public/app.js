@@ -591,7 +591,7 @@
     box.innerHTML = locked
       ? '<div class="sec"><h2>커뮤니티</h2></div><a class="notice vcta" id="homeLock" href="#/community" style="margin-top:0"><span class="e">🔒</span><span>인증한 아빠만 볼 수 있어요. <b>' + (me ? '아빠 인증하기' : '시작하기') + '</b></span></a>'
       : '<div class="sec"><h2>' + (peers ? '또래 아빠들 글' : '커뮤니티 새 글') + '</h2><a class="all" href="#/community">전체 보기 →</a></div>'
-        + '<div class="list" id="homeList">' + (err ? empty('글을 못 불러왔어요', '잠시 뒤 다시 열어 주세요') : (posts.length ? posts.map(pcard).join('') : '<a class="notice vcta" href="#/community" style="margin-top:0"><span class="e">👋</span><span>첫 아빠들을 모으고 있어요. <b>첫 글 쓰기</b></span></a>')) + '</div>';
+        + '<div class="list" id="homeList">' + (err ? empty('글을 못 불러왔어요', '잠시 뒤 다시 열어 주세요') : (posts.length ? posts.map(pcard).join('') : '<a class="notice vcta" href="#/write" style="margin-top:0"><span class="e">👋</span><span>첫 아빠들을 모으고 있어요. <b>첫 글 쓰기</b></span></a>')) + '</div>';
     if (err) fail(err);
   }
 
