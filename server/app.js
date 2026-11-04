@@ -4,29 +4,35 @@
 // 커뮤니티는 읽기(목록·글·검색)도 쓰기도 '인증 아빠'만(verified = 1. 2026-11-04 휴먼쌤 "인증 아빠만"). 인증 길 둘: 초대 코드(바로) · 신청서(관리자 승인).
 //  GET    /api/posts?cat=&q=&before=&limit=   글 목록(최신순, 인증 아빠만). before = 이 번호보다 작은 글부터(더 보기). 응답 next = 다음 before 값(없으면 null)
 //  GET    /api/posts/<id>                      글 하나 + 댓글(인증 아빠만)
-//  POST   /api/join {nick, invite?}            닉네임 정하기(기기 토큰 등록). 코드가 맞으면 바로 인증. 이미 등록된 토큰이면 그 사용자(existing:true)
-//  GET    /api/me                              내 정보(인증 상태·신청 상태·초대 코드) + 내 글 + 내 댓글
+//  POST   /api/join {nick, invite?}            닉네임 정하기(기기 토큰 등록). 코드가 맞으면 바로 인증. 이미 등록된 토큰이면 그 사용자(existing:true).
+//                                              새 가입이면 복구 코드(recovery, 12자)를 한 번만 돌려준다 — 서버는 해시만 둔다.
+//  POST   /api/recover {code}                  복구 코드로 이 기기(새 토큰)를 그 계정에 붙인다. 이전 기기의 토큰은 그 자리에서 끊기고, 새 복구 코드를 돌려준다(한 번 쓰면 바뀜)
+//  POST   /api/recovery/new                    복구 코드 새로 만들기(이전 코드는 무효)
+//  POST   /api/logout                          이 기기의 토큰 끊기(계정은 남고, 복구 코드로만 돌아온다)
+//  GET    /api/me                              내 정보(인증 상태·신청 상태·초대 코드·복구 코드 있는지) + 내 글 + 내 댓글
 //  PATCH  /api/me {nick}                       닉네임 바꾸기(하루 3번)
+//  DELETE /api/me {confirm:true}               탈퇴: 내 글·댓글 내용을 비우고 계정 줄을 지운다(관리자·자료실 계정은 안 됨)
 //  POST   /api/verify/code {code}              초대 코드로 인증
 //  POST   /api/verify/apply {stage,answer,pledge}  신청서(관리자가 읽고 승인)
 //  POST   /api/invites                         초대 코드 만들기(인증 아빠 3개, 관리자 제한 없음)
 //  POST   /api/posts {cat,title,body}          글쓰기(한 시간 10개)
-//  DELETE /api/posts/<id>                      내 글 지우기(관리자는 모두). deleted에 시각만 적음
+//  DELETE /api/posts/<id>                      내 글 지우기(관리자는 모두). deleted에 시각을 적고 제목·본문과 달린 댓글 내용을 비운다(11-04 검수 5)
 //  POST   /api/posts/<id>/comments {body}      댓글(한 시간 60개)
-//  DELETE /api/comments/<id>                   내 댓글 지우기(관리자는 모두)
+//  DELETE /api/comments/<id>                   내 댓글 지우기(관리자는 모두). 내용을 비운다
 //  GET    /api/admin/queue                     관리자: 대기 신청서 + 최근 회원
 //  POST   /api/admin/decide {id, approve}      관리자: 승인·거절(답변은 지움)
-//  POST   /api/admin/user {user_id, action}    관리자: unverify(인증 해제) · block(해제 + 재신청 막기) · unblock · verify
+//  POST   /api/admin/user {user_id, action}    관리자: unverify(인증 해제) · block(해제 + 재신청 막기) · unblock · verify · logout(그 회원의 기기 토큰 끊기)
 //  POST   /api/admin/invites {count, note}     관리자: 운영 초대 코드 만들기
 //  GET    /api/health                          살아 있나
-// 저장하는 개인정보: 닉네임 · 기기 토큰 해시 · 쓴 글·댓글 · 대기 중인 신청 답변. 횟수 제한용 기기 주소(IP)는 해시 16자로 짧게(가입·코드 시도에만).
+// 저장하는 개인정보: 닉네임 · 기기 토큰 해시 · 복구 코드 해시 · 쓴 글·댓글 · 대기 중인 신청 답변(결정 뒤 지움) · 누가 초대했는지 · 마지막 접속 시각.
+//   횟수 제한용 기기 주소(IP)는 해시 16자로 짧게(가입·코드·복구 시도에만, 이틀 안에 지움). 지운 글·댓글은 내용을 비우고 시각만 남긴다. 탈퇴하면 계정 줄을 지운다.
 
 const CATS = ['question', 'tip', 'daily', 'leave', 'play', 'gear'];           // public/app.js CATS와 같게
 const STAGES = ['raising', 'expecting'];
 const LIM = { nick: [2, 12], title: [2, 60], body: [1, 3000], comment: [1, 1000], answer: [20, 500], list: 20, listMax: 50 };
 const RATE = {                                        // [횟수, 기간 ms]
   join: [5, 600000], post: [10, 3600000], comment: [60, 3600000], nick: [3, 86400000],
-  code: [10, 600000], apply: [3, 86400000], invite: [10, 86400000]
+  code: [10, 600000], apply: [3, 86400000], invite: [10, 86400000], recover: [10, 600000]
 };
 const INVITE_MAX = 3;                                 // 인증 아빠 한 사람이 만들 수 있는 초대 코드
 const RESERVED = /(육아맨|운영자|관리자|자료실|공식|admin|official)/i;
@@ -41,7 +47,9 @@ const nickKey = s => s.replace(/\s+/g, '').toLowerCase();
 const nowIso = () => new Date().toISOString();
 const tokenOk = t => /^[A-Za-z0-9_-]{16,80}$/.test(t);
 const normCode = s => String(s == null ? '' : s).toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 12);
-const showCode = c => (c.length === 8 ? c.slice(0, 4) + '-' + c.slice(4) : c);
+const showCode = c => (c.length === 8 ? c.slice(0, 4) + '-' + c.slice(4) : c.length === 12 ? c.slice(0, 4) + '-' + c.slice(4, 8) + '-' + c.slice(8) : c);
+// 끊긴 기기 자리에 두는 값. 폰이 만드는 토큰 꼴(16~80자 영숫자)과 달라 어떤 토큰의 해시와도 맞지 않고, 줄마다 달라 UNIQUE에도 걸리지 않는다.
+const offToken = id => 'off|' + id + '|' + nowIso() + '|' + Math.random().toString(36).slice(2);
 
 async function sha256(s) {
   const d = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s));
@@ -74,9 +82,13 @@ export async function handleApi(request, env) {
     if (seg[0] === 'posts' && isId(seg[1]) && seg[2] === 'comments' && !seg[3] && m === 'POST') return addComment(request, env, +seg[1]);
     if (seg[0] === 'comments' && isId(seg[1]) && !seg[2] && m === 'DELETE') return deleteComment(request, env, +seg[1]);
     if (seg[0] === 'join' && !seg[1] && m === 'POST') return join(request, env);
+    if (seg[0] === 'recover' && !seg[1] && m === 'POST') return recover(request, env);
+    if (seg[0] === 'recovery' && seg[1] === 'new' && !seg[2] && m === 'POST') return recoveryNew(request, env);
+    if (seg[0] === 'logout' && !seg[1] && m === 'POST') return logout(request, env);
     if (seg[0] === 'me' && !seg[1]) {
       if (m === 'GET') return me(request, env);
       if (m === 'PATCH') return rename(request, env);
+      if (m === 'DELETE') return deleteMe(request, env);
     }
     if (seg[0] === 'verify' && seg[1] === 'code' && m === 'POST') return verifyCode(request, env);
     if (seg[0] === 'verify' && seg[1] === 'apply' && m === 'POST') return verifyApply(request, env);
@@ -96,7 +108,7 @@ function bearer(request) {
   return h.startsWith('Bearer ') ? h.slice(7).trim() : '';
 }
 
-const USER_COLS = 'id, nick, created, role, verified, verified_how, blocked';
+const USER_COLS = 'id, nick, created, role, verified, verified_how, blocked, recovery_hash';
 async function auth(request, db) {
   const token = bearer(request);
   if (!tokenOk(token)) return { err: no('login', 401) };
@@ -203,7 +215,12 @@ async function deletePost(request, env, id) {
   const p = await env.DB.prepare('SELECT user_id FROM posts WHERE id = ?1 AND deleted IS NULL').bind(id).first();
   if (!p) return no('not_found', 404);
   if (p.user_id !== a.user.id && !isAdmin(a.user)) return no('forbidden', 403);
-  await env.DB.prepare('UPDATE posts SET deleted = ?1 WHERE id = ?2').bind(nowIso(), id).run();
+  // 내용은 바로 비운다(아이 정보를 실수로 적은 글이 DB에 남지 않게). 달린 댓글도 글과 함께 사라지므로 내용을 비운다.
+  const at = nowIso();
+  await env.DB.batch([
+    env.DB.prepare("UPDATE posts SET deleted = ?1, title = '', body = '' WHERE id = ?2").bind(at, id),
+    env.DB.prepare("UPDATE comments SET body = '', deleted = COALESCE(deleted, ?1) WHERE post_id = ?2").bind(at, id)
+  ]);
   return json({ ok: true });
 }
 
@@ -235,7 +252,7 @@ async function deleteComment(request, env, id) {
   if (!c) return no('not_found', 404);
   if (c.user_id !== a.user.id && !isAdmin(a.user)) return no('forbidden', 403);
   await env.DB.batch([
-    env.DB.prepare('UPDATE comments SET deleted = ?1 WHERE id = ?2').bind(nowIso(), id),
+    env.DB.prepare("UPDATE comments SET deleted = ?1, body = '' WHERE id = ?2").bind(nowIso(), id),
     env.DB.prepare('UPDATE posts SET comment_count = CASE WHEN comment_count > 0 THEN comment_count - 1 ELSE 0 END WHERE id = ?1').bind(c.post_id)
   ]);
   return json({ ok: true });
@@ -331,6 +348,19 @@ async function myInvites(db, uid) {
 }
 
 // ----- 사용자 -----
+// 복구 코드: 폰을 바꾸거나 저장소가 지워졌을 때 같은 계정으로 돌아오는 유일한 길. 12자(초대 코드와 같은 글자판), 서버는 SHA-256만 둔다.
+function newRecovery() {
+  const a = new Uint8Array(12);
+  crypto.getRandomValues(a);
+  return Array.from(a, x => ALPHA[x % ALPHA.length]).join('');
+}
+const recHash = code => sha256('rec|' + code);
+async function setRecovery(db, uid) {
+  const code = newRecovery();
+  await db.prepare('UPDATE users SET recovery_hash = ?1 WHERE id = ?2').bind(await recHash(code), uid).run();
+  return showCode(code);
+}
+
 async function join(request, env) {
   const db = env.DB;
   const token = bearer(request);
@@ -362,8 +392,66 @@ async function join(request, env) {
       inviteError = res.error || '';
     } else inviteError = 'limit';
   }
+  const recovery = await setRecovery(db, uid);
   const u = await db.prepare('SELECT ' + USER_COLS + ' FROM users WHERE id = ?1').bind(uid).first();
-  return json({ ok: true, user: pubUser(u), invite_error: inviteError });
+  return json({ ok: true, user: pubUser(u), invite_error: inviteError, recovery });
+}
+
+// 복구: 새 기기의 토큰 + 복구 코드 → 그 계정의 토큰을 이 기기로 바꾼다(이전 기기는 끊김). 코드는 한 번 쓰면 새 코드로 바뀐다.
+async function recover(request, env) {
+  const db = env.DB;
+  const token = bearer(request);
+  if (!tokenOk(token)) return no('login', 401);
+  if (!(await allow(db, await ipKey(request), 'recover'))) return no('limit', 429);
+  const b = await readJson(request);
+  const code = normCode(b && b.code);
+  if (code.length !== 12) return no('recovery_bad');
+  const user = await db.prepare('SELECT ' + USER_COLS + ' FROM users WHERE recovery_hash = ?1').bind(await recHash(code)).first();
+  if (!user || user.role === 'official') return no('recovery_bad');
+  const hash = await sha256('tok|' + token);
+  const other = await db.prepare('SELECT id FROM users WHERE token_hash = ?1').bind(hash).first();
+  if (other && other.id !== user.id) return no('token_in_use', 409);      // 이 기기에 이미 다른 계정이 있다(화면은 복구 전에 토큰을 새로 만든다)
+  await db.prepare('UPDATE users SET token_hash = ?1, last_seen = ?2 WHERE id = ?3').bind(hash, nowIso(), user.id).run();
+  const recovery = await setRecovery(db, user.id);
+  return json({ ok: true, user: pubUser(user), recovery });
+}
+
+async function recoveryNew(request, env) {
+  const a = await auth(request, env.DB);
+  if (a.err) return a.err;
+  if (a.user.role === 'official') return no('forbidden', 403);
+  if (!(await allow(env.DB, 'u:' + a.user.id, 'recover'))) return no('limit', 429);
+  return json({ ok: true, recovery: await setRecovery(env.DB, a.user.id) });
+}
+
+// 이 기기 끊기. 계정은 남고 복구 코드로만 돌아온다(관리자 폰을 잃었을 때도 다른 기기에서 복구하면 그 순간 옛 기기가 끊긴다).
+async function logout(request, env) {
+  const a = await auth(request, env.DB);
+  if (a.err) return a.err;
+  await env.DB.prepare('UPDATE users SET token_hash = ?1 WHERE id = ?2').bind(offToken(a.user.id), a.user.id).run();
+  return json({ ok: true });
+}
+
+// 탈퇴: 글·댓글 내용을 비우고(지운 표시), 내 글에 달린 남의 댓글도 글과 함께 사라지니 비운다. 안 쓴 초대 코드는 막고, 신청서·횟수 기록·계정 줄을 지운다.
+async function deleteMe(request, env) {
+  const a = await auth(request, env.DB);
+  if (a.err) return a.err;
+  if (a.user.role !== 'user') return no('forbidden', 403);          // 관리자는 먼저 넘겨 주고, 자료실 계정은 로그인이 없다
+  const b = await readJson(request);
+  if (!b || b.confirm !== true) return no('bad_json');
+  const db = env.DB, uid = a.user.id, at = nowIso();
+  await db.batch([
+    db.prepare("UPDATE comments SET body = '', deleted = COALESCE(deleted, ?1) WHERE user_id = ?2").bind(at, uid),
+    db.prepare('UPDATE posts SET comment_count = (SELECT COUNT(*) FROM comments c WHERE c.post_id = posts.id AND c.deleted IS NULL) '
+      + 'WHERE id IN (SELECT post_id FROM comments WHERE user_id = ?1)').bind(uid),
+    db.prepare("UPDATE comments SET body = '', deleted = COALESCE(deleted, ?1) WHERE post_id IN (SELECT id FROM posts WHERE user_id = ?2)").bind(at, uid),
+    db.prepare("UPDATE posts SET title = '', body = '', deleted = COALESCE(deleted, ?1) WHERE user_id = ?2").bind(at, uid),
+    db.prepare('UPDATE invites SET revoked = 1 WHERE owner_id = ?1 AND used_by IS NULL').bind(uid),
+    db.prepare('DELETE FROM applications WHERE user_id = ?1').bind(uid),
+    db.prepare('DELETE FROM acts WHERE who = ?1').bind('u:' + uid),
+    db.prepare('DELETE FROM users WHERE id = ?1').bind(uid)
+  ]);
+  return json({ ok: true });
 }
 
 async function me(request, env) {
@@ -379,7 +467,7 @@ async function me(request, env) {
   ]);
   const invites = a.user.verified === 1 ? await myInvites(db, uid) : [];
   const badge = a.user.role === 'official' ? 'official' : (a.user.verified === 1 ? 'dad' : '');
-  return json({ ok: true, user: pubUser(a.user), application: (ap.results || [])[0] || null, invites, invite_max: isAdmin(a.user) ? null : INVITE_MAX,
+  return json({ ok: true, user: pubUser(a.user), application: (ap.results || [])[0] || null, invites, invite_max: isAdmin(a.user) ? null : INVITE_MAX, has_recovery: !!a.user.recovery_hash,
     posts: (ps.results || []).map(r => rowPost({ ...r, nick: a.user.nick, uid, badge })),
     comments: (cs.results || []).map(c => ({ id: c.id, body: c.body, created: c.created, post_id: c.post_id, post_title: c.post_title })) });
 }
@@ -441,10 +529,11 @@ async function admin(request, env, what, method) {
       verify: "UPDATE users SET verified = 1, blocked = 0, verified_how = 'admin', verified_at = ?1 WHERE id = ?2",
       unverify: "UPDATE users SET verified = 0, verified_how = '', verified_at = ?1 WHERE id = ?2",
       block: "UPDATE users SET verified = 0, blocked = 1, verified_how = '', verified_at = ?1 WHERE id = ?2",
-      unblock: "UPDATE users SET blocked = 0, verified_at = ?1 WHERE id = ?2"
+      unblock: "UPDATE users SET blocked = 0, verified_at = ?1 WHERE id = ?2",
+      logout: 'UPDATE users SET token_hash = ?1 WHERE id = ?2'            // 그 회원의 기기를 끊는다(복구 코드로만 돌아옴)
     }[action];
     if (!sql) return no('bad_json');
-    await db.prepare(sql).bind(nowIso(), id).run();
+    await db.prepare(sql).bind(action === 'logout' ? offToken(id) : nowIso(), id).run();
     return json({ ok: true });
   }
   if (what === 'invites' && method === 'POST') {

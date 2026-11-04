@@ -1,7 +1,7 @@
 // 육아맨 서비스 워커 — 홈 화면에 추가한 앱이 바로 열리게 하는 최소한의 것.
 // 늘 인터넷에서 먼저 받고(고친 화면이 바로 보이게), 끊겼을 때만 저장해 둔 화면을 쓴다. 서버 주소(/api)는 저장하지 않는다.
 // 끊겨도 가이드·계산기·자료실은 볼 수 있게 미리 받아 둔다.
-const CACHE = 'yukaman-v3';
+const CACHE = 'yukaman-v4';
 const SHELL = ['./', 'index.html', 'style.css', 'app.js', 'calc.js', 'config.js', 'guide-data.js', 'official-data.js', 'sample-data.js', 'manifest.json', 'data/library.json', 'icons/logo.svg', 'icons/icon-192.png'];
 
 self.addEventListener('install', e => {

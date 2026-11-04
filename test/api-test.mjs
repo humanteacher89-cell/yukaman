@@ -37,8 +37,10 @@ r = await call('POST', '/join', A, { nick: 'a' });
 ok(r.data.error === 'nick_len', '짧은 닉네임');
 r = await call('POST', '/join', A, { nick: '시험A' + stamp });
 ok(r.data.ok && r.data.user.verified === false, '가입: 인증 전');
+const recA = r.data.recovery;
+ok(/^[A-Z2-9]{4}-[A-Z2-9]{4}-[A-Z2-9]{4}$/.test(recA || ''), '가입 때 복구 코드 12자');
 r = await call('POST', '/join', A, { nick: '다른이름' + stamp });
-ok(r.data.existing === true, '같은 기기는 기존 사용자');
+ok(r.data.existing === true && !r.data.recovery, '같은 기기는 기존 사용자(복구 코드 다시 안 줌)');
 r = await call('POST', '/join', B, { nick: '시험A' + stamp });
 ok(r.data.error === 'nick_taken', '같은 닉네임 막기');
 
@@ -121,6 +123,7 @@ ok(r.status === 403, '일반 회원은 관리자 화면 금지');
 // 관리자 코드
 r = await call('POST', '/join', ADMIN, { nick: '시험관' + stamp, invite: 'TESTADMN' });
 ok(r.data.user.role === 'admin' && r.data.user.verified === true, '관리자 코드');
+const recAdmin = r.data.recovery;
 r = await call('GET', '/admin/queue', ADMIN);
 const app = r.data.queue.find(q => q.nick === '시험B' + stamp);
 ok(app && app.answer.includes('밤에'), '대기 목록');
@@ -160,6 +163,67 @@ r = await call('DELETE', `/posts/${pid}`, ADMIN);
 ok(r.data.ok, '관리자 삭제');
 r = await call('GET', `/posts/${pid}`, A);
 ok(r.status === 404, '지운 글 404');
+
+// 복구 코드: 새 기기(D)가 A의 코드로 들어오면 A의 옛 기기는 끊기고 코드는 새것으로 바뀐다
+const D = rnd(), E = rnd();
+r = await call('POST', '/recover', D, { code: 'ZZZZ-ZZZZ-ZZZZ' });
+ok(r.data.error === 'recovery_bad', '틀린 복구 코드');
+r = await call('POST', '/recover', D, { code: recA.toLowerCase() });
+ok(r.data.ok && r.data.user.nick === '시험A' + stamp && r.data.recovery && r.data.recovery !== recA, '복구: 같은 계정, 새 코드');
+const recA2 = r.data.recovery;
+r = await call('GET', '/me', A);
+ok(r.status === 401 && r.data.error === 'unknown_user', '옛 기기는 끊김');
+r = await call('GET', '/me', D);
+ok(r.status === 200 && r.data.user.nick === '시험A' + stamp && r.data.has_recovery === true, '새 기기로 내 정보');
+r = await call('POST', '/recover', E, { code: recA });
+ok(r.data.error === 'recovery_bad', '쓴 복구 코드는 다시 못 씀');
+r = await call('POST', '/recovery/new', D, {});
+ok(r.data.ok && r.data.recovery && r.data.recovery !== recA2, '복구 코드 새로 만들기');
+const recA3 = r.data.recovery;
+r = await call('POST', '/recover', E, { code: recA2 });
+ok(r.data.error === 'recovery_bad', '새로 만들면 이전 코드 무효');
+r = await call('POST', '/recover', B, { code: recAdmin });
+ok(r.status === 409 && r.data.error === 'token_in_use', '다른 계정이 있는 기기로는 복구 못 함');
+r = await call('POST', '/recover', E, { code: recA3 });
+ok(r.data.ok && r.data.user.nick === '시험A' + stamp, '새 코드로 복구');
+r = await call('GET', '/posts?limit=1', E);
+ok(r.status === 200, '복구한 기기는 인증 상태 그대로');
+r = await call('GET', '/me', D);
+ok(r.status === 401, '복구하면 그 전 기기도 끊김');
+
+// 로그아웃: 계정은 남고 기기만 끊긴다
+r = await call('POST', '/logout', E, {});
+ok(r.data.ok, '로그아웃');
+r = await call('GET', '/me', E);
+ok(r.status === 401 && r.data.error === 'unknown_user', '로그아웃 뒤 모르는 기기');
+
+// 탈퇴: 글·댓글 내용이 비고 계정 줄이 지워진다. 관리자는 못 한다
+r = await call('POST', '/admin/user', ADMIN, { user_id: bid, action: 'verify' });
+ok(r.data.ok, 'B 다시 인증');
+r = await call('POST', '/posts', B, { cat: 'daily', title: '탈퇴 전 글 ' + stamp, body: '지워질내용' + stamp });
+ok(r.data.ok, 'B 글');
+const bpid = r.data.id;
+r = await call('DELETE', '/me', B, {});
+ok(r.data.error === 'bad_json', '탈퇴는 confirm:true 필요');
+r = await call('DELETE', '/me', ADMIN, { confirm: true });
+ok(r.status === 403, '관리자는 탈퇴 못 함');
+r = await call('DELETE', '/me', B, { confirm: true });
+ok(r.data.ok, '탈퇴');
+r = await call('GET', '/me', B);
+ok(r.status === 401 && r.data.error === 'unknown_user', '탈퇴 뒤 모르는 기기');
+r = await call('GET', `/posts/${bpid}`, ADMIN);
+ok(r.status === 404, '탈퇴한 사람 글은 404');
+r = await call('GET', '/posts?q=' + encodeURIComponent('지워질내용' + stamp), ADMIN);
+ok(r.data.posts.length === 0, '탈퇴한 글은 검색에도 없음');
+r = await call('GET', '/admin/queue', ADMIN);
+ok(!r.data.users.find(x => x.id === bid), '회원 목록에서 사라짐');
+
+// 관리자가 회원 기기 끊기
+r = await call('POST', '/admin/user', ADMIN, { user_id: uid, action: 'logout' });
+ok(r.data.ok, '관리자 끊기');
+r = await call('GET', '/me', C);
+ok(r.status === 401 && r.data.error === 'unknown_user', '끊긴 기기');
+
 r = await call('GET', '/nope');
 ok(r.status === 404, '없는 주소');
 

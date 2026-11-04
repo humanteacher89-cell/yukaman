@@ -5,22 +5,24 @@
 이 파일은 공개 파일이다 — 비밀 값·개인 정보·PC 경로를 적지 않는다. 경로는 모두 이 저장소 루트 기준.
 
 ## 짜임
-- `public/` 화면 그대로 올라간다(만드는 단계 없음). `index.html` 틀 · `style.css` · `app.js`(화면 전부, 해시 주소) · `calc.js`(계산, 법령 기준) · `guide-data.js`(가이드 글) · `official-data.js`(가이드 Q&A·정보, 만들어지는 파일) · `data/library.json`(자료실, 만들어지는 파일) · `config.js` · `sample-data.js`(서버 없을 때 시험 모드 견본) · `manifest.json` · `sw.js` · `icons/`.
+- `public/` 화면 그대로 올라간다(만드는 단계 없음). `index.html` 틀 · `style.css` · `app.js`(화면 전부, 해시 주소) · `calc.js`(계산, 법령 기준) · `guide-data.js`(가이드 글) · `official-data.js`(가이드 Q&A·정보, 만들어지는 파일) · `data/library.json`(자료실, 만들어지는 파일) · `config.js` · `sample-data.js`(서버 없을 때 시험 모드 견본) · `manifest.json` · `sw.js` · `icons/` · `_headers`(보안 응답 머리글: CSP · frame-ancestors · Referrer-Policy).
 - `functions/api/[[path]].js` → `server/app.js`: Cloudflare Pages Functions 서버. 맨 위 주석에 API 약속.
-- `schema.sql` D1 표(users · invites · applications · posts · comments · acts).
-- `seed/official-posts.json` → `tools/build_seed.py` → `seed/official.sql`(자료실 계정의 글, 공개 D1에도 넣음) + `public/official-data.js`(같은 글을 가이드 'Q&A·정보'로, 인증 전에도 보임).
+- `schema.sql` D1 표(users · invites · applications · posts · comments · acts). 이미 있는 표에 칸을 더할 때는 `deploy.py` MIGRATIONS에 ALTER 한 줄(`deploy.py migrate`).
+- `seed/official-posts.json` → `tools/build_seed.py` → `seed/official.sql`(자료실 계정의 글 넣기) + `seed/official-update.sql`(이미 있는 글 고치기) + `public/official-data.js`(같은 글을 가이드 'Q&A·정보'로, 인증 전에도 보임). 글을 고치면 `deploy.py seed`로 공개 D1도 맞춘다.
 - `data-src/*.json` → `tools/build_library.py` → `public/data/library.json`: 자료실. `verdicts.json`은 재검증 결과.
 - `wrangler.toml` Pages `humanssaem-yukaman` + D1 `yukaman`. `deploy.py` 미리 보기·올리기.
 
 ## 돌리기
 - 미리 보기: `python -X utf8 deploy.py dev --fresh` → http://127.0.0.1:8799 (가짜 D1, 시험 코드는 `test/seed-local.sql`).
 - 시험: `node test/calc-test.js` · `node test/api-test.mjs`(미리 보기를 --fresh로 띄운 뒤, 내 컴퓨터 주소에만).
-- 정적 서버로 `public/`만 열면 `/api`가 없어 화면이 알아서 **시험 모드**(견본 글 + 그 기기 localStorage)로 돈다.
+- 내 컴퓨터(localhost)에서 정적 서버로 `public/`만 열면 `/api`가 없어 화면이 알아서 **시험 모드**(견본 글 + 그 기기 localStorage)로 돈다. 운영 주소에서는 바꾸지 않는다 — 서버가 JSON이 아닌 것을 돌려주면 "서버에 연결할 수 없어요"만 보인다.
 - 처음 한 번: `deploy.py setup` → `deploy.py deploy` → `deploy.py admin-code`(첫 관리자 코드, 저장소에 남기지 않음). 공개 반영은 휴먼쌤이 시킨 때만.
-- 올릴 때: 저장소와 Cloudflare는 자동으로 연결하지 않았다(push가 곧 공개 반영이 되지 않게). 커밋한 뒤 `git push`와 `deploy.py deploy`를 함께 돌려 둘이 갈라지지 않게 한다.
+- 올릴 때: 저장소와 Cloudflare는 자동으로 연결하지 않았다(push가 곧 공개 반영이 되지 않게). 커밋한 뒤 `git push`와 `deploy.py deploy`를 함께 돌려 둘이 갈라지지 않게 한다. 표가 바뀌었으면 `deploy.py migrate`, 자료실 글이 바뀌었으면 `deploy.py seed`를 먼저.
+- 계정 복구·끊기: 가입 때 복구 코드 12자를 한 번 보여 준다(서버는 해시만). 폰을 바꾸면 MY → "복구 코드로 이어 쓰기". 관리자 폰을 잃으면 새 폰에서 복구 코드로 들어오면 옛 폰이 끊기고, 복구 코드도 없으면 `deploy.py logout-user <회원 번호>`로 끊은 뒤 `deploy.py admin-code`로 새 관리자 코드를 만든다.
 
 ## 약속
-- 저장하는 개인정보는 닉네임 · 기기 토큰의 해시 · 쓴 글·댓글 · 대기 중인 신청 답변뿐. 이메일·전화·서류·아이 정보를 받지 않는다. 계산기의 아이 날짜는 기기에만.
+- 저장하는 개인정보는 닉네임 · 기기 토큰의 해시 · 복구 코드의 해시 · 쓴 글·댓글 · 대기 중인 신청 답변(결정 뒤 지움) · 누가 초대했는지 · 마지막 접속 시각. 가입·코드·복구 시도 때 기기 주소(IP)의 짧은 해시를 이틀 안에만. 이메일·전화·서류·아이 정보를 받지 않는다. 계산기의 아이 날짜는 기기에만.
+- 지운 글·댓글은 내용을 바로 비우고 시각만 남긴다. 탈퇴(MY → 탈퇴하기)는 글·댓글 내용을 비우고 계정 줄을 지운다.
 - 사진·영상 없음. 글과 댓글은 D1에 글자로 저장해 파일 저장소가 필요 없다.
 - 지어낸 경험담을 서버에 넣지 않는다. `sample-data.js`는 시험 모드 표시와 함께 서버가 없을 때만 보인다.
 - 자료실은 링크와 우리 말 요약만. 원문을 복사하지 않는다.
@@ -30,4 +32,5 @@
 ## 지금 상태와 남은 일
 - 2026-11-04: 시험 주소 공개판 전 단계. 홈 · 가이드 21편 · 계산기 4종(육아휴직·단축근무·배우자 출산휴가·내 아이 날짜) · 자료실 · 커뮤니티(글·댓글·키워드 검색) · 아빠 인증(초대 코드·신청서·관리자 화면) · 자료실 글 24편.
 - 2026-11-04: 아빠 인증은 초대 코드 + 신청서로 확정(휴먼쌤). 커뮤니티 읽기도 인증 아빠만으로 닫음(휴먼쌤, 서버에서 막고 화면은 잠금). 가이드는 전부 열어 둠(휴먼쌤): 자료실 계정 글 24편은 가이드 'Q&A·정보'에서 누구나 보고, 댓글은 커뮤니티에서 인증 아빠끼리. 저장소 공개, Cloudflare Pages는 `deploy.py deploy`로 직접 올린다.
-- 남은 일: 공개 결정(이용약관·개인정보 처리방침 먼저) → 2차 후보(신고, 답글, 모임 탭, 휴대폰 본인인증, 검색 색인).
+- 2026-11-04: 5인 가상 검수(앱 개발자·영유아 아빠·초등 아빠·마케터·정책 담당관) 뒤 '지금 바로' 9개 반영 — 운영 주소에서 시험 모드 자동 전환 끔 · 6+6 "부모 모두 고용보험 피보험자" 조건(가이드·Q&A·계산기 선택) · 복구 코드·로그아웃·탈퇴·관리자 기기 끊기 · `_headers` 보안 머리글 · 삭제 때 본문 비우기 · 초대 링크 코드 보존 · 틀린 안내 고침(입사 5개월 기준일, 공무원 수당 1년, 교사 확대 미확정) · 빠진 절차(신청 기한 예외·기한 뒤 신청·한부모 정의·단축 신청·거부·연장근로·사후지급 폐지) · 계산기(지난 기한 안내, 통상임금 0). 단기 육아휴직 7일 급여는 고용보험법 제70조 제1항에 있어 그대로 두고 근거만 붙임.
+- 남은 일: 검수 '공개 전' 11개(출산 직후 체크리스트, 아이 나이 입구, 가족돌봄휴가, 공유 미리보기, 운영자·약관, 첫 아빠 모집, 사칭 방어, 접근성, 첫 화면 속도, 설치 안내, 운영 로그·백업) → 공개 결정 → 2차 8개(신고, 댓글 알림, 초등 콘텐츠, 신생아 돌봄 입구, 다크 모드, 이름·아이콘 반응, 검색 색인, 계산기 세부).

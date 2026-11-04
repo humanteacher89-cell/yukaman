@@ -225,6 +225,9 @@ button.notice.vcta { display: flex; width: 100%; text-align: left; font: inherit
 .about .sm { margin: 4px 0 8px; font-size: 13px; }
 .irow { display: flex; align-items: center; gap: 10px; justify-content: space-between; padding: 8px 0; border-top: 1px solid var(--line); }
 .irow code { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 15px; font-weight: 800; letter-spacing: .04em; color: var(--ink); }
+.reccode { margin-top: 14px; padding: 14px; border-radius: 14px; background: var(--pri-l); color: var(--pri); text-align: center; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 22px; font-weight: 900; letter-spacing: .08em; -webkit-user-select: all; user-select: all; }
+.sheet .btn.line { margin-top: 12px; }
+.btn.line.danger { color: #DC2626; }
 .irow .time { margin-left: auto; }
 .btn.small { padding: 10px 12px; font-size: 14px; border-radius: 12px; margin-top: 8px; }
 .inp.code { text-transform: uppercase; letter-spacing: .06em; font-weight: 800; }

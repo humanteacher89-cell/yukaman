@@ -1,7 +1,9 @@
 /* 육아맨 화면(2026-11-04, 앱개발부).
    해시 주소: #/ 홈 · #/guide[/<분류>] 아빠 가이드 · #/g/<id> 가이드 글 · #/calc[/<종류>] 계산기 · #/library 자료실
               #/community[/<분류>] 커뮤니티 · #/p/<번호> 글 · #/write 글쓰기 · #/me MY · #/join/<코드> 초대 · #/admin 관리자
-   커뮤니티 글·댓글·인증: 서버(/api, server/app.js)가 있으면 서버에, 없으면(정적 서버·파일로 열기) 시험 모드 — 견본 글(sample-data.js) + 이 기기(localStorage)에만.
+   커뮤니티 글·댓글·인증: 서버(/api, server/app.js)에. 시험 모드(견본 글 sample-data.js + 이 기기 localStorage)는 config.js API_URL이 비었거나, 파일로 열었거나, 내 컴퓨터(localhost)에서 /api가 없을 때만.
+   운영 주소에서는 서버가 JSON이 아닌 것을 돌려줘도(오류 페이지·와이파이 로그인 페이지) 시험 모드로 바꾸지 않고 "서버에 연결할 수 없어요"만 보인다(11-04 검수 1).
+   계정: 기기 토큰(localStorage) + 가입 때 한 번 보여 주는 복구 코드(폰 바꿀 때) · 이 기기 로그아웃 · 탈퇴(11-04 검수 3·5).
    가이드 글: guide-data.js · 자료실: data/library.json · 계산: calc.js(법령 기준, test/calc-test.js). 사진·영상 없음 — 줄글 + 댓글만, 검색 됨(11-04 휴먼쌤).
    아빠 인증: 커뮤니티는 읽기도 쓰기도 인증 아빠만(2026-11-04 휴먼쌤 "인증 아빠만"), 가이드·계산기·자료실은 누구나. 초대 코드(바로) 또는 신청서(관리자 승인). 서류·아이 정보는 받지 않는다. */
 (function () {
@@ -28,6 +30,7 @@
     limit: '너무 자주 했어요. 잠시 뒤에 다시 해 주세요', title_len: '제목은 2~60자로 해 주세요', body_len: '내용을 적어 주세요(3000자까지)',
     comment_len: '댓글은 1~1000자로 해 주세요', cat: '분류를 골라 주세요', not_found: '글을 찾을 수 없어요(지워졌을 수 있어요)',
     forbidden: '내가 쓴 것만 지울 수 있어요', bad_json: '보낼 내용이 잘못됐어요', server: '서버에 문제가 있어요. 잠시 뒤 다시 해 주세요', network: '인터넷 연결을 확인해 주세요',
+    no_api: '서버에 연결할 수 없어요. 잠시 뒤 다시 열어 주세요', recovery_bad: '맞지 않는 복구 코드예요', token_in_use: '이 기기에 이미 다른 닉네임이 있어요',
     verify: '커뮤니티는 인증한 아빠만 읽고 쓸 수 있어요', blocked: '이용이 제한된 계정이에요',
     code_bad: '맞지 않는 초대 코드예요', code_used: '이미 쓴 초대 코드예요', stage: '지금 상황을 골라 주세요', answer_len: '이야기는 20자 이상으로 적어 주세요', pledge: '약속에 체크해 주세요', invite_max: '초대 코드는 3개까지 만들 수 있어요'
   };
@@ -89,12 +92,18 @@
   const canWrite = () => me && !me.blocked && (me.verified || me.role === 'admin');
   const canRead = canWrite;   // 커뮤니티 읽기 자격은 쓰기와 같다
   const pub = u => ({ id: u.id, nick: u.nick, created: u.created, verified: !!u.verified, role: 'user', how: u.how || '', blocked: false });
-  let pendingInvite = '';
+  // 초대 링크(#/join/코드)의 코드는 이 기기에 남겨 둔다 — 주소가 #/me로 바뀌거나 새로고침해도 사라지지 않게(11-04 검수 6). 쓰이면 지운다.
+  let pendingInvite = store.get('invite', '');
+  let invitePrompted = false;          // 이번에 열어 둔 동안 초대 시트를 한 번만 자동으로 띄운다("둘러보기"를 눌렀는데 MY마다 다시 뜨지 않게)
+  const keepInvite = code => { pendingInvite = code; store.set('invite', code); };
+  const clearInvite = () => { pendingInvite = ''; store.del('invite'); };
 
   // ----- 서버 / 시험 모드 -----
   function ApiError(code, status) { this.name = 'ApiError'; this.code = code; this.status = status || 400; this.message = code; }
   ApiError.prototype = Object.create(Error.prototype);
   let mode = (!CFG.API_URL || location.protocol === 'file:') ? 'local' : 'server';
+  // /api가 JSON이 아닌 것을 돌려줄 때 시험 모드로 바꾸는 것은 내 컴퓨터(정적 서버로 public/만 열었을 때)에서만. 운영 주소에서는 오류로 알린다.
+  const DEV_HOST = /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname);
 
   function qs(p) { const u = new URLSearchParams(); Object.keys(p || {}).forEach(k => { if (p[k] !== '' && p[k] != null && p[k] !== false) u.set(k, p[k]); }); const s = u.toString(); return s ? '?' + s : ''; }
   const remote = {
@@ -126,7 +135,11 @@
     adminQueue: () => remote.call('GET', '/admin/queue'),
     adminDecide: (id, approve) => remote.call('POST', '/admin/decide', { id, approve }),
     adminUser: (user_id, action) => remote.call('POST', '/admin/user', { user_id, action }),
-    adminInvites: (count, note) => remote.call('POST', '/admin/invites', { count, note })
+    adminInvites: (count, note) => remote.call('POST', '/admin/invites', { count, note }),
+    recover: code => remote.call('POST', '/recover', { code }),
+    recoveryNew: () => remote.call('POST', '/recovery/new', {}),
+    logout: () => remote.call('POST', '/logout', {}),
+    deleteMe: () => remote.call('DELETE', '/me', { confirm: true })
   };
 
   // 시험 모드: 견본 글 + 이 기기(localStorage). 서버와 같은 응답 꼴. 코드는 아무 글자나, 신청서는 바로 승인된다.
@@ -166,8 +179,22 @@
       const d = this.load(); const have = this.user(); if (have) return { ok: true, user: pub(have), existing: true };
       const bad = checkNick(nick); if (bad) throw new ApiError(bad);
       if (d.users.some(u => nickKey(u.nick) === nickKey(nick))) throw new ApiError('nick_taken', 409);
-      const u = { id: d.seq.user++, nick, created: new Date().toISOString(), token: token(), verified: !!invite, how: invite ? 'invite' : '' }; d.users.push(u); this.save();
-      return { ok: true, user: pub(u) };
+      const u = { id: d.seq.user++, nick, created: new Date().toISOString(), token: token(), verified: !!invite, how: invite ? 'invite' : '', recovery: this.newRec() }; d.users.push(u); this.save();
+      return { ok: true, user: pub(u), recovery: u.recovery };
+    },
+    newRec() { const d = this.load(); d.seq.rec = (d.seq.rec || 0) + 1; return 'TEST-' + String(1000 + d.seq.rec) + '-RCVR'; },
+    async recover(code) {
+      const d = this.load(), c = String(code || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+      const u = d.users.find(x => x.recovery && x.recovery.replace(/-/g, '') === c); if (!u) throw new ApiError('recovery_bad');
+      u.token = token(); u.recovery = this.newRec(); this.save(); return { ok: true, user: pub(u), recovery: u.recovery };
+    },
+    async recoveryNew() { const u = this.need(); u.recovery = this.newRec(); this.save(); return { ok: true, recovery: u.recovery }; },
+    async logout() { const u = this.need(); u.token = null; this.save(); return { ok: true }; },
+    async deleteMe() {
+      const u = this.need(), d = this.db, at = new Date().toISOString();
+      d.posts.filter(p => p.user_id === u.id).forEach(p => { p.deleted = p.deleted || at; p.title = ''; p.body = ''; });
+      d.comments.filter(c => c.user_id === u.id).forEach(c => { c.deleted = c.deleted || at; c.body = ''; });
+      d.users = d.users.filter(x => x.id !== u.id); this.save(); return { ok: true };
     },
     async me() {
       const u = this.need(); const d = this.db;
@@ -199,7 +226,7 @@
     const args = Array.prototype.slice.call(arguments, 1);
     if (mode === 'local') { if (!local[name]) throw new ApiError('server'); return local[name].apply(local, args); }
     try { return await remote[name].apply(remote, args); }
-    catch (e) { if (e && e.code === 'no_api') { setMode('local'); if (!local[name]) throw new ApiError('server'); return local[name].apply(local, args); } throw e; }
+    catch (e) { if (e && e.code === 'no_api' && DEV_HOST) { setMode('local'); if (!local[name]) throw new ApiError('server'); return local[name].apply(local, args); } throw e; }
   }
   function setMode(m) { if (mode === m) return; mode = m; if (m === 'local') { const u = local.user(); setMe(u ? pub(u) : null); } }
 
@@ -213,7 +240,7 @@
     if (code === 'login') { openSheet(after); return; }
     if (code === 'verify') { if (me) { me.verified = false; store.set('me', me); } openVerify(after); return; }
     toast(MSG[code] || MSG.server, 'err');
-    if (window.console && code === 'server') console.warn('yukaman', e);
+    if (window.console && (code === 'server' || code === 'no_api')) console.warn('yukaman', e);
   }
   // 서버가 커뮤니티 읽기를 막았을 때(인증 해제·막힘·모르는 기기): 내 정보를 맞추고 true를 돌려준다. 화면은 잠금으로 바꾼다.
   function readDenied(e) {
@@ -265,7 +292,7 @@
       else if (r.name === 'write') renderWrite();
       else if (r.name === 'me') await renderMe();
       else if (r.name === 'admin') await renderAdmin();
-      else if (r.name === 'join') { pendingInvite = r.code; go('#/me', true); }
+      else if (r.name === 'join') { if (r.code) { keepInvite(r.code); invitePrompted = false; } go('#/me', true); }
     } catch (e) { fail(e); }
   }
   window.addEventListener('hashchange', () => { navDepth++; render(); });
@@ -277,8 +304,10 @@
     { key: 'paternity', name: '배우자 출산휴가', e: '🏥' },
     { key: 'dates', name: '내 아이 날짜', e: '📅' }
   ];
-  function nextFirst() { const d = new Date(); const t = new Date(d.getFullYear(), d.getMonth() + 1, 1); return t.getFullYear() + '-' + String(t.getMonth() + 1).padStart(2, '0') + '-01'; }
-  const calcS = Object.assign({ pay: 350, start: nextFirst(), months: 12, end: '', mode: 'general', spouseMonths: 6, spousePay: '', company: '', birth: '', due: '', before: 40, after: 30, rMonths: 12, priority: true, days: 20 }, store.get('calc', {}));
+  const todayStr = () => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
+  // 기본 시작일: 회사 신청 기한(30일 전)이 아직 남은 가장 가까운 1일(11-04 검수 9 — 다음 달 1일로 두면 이미 지난 기한을 챙기라고 한다)
+  function nextFirst() { const d = new Date(); let t = new Date(d.getFullYear(), d.getMonth() + 1, 1); if ((t - d) / 86400000 < 31) t = new Date(d.getFullYear(), d.getMonth() + 2, 1); return t.getFullYear() + '-' + String(t.getMonth() + 1).padStart(2, '0') + '-01'; }
+  const calcS = Object.assign({ pay: 350, start: nextFirst(), months: 12, end: '', mode: 'general', spouseMonths: 6, spouseInsured: true, spousePay: '', company: '', birth: '', due: '', before: 40, after: 30, rMonths: 12, priority: true, days: 20 }, store.get('calc', {}));
   if (!K.parse(calcS.start)) calcS.start = nextFirst();
   if (!K.parse(calcS.end)) calcS.end = K.addDays(K.addMonths(calcS.start, 12), -1);
   const saveCalc = () => store.set('calc', calcS);
@@ -288,17 +317,19 @@
   function quickCalc(man) { const s = '2027-01-01'; return K.leaveBenefit({ ordinary: toWon(man), start: s, end: K.addDays(K.addMonths(s, 12), -1) }); }
   // 달마다 받는 돈을 함께 보여 준다. 월 250만원을 넘으면 상한에 걸려 총액이 같으니, 고장처럼 보이지 않게 까닭을 적는다
   function quickNote(man) {
+    if (!toWon(man)) return '월 통상임금을 넣으면 바로 계산돼요.';
     const r = quickCalc(man), m = [r.rows[0].paid, r.rows[3].paid, r.rows[6].paid];
     return '1~3개월 월 ' + won(m[0]) + ' · 4~6개월 월 ' + won(m[1]) + ' · 7개월부터 월 ' + won(m[2]) + (toWon(man) >= 2500000 ? '<br>법정 상한에 걸려 월급이 더 많아도 금액이 같아요.' : '');
   }
+  const quickTotal = man => (toWon(man) ? won(quickCalc(man).total) : '—');     // 0원이면 하한 70만원으로 계산된 840만원이 나와 버리니 비워 둔다
   function calcCard() {
     return '<div class="gcalc" id="qcalc"><div class="top"><b>💰 육아휴직 급여 계산기</b><a class="fold" href="#/calc/leave">자세히</a></div>'
       + '<div class="big"><label class="qpay">내 월 통상임금 <input id="qPay" type="number" inputmode="decimal" min="0" max="3000" step="10" value="' + esc(calcS.pay) + '" aria-label="월 통상임금(만원)"> 만원</label>'
-      + '<strong id="qTotal">' + won(quickCalc(calcS.pay).total) + '</strong><em>12개월 쉬면 받는 돈(일반 기준)</em><small class="qnote" id="qNote">' + quickNote(calcS.pay) + '</small></div></div>';
+      + '<strong id="qTotal">' + quickTotal(calcS.pay) + '</strong><em>12개월 쉬면 받는 돈(일반 기준)</em><small class="qnote" id="qNote">' + quickNote(calcS.pay) + '</small></div></div>';
   }
   function bindCalcCard() {
     const p = $('#qPay'); if (!p) return;
-    p.addEventListener('input', () => { calcS.pay = parseFloat(p.value) || 0; saveCalc(); $('#qTotal').textContent = won(quickCalc(calcS.pay).total); $('#qNote').innerHTML = quickNote(calcS.pay); });
+    p.addEventListener('input', () => { calcS.pay = parseFloat(p.value) || 0; saveCalc(); $('#qTotal').textContent = quickTotal(calcS.pay); $('#qNote').innerHTML = quickNote(calcS.pay); });
   }
 
   // ----- 홈 -----
@@ -397,11 +428,13 @@
     Object.keys(map).forEach(id => { const el = $('#' + id); if (!el) return; const fn = () => { map[id](el); saveCalc(); onChange(); }; el.addEventListener('input', fn); el.addEventListener('change', fn); });
   }
   const WARN = {
+    pay: '월 통상임금을 넣어 주세요. 금액을 모르면 "통상임금이 뭔가요?"를 열어 기본급과 고정 수당을 더해 보세요.',
     dates: '시작일과 끝나는 날을 확인해 주세요.',
-    short: '30일 미만이면 급여가 나오지 않아요. 단기 육아휴직(1주 또는 2주)은 7일 이상이면 돼요.',
+    short: '30일 미만이면 보통 급여 대상이 아니에요(고용보험법 제70조). 같은 아이로 앞서 쓴 휴직이 있으면 합쳐서 보니 고용센터에 확인해 주세요. 단기 육아휴직(1주 또는 2주)은 7일 이상이면 돼요.',
     over12: '12개월을 넘는 기간은 부모가 각각 3개월 이상 쓰거나, 한부모·중증 장애아동의 부모일 때 쓸 수 있어요.',
     over18: '육아휴직은 가장 길어도 18개월이에요. 끝나는 날을 앞당겨 주세요.',
     noCommon: '6+6은 부모가 모두 써야 적용돼요. 배우자 사용 기간이 없으면 일반 기준으로 계산돼요.',
+    spouseNotInsured: '6+6은 부모가 모두 고용보험에 가입한 근로자일 때만 적용돼요(시행령 제95조의3). 배우자가 공무원·교사·자영업자·전업주부면 일반 기준이라 그렇게 계산했어요.',
     hours: '단축 후 시간이 단축 전보다 짧아야 해요.',
     range: '단축 후 근로시간은 주 15시간 이상 35시간 이하여야 해요.',
     over36: '단축근무는 기본 1년에, 육아휴직을 안 쓴 기간의 두 배를 더해 가장 길어도 3년이에요.'
@@ -418,21 +451,28 @@
       + '<span class="lbl">휴직 기간</span><div class="two">' + dateField('cStart', '시작일', calcS.start) + dateField('cEnd', '끝나는 날', calcS.end) + '</div>'
       + '<div class="quick" id="cQuick">' + [3, 6, 12, 18].map(m => '<button type="button" class="chip" data-m="' + m + '">' + m + '개월</button>').join('') + '</div>'
       + '<span class="lbl">내 상황</span><div class="seg" id="cMode"><button type="button" data-m="general">일반</button><button type="button" data-m="both">부모 모두(6+6)</button><button type="button" data-m="single">한부모</button></div>'
-      + '<div id="bothBox" hidden><label class="lbl" for="cSpouse">배우자가 쓰는 기간</label><div class="unit"><input class="inp" id="cSpouse" type="number" inputmode="numeric" min="0" max="18" value="' + esc(calcS.spouseMonths) + '"><span>개월</span></div>'
+      + '<div id="bothBox" hidden><span class="lbl">배우자의 고용보험</span><div class="seg" id="cIns"><button type="button" data-i="1">가입한 근로자</button><button type="button" data-i="0">아니에요</button></div>'
+      + '<small class="hint">6+6은 부모가 모두 고용보험 피보험자일 때만이에요(시행령 제95조의3). 배우자가 공무원·교사·자영업자·프리랜서·전업주부면 "아니에요"를 골라 주세요. 그러면 일반 기준으로 계산해요.</small>'
+      + '<label class="lbl" for="cSpouse">배우자가 쓰는 기간</label><div class="unit"><input class="inp" id="cSpouse" type="number" inputmode="numeric" min="0" max="18" value="' + esc(calcS.spouseMonths) + '"><span>개월</span></div>'
       + manField('cSpousePay', '배우자 월 통상임금 (선택)', calcS.spousePay, '넣으면 우리 집 합계도 보여 드려요.')
       + '<div style="margin-top:12px">' + dateField('cBirth', '아이 태어난 날 (선택)', calcS.birth) + '</div><small class="hint">넣으면 6+6으로 시작할 수 있는 마지막 날을 확인해요. 저장은 이 기기에만 돼요.</small></div>'
+      + '<div id="singleBox" hidden><small class="hint">한부모는 한부모가족지원법에 따라 지원 대상으로 인정된 모 또는 부예요. 별거 중이거나 혼자 키운다는 것만으로는 아니에요(시행령 제95조의3 제3항).</small></div>'
       + '<details class="dt"><summary>휴직 중에 회사에서 돈을 받나요?</summary><p>회사에서 받는 돈과 급여를 합해 통상임금을 넘으면, 넘는 만큼 급여에서 빠져요.</p>' + manField('cCompany', '매달 받는 금액', calcS.company) + '</details>'
       + '</div>';
     const out = () => {
-      const r = K.leaveBenefit({ ordinary: toWon(calcS.pay), start: calcS.start, end: calcS.end, mode: calcS.mode, spouseMonths: calcS.spouseMonths, companyPay: toWon(calcS.company) });
+      const insured = calcS.spouseInsured !== false;
+      const r = K.leaveBenefit({ ordinary: toWon(calcS.pay), start: calcS.start, end: calcS.end, mode: calcS.mode, spouseMonths: calcS.spouseMonths, spouseInsured: insured, companyPay: toWon(calcS.company) });
+      const noPay = r.warnings.includes('pay');
       $$('#cMode button').forEach(b => b.classList.toggle('on', b.dataset.m === calcS.mode));
       $('#bothBox').hidden = calcS.mode !== 'both';
+      $('#singleBox').hidden = calcS.mode !== 'single';
+      $$('#cIns button').forEach(b => b.classList.toggle('on', (b.dataset.i === '1') === insured));
       let compare = '', house = '', birthNote = '';
-      if (calcS.mode !== 'general' && r.rows.length) {
+      if (calcS.mode !== 'general' && r.rows.length && !noPay) {
         const g = K.leaveBenefit({ ordinary: toWon(calcS.pay), start: calcS.start, end: calcS.end, companyPay: toWon(calcS.company) });
         if (r.total > g.total) compare = '<p class="cline">일반 기준보다 <b>' + won(r.total - g.total) + '</b> 더 받아요.</p>';
       }
-      if (calcS.mode === 'both' && toWon(calcS.spousePay) > 0 && +calcS.spouseMonths > 0) {
+      if (calcS.mode === 'both' && insured && toWon(calcS.spousePay) > 0 && +calcS.spouseMonths > 0) {
         const sEnd = K.addDays(K.addMonths(calcS.start, Math.min(18, +calcS.spouseMonths)), -1);
         const s = K.leaveBenefit({ ordinary: toWon(calcS.spousePay), start: calcS.start, end: sEnd, mode: 'both', spouseMonths: r.fullMonths });
         house = '<p class="cline">배우자 ' + s.months + '개월 <b>' + won(s.total) + '</b> · 우리 집 합계 <b>' + won(r.total + s.total) + '</b></p>';
@@ -444,9 +484,14 @@
           : '<p class="cline ok">시작일이 생후 18개월(' + dot(d.bothStartBy) + ') 안이에요. 배우자도 그날까지 시작해야 해요.</p>';
       }
       const tbl = groupRows(r.rows).map(g => '<tr><td>' + (g.full ? (g.from === g.to ? g.from + '개월째' : g.from + '~' + g.to + '개월째') : g.from + '개월째 ' + g.days + '일') + (g.special ? ' <span class="six">6+6</span>' : '') + '<small>' + Math.round(g.rate * 100) + '% · 상한 ' + (g.cap / 10000) + '만원' + (g.cut ? ' · ' + won(g.cut) + ' 감액' : '') + '</small></td><td>' + (g.full ? '월 ' : '') + won(g.paid) + '</td></tr>').join('');
-      $('#calcOut').innerHTML = warnBox(r.warnings) + birthNote + (r.rows.length ? '<div class="result"><small>' + r.months + '개월' + (r.days % 1 ? '' : '') + ' 받는 돈' + (calcS.mode === 'both' && r.common ? ' · 6+6 ' + r.common + '개월' : '') + '</small><strong>' + won(r.total) + '</strong>' + compare + house + '<table class="calctbl">' + tbl + '</table></div>'
-        + '<div class="about"><b>챙길 날짜</b><ul><li>회사에 신청: <b>' + dot(r.applyBy) + '</b>까지(시작 30일 전)</li><li>급여 신청: <b>' + dot(r.claimFrom) + '</b>부터 <b>' + dot(r.claimTo) + '</b>까지 고용24에서</li></ul></div>' : '')
-        + basis('고용보험법 시행령 제95조·제95조의3·제98조(시행 2026.9.18.)', 'https://m.work24.go.kr/cm/c/f/1100/selecSimulate12.do?systClId=SC00000251&systId=SI00000402', '시작 전 같은 회사 6개월 이상 근무, 고용보험 가입 180일 이상이어야 해요. 실제 금액은 고용센터가 정해요.');
+      // 회사 신청 기한(시작 30일 전)이 이미 지났으면 "그날까지"가 아니라 지금 할 수 있는 일을 알려 준다(시행령 제11조 제7항: 기한 뒤 신청도 30일 안에 시작일을 정해 허용)
+      const late = r.applyBy && r.applyBy < todayStr();
+      const dates = '<div class="about"><b>챙길 날짜</b><ul>'
+        + (late ? '<li>회사 신청 기한(시작 30일 전, <b>' + dot(r.applyBy) + '</b>)은 지났어요. 회사와 협의하면 지금도 신청할 수 있고, 기한을 넘겨 신청하면 회사는 신청일부터 30일 안에 시작일을 정해 허용해야 해요.</li>'
+          : '<li>회사에 신청: <b>' + dot(r.applyBy) + '</b>까지(시작 30일 전)</li>')
+        + '<li>급여 신청: <b>' + dot(r.claimFrom) + '</b>부터 <b>' + dot(r.claimTo) + '</b>까지 고용24에서</li></ul></div>';
+      $('#calcOut').innerHTML = warnBox(r.warnings) + birthNote + (r.rows.length && !noPay ? '<div class="result"><small>' + r.months + '개월 받는 돈' + (calcS.mode === 'both' && r.common ? ' · 6+6 ' + r.common + '개월' : '') + '</small><strong>' + won(r.total) + '</strong>' + compare + house + '<table class="calctbl">' + tbl + '</table></div>' + dates : '')
+        + basis('고용보험법 시행령 제95조·제95조의3·제98조(시행 2026.9.18.)', 'https://m.work24.go.kr/cm/c/f/1100/selecSimulate12.do?systClId=SC00000251&systId=SI00000402', '시작 전 같은 회사 6개월 이상 근무, 고용보험 피보험 단위기간 180일 이상이어야 해요. 실제 금액은 고용센터가 정해요.');
     };
     const setMonths = m => { calcS.end = K.addDays(K.addMonths(calcS.start, m), -1); $('#cEnd').value = calcS.end; saveCalc(); out(); };
     bindInputs({
@@ -455,6 +500,7 @@
     }, out);
     $('#cQuick').addEventListener('click', ev => { const b = ev.target.closest('[data-m]'); if (b) setMonths(+b.dataset.m); });
     $('#cMode').addEventListener('click', ev => { const b = ev.target.closest('[data-m]'); if (b) { calcS.mode = b.dataset.m; saveCalc(); out(); } });
+    $('#cIns').addEventListener('click', ev => { const b = ev.target.closest('[data-i]'); if (b) { calcS.spouseInsured = b.dataset.i === '1'; saveCalc(); out(); } });
     bindOrd(out);
     out();
   }
@@ -468,7 +514,7 @@
       + '<label class="lbl" for="cMonths">단축 기간</label><div class="unit"><input class="inp" id="cMonths" type="number" inputmode="numeric" min="1" max="36" value="' + esc(calcS.rMonths) + '"><span>개월</span></div></div>';
     const out = () => {
       const r = K.reduceBenefit({ ordinary: toWon(calcS.pay), before: calcS.before, after: calcS.after, months: calcS.rMonths });
-      $('#calcOut').innerHTML = warnBox(r.warnings) + (r.cut > 0 ? '<div class="result"><small>단축근무 중 한 달 수입(어림)</small><strong>' + won(r.monthly) + '</strong>'
+      $('#calcOut').innerHTML = warnBox(r.warnings) + (r.cut > 0 && !r.warnings.includes('pay') ? '<div class="result"><small>단축근무 중 한 달 수입(어림)</small><strong>' + won(r.monthly) + '</strong>'
         + '<table class="calctbl"><tr><td>회사 임금<small>일한 시간에 비례한 어림값</small></td><td>' + won(r.wage) + '</td></tr>'
         + '<tr><td>정부 급여 · 첫 ' + r.firstHours + '시간<small>통상임금 100%, 상한 250만원</small></td><td>' + won(r.first) + '</td></tr>'
         + (r.restHours ? '<tr><td>정부 급여 · 나머지 ' + r.restHours + '시간<small>통상임금 80%, 상한 160만원</small></td><td>' + won(r.rest) + '</td></tr>' : '')
@@ -491,9 +537,9 @@
       const r = K.paternityPay({ ordinary: toWon(calcS.pay), priority: calcS.priority });
       $$('#cPri button').forEach(b => b.classList.toggle('on', (b.dataset.p === '1') === !!calcS.priority));
       const d = K.childDates({ birth: calcS.birth, due: calcS.due });
-      $('#calcOut').innerHTML = '<div class="result"><small>20일 동안 받는 돈(통상임금 기준)</small><strong>' + won(r.total) + '</strong>'
-        + '<table class="calctbl"><tr><td>정부 급여<small>' + (calcS.priority ? '20일 상한 ' + won(r.capAll) : '우선지원대상기업이 아니면 없음') + '</small></td><td>' + won(r.gov) + '</td></tr>'
-        + '<tr><td>회사가 주는 몫<small>유급 휴가라 나머지는 회사 몫</small></td><td>' + won(r.company) + '</td></tr></table></div>'
+      $('#calcOut').innerHTML = warnBox(r.warnings) + (r.warnings.length ? '' : '<div class="result"><small>20일 동안 받는 돈(통상임금 기준)</small><strong>' + won(r.total) + '</strong>'
+        + '<table class="calctbl"><tr><td>정부 급여<small>' + (calcS.priority ? '20일 상한 ' + won(r.capAll) + ' · 하한 최저임금' : '우선지원대상기업이 아니면 없음') + '</small></td><td>' + won(r.gov) + '</td></tr>'
+        + '<tr><td>회사가 주는 몫<small>유급 휴가라 나머지는 회사 몫</small></td><td>' + won(r.company) + '</td></tr></table></div>')
         + (d.paternityFrom ? '<div class="about"><b>쓸 수 있는 기간</b><ul><li><b>' + dot(d.paternityFrom) + '</b>부터 <b>' + dot(d.paternityTo) + '</b>까지</li><li>20일을 3번까지 나눠 쓸 수 있어요.</li><li>날짜를 적은 문서로 회사에 알려요.</li></ul></div>' : '<div class="about">출산 예정일이나 태어난 날을 넣으면 쓸 수 있는 기간을 알려 드려요.</div>')
         + basis('남녀고용평등법 제18조의2(시행 2026.9.18.), 고용노동부 2026 급여 상한', 'https://www.work24.go.kr/', '1일 통상임금은 월 통상임금 ÷ 209시간 × 8시간으로 어림했어요. 끝나는 날은 태어난 날에 120일을 더한 값이니 회사와 확인해 주세요.');
     };
@@ -708,7 +754,7 @@
     form.addEventListener('submit', ev => { ev.preventDefault(); submit(); });
     const del = $('#delPost');
     if (del) del.addEventListener('click', async () => {
-      if (!confirm('이 글을 지울까요? 댓글도 함께 보이지 않게 돼요.')) return;
+      if (!confirm('이 글을 지울까요? 글과 댓글 내용이 바로 지워지고 되돌릴 수 없어요.')) return;
       try { await api('deletePost', id); listState.posts = []; toast('글을 지웠어요'); go('#/community', true); } catch (e) { fail(e); }
     });
   }
@@ -761,9 +807,10 @@
   let meSeg = 'posts';
   function aboutBox() {
     return '<div class="about"><b>육아맨은</b> 육아하는 아빠들이 서로 묻고, 알려 주고, 자랑하는 곳이에요.<ul>'
-      + '<li>저장하는 것: 닉네임, 내가 쓴 글·댓글, 인증 신청 내용(결정 뒤 지움). 이메일·전화번호·서류·아이 정보는 받지 않아요.</li>'
+      + '<li>저장하는 것: 닉네임, 이 기기 토큰과 복구 코드의 해시, 내가 쓴 글·댓글, 인증 신청 내용(결정 뒤 지움), 누가 초대했는지, 마지막 접속 시각. 가입·코드 시도 때는 기기 주소(IP)의 짧은 해시를 이틀 안에만. 이메일·전화번호·서류·아이 정보는 받지 않아요.</li>'
       + '<li>사진·영상 없이 글로만. 커뮤니티는 인증한 아빠끼리만 읽고 써요.</li>'
-      + '<li>내 글·댓글은 내가 지울 수 있어요. 이 기기의 브라우저 저장소를 지우면 닉네임과 연결이 끊겨요.</li>'
+      + '<li>내 글·댓글은 내가 지울 수 있고, 지우면 내용이 바로 비워져요. 탈퇴하면 글·댓글 내용과 계정이 지워져요.</li>'
+      + '<li>브라우저 저장소가 지워지거나 폰을 바꾸면 복구 코드로 같은 닉네임에 돌아올 수 있어요. 코드는 MY에서 볼 수 있어요.</li>'
       + (mode === 'local' ? '<li>지금은 시험 모드라 글이 이 기기에만 저장돼요.</li>' : '') + '</ul></div>';
   }
   let deferredPrompt = null;
@@ -803,10 +850,13 @@
     if (!me) {
       view.innerHTML = '<section class="pad"><h1 class="htitle">MY</h1>'
         + '<div class="profile" style="margin-top:12px"><span class="big">👋</span><div class="tx"><b>아직 닉네임이 없어요</b><small>닉네임을 정하고 아빠 인증을 하면 커뮤니티를 읽고 쓸 수 있어요. 이메일·서류는 받지 않아요.</small></div></div>'
-        + '<button type="button" class="btn primary" id="startBtn" style="margin-top:12px">시작하기</button>' + installBox() + aboutBox() + '</section>';
+        + (pendingInvite ? '<div class="notice vcta" style="margin-top:12px"><span class="e">🎟️</span><span>받은 초대 코드 <b>' + esc(pendingInvite) + '</b>가 있어요. 시작하기를 누르면 바로 인증돼요.</span></div>' : '')
+        + '<button type="button" class="btn primary" id="startBtn" style="margin-top:12px">시작하기</button>'
+        + '<button type="button" class="btn ghost" id="recoverBtn">다른 폰에서 쓰던 닉네임이 있어요 (복구 코드)</button>' + installBox() + aboutBox() + '</section>';
       $('#startBtn').addEventListener('click', () => openSheet(() => render()));
+      $('#recoverBtn').addEventListener('click', () => openRecover(() => render()));
       bindInstall(); window.scrollTo(0, 0);
-      if (pendingInvite) openSheet(() => render());
+      if (pendingInvite && !invitePrompted) { invitePrompted = true; openSheet(() => render()); }
       return;
     }
     view.innerHTML = '<section class="pad"><div class="loading">불러오는 중…</div></section>';
@@ -819,7 +869,7 @@
       + (r.user.role === 'admin' ? '<a class="glink" href="#/admin"><span>🛠️ 관리자 화면: 인증 신청 · 초대 코드 · 회원</span><span>→</span></a>' : '')
       + (canWrite() ? inviteBox(r) : '')
       + '<div class="seg" style="margin-top:16px"><button type="button" class="' + (meSeg === 'posts' ? 'on' : '') + '" data-seg="posts">내 글 ' + r.posts.length + '</button><button type="button" class="' + (meSeg === 'comments' ? 'on' : '') + '" data-seg="comments">내 댓글 ' + r.comments.length + '</button></div>'
-      + '<div class="list" id="meList"></div>' + installBox() + aboutBox() + '</section>';
+      + '<div class="list" id="meList"></div>' + accountBox(r) + installBox() + aboutBox() + '</section>';
     const paint = () => {
       $('#meList').innerHTML = meSeg === 'posts'
         ? (r.posts.length ? r.posts.map(pcard).join('') : empty('아직 쓴 글이 없어요', canWrite() ? '커뮤니티에서 첫 글을 써 보세요' : '아빠 인증을 하면 쓸 수 있어요'))
@@ -833,11 +883,41 @@
     if (ni) ni.addEventListener('click', async () => { ni.disabled = true; try { await api('createInvite'); render(); } catch (e) { ni.disabled = false; fail(e); } });
     const ib = $('#inviteBox');
     if (ib) ib.addEventListener('click', ev => { const b = ev.target.closest('[data-share]'); if (b) shareInvite(b.dataset.share); });
+    bindAccount();
     bindInstall(); window.scrollTo(0, 0);
-    if (pendingInvite && !canWrite()) openVerify(() => render());
-    else if (pendingInvite) { pendingInvite = ''; }
-    else if (r.user.verified && r.user.how === 'apply' && !store.get('welcomed')) { store.set('welcomed', true); toast('아빠 인증이 승인됐어요'); }
+    if (pendingInvite && canWrite()) clearInvite();
+    else if (pendingInvite && !invitePrompted) { invitePrompted = true; openVerify(() => render()); }
+    if (r.user.verified && r.user.how === 'apply' && !store.get('welcomed')) { store.set('welcomed', true); toast('아빠 인증이 승인됐어요'); }
   }
+  // 내 계정: 복구 코드(폰 바꿀 때) · 이 기기 로그아웃 · 탈퇴(11-04 검수 3·5). 복구 코드는 서버에 해시만 있어 이 기기에 남긴 것을 보여 준다.
+  function accountBox(r) {
+    const rec = store.get('recovery', '');
+    return '<div class="about" id="acctBox"><b>내 계정</b><p class="sm">복구 코드가 있으면 폰을 바꾸거나 저장소가 지워져도 같은 닉네임으로 돌아올 수 있어요. 어디에 적어 두세요.</p>'
+      + '<div class="irow"><code>' + (rec ? esc(rec) : (r.has_recovery ? '이 기기에 코드가 없어요' : '코드 없음')) + '</code><button type="button" class="edit" id="recNew">' + (rec ? '새 코드' : '코드 받기') + '</button></div>'
+      + '<div class="two" style="margin-top:10px"><button type="button" class="btn line small" id="logoutBtn">이 기기 로그아웃</button>' + (me && me.role === 'admin' ? '' : '<button type="button" class="btn line small danger" id="quitBtn">탈퇴하기</button>') + '</div></div>';
+  }
+  function bindAccount() {
+    const rn = $('#recNew');
+    if (rn) rn.addEventListener('click', async () => {
+      if (store.get('recovery', '') && !confirm('새 복구 코드를 만들면 지금 코드는 쓸 수 없어요. 만들까요?')) return;
+      rn.disabled = true;
+      try { const x = await api('recoveryNew'); store.set('recovery', x.recovery); showRecovery(x.recovery, () => render()); } catch (e) { rn.disabled = false; fail(e); }
+    });
+    const lo = $('#logoutBtn');
+    if (lo) lo.addEventListener('click', async () => {
+      const rec = store.get('recovery', '');
+      if (!confirm('이 기기에서 로그아웃할까요? 다시 들어오려면 복구 코드가 필요해요.' + (rec ? '' : ' 지금 이 기기에는 복구 코드가 없어요. 먼저 "코드 받기"를 눌러 적어 두세요.'))) return;
+      try { await api('logout'); } catch (e) { if (!(e && (e.code === 'unknown_user' || e.code === 'login'))) { fail(e); return; } }
+      forgetDevice(); toast('로그아웃했어요'); render();
+    });
+    const q = $('#quitBtn');
+    if (q) q.addEventListener('click', async () => {
+      if (window.prompt('탈퇴하면 내 글과 댓글 내용이 모두 지워지고 되돌릴 수 없어요. 계속하려면 "탈퇴"라고 적어 주세요.') !== '탈퇴') return;
+      try { await api('deleteMe'); forgetDevice(); toast('탈퇴했어요. 그동안 고마웠어요'); go('#/', true); } catch (e) { fail(e); }
+    });
+  }
+  // 이 기기의 계정 흔적을 지운다(토큰은 다음에 새로 만들어진다)
+  function forgetDevice() { setMe(null); store.del('token'); store.del('recovery'); store.del('welcomed'); listState.posts = []; }
 
   // ----- 관리자 -----
   async function renderAdmin() {
@@ -850,8 +930,9 @@
     const STAGE = { raising: '아이를 키워요', expecting: '곧 아빠가 돼요' };
     const urow = u => {
       const state = u.role === 'admin' ? '관리자' : u.blocked ? '막힘' : u.verified ? '인증(' + ({ invite: '초대', apply: '신청', admin: '관리자' }[u.verified_how] || '') + ')' : '인증 전';
-      const acts = u.role !== 'user' ? '' : u.blocked ? '<button type="button" class="edit" data-u="' + u.id + '" data-a="unblock">풀기</button>'
-        : (u.verified ? '<button type="button" class="edit" data-u="' + u.id + '" data-a="unverify">해제</button>' : '<button type="button" class="edit" data-u="' + u.id + '" data-a="verify">인증</button>') + '<button type="button" class="edit" data-u="' + u.id + '" data-a="block">막기</button>';
+      const acts = u.role !== 'user' ? '' : (u.blocked ? '<button type="button" class="edit" data-u="' + u.id + '" data-a="unblock">풀기</button>'
+        : (u.verified ? '<button type="button" class="edit" data-u="' + u.id + '" data-a="unverify">해제</button>' : '<button type="button" class="edit" data-u="' + u.id + '" data-a="verify">인증</button>') + '<button type="button" class="edit" data-u="' + u.id + '" data-a="block">막기</button>')
+        + '<button type="button" class="edit" data-u="' + u.id + '" data-a="logout">끊기</button>';
       return '<div class="urow"><div class="tx"><b>' + esc(u.nick) + '</b><small>' + state + (u.inviter ? ' · 초대: ' + esc(u.inviter) : '') + ' · 글 ' + u.posts + ' · ' + ymd(u.created) + '</small></div><div class="acts">' + acts + '</div></div>';
     };
     view.innerHTML = '<section class="pad">'
@@ -873,7 +954,11 @@
     const mk = ev.target.closest('#invMake');
     try {
       if (d) { const card = d.closest('.appl'); await api('adminDecide', +card.dataset.id, d.dataset.d === '1'); toast(d.dataset.d === '1' ? '승인했어요' : '거절했어요'); view.removeEventListener('click', adminClick); render(); }
-      else if (u) { if (u.dataset.a === 'block' && !confirm('이 회원을 막을까요? 인증이 풀리고 다시 신청할 수 없어요.')) return; await api('adminUser', +u.dataset.u, u.dataset.a); toast('바꿨어요'); view.removeEventListener('click', adminClick); render(); }
+      else if (u) {
+        if (u.dataset.a === 'block' && !confirm('이 회원을 막을까요? 인증이 풀리고 다시 신청할 수 없어요.')) return;
+        if (u.dataset.a === 'logout' && !confirm('이 회원의 기기를 끊을까요? 복구 코드로만 돌아올 수 있어요.')) return;
+        await api('adminUser', +u.dataset.u, u.dataset.a); toast('바꿨어요'); view.removeEventListener('click', adminClick); render();
+      }
       else if (sh) shareInvite(sh.dataset.share);
       else if (mk) { mk.disabled = true; await api('adminInvites', 5, $('#invNote').value.trim()); toast('코드 5개를 만들었어요'); view.removeEventListener('click', adminClick); render(); }
     } catch (e) { fail(e); }
@@ -899,7 +984,7 @@
       + '<div class="err" id="nickErr" hidden></div>'
       + '<button type="button" class="btn primary" id="joinBtn">' + (rename ? '바꾸기' : '다음') + '</button>'
       + '<button type="button" class="btn ghost" id="laterBtn">' + (rename ? '취소' : '둘러보기만 할래요') + '</button></div>', after);
-    $('#laterBtn').addEventListener('click', closeSheet);
+    $('#laterBtn').addEventListener('click', () => { invitePrompted = true; closeSheet(); });
     $('#joinBtn').addEventListener('click', () => doJoin(rename));
     $('#nick').addEventListener('keydown', ev => { if (ev.key === 'Enter' && !ev.isComposing) { ev.preventDefault(); doJoin(rename); } });
     setTimeout(() => { const n = $('#nick'); if (n) n.focus(); }, 60);
@@ -916,12 +1001,54 @@
       setMe(r.user);
       const f = sheetAfter;
       if (rename) { toast('닉네임을 바꿨어요'); closeSheet(); if (f) f(); else render(); return; }
-      if (r.user.verified) { pendingInvite = ''; toast('반가워요, ' + r.user.nick + '님! 인증됐어요'); closeSheet(); if (f) f(); else render(); return; }
+      if (r.recovery) store.set('recovery', r.recovery);
+      if (r.invite_error === 'code_bad' || r.invite_error === 'code_used') clearInvite();
+      const next = () => {
+        if (r.user.verified) { clearInvite(); toast('반가워요, ' + r.user.nick + '님! 인증됐어요'); if (f) f(); else render(); return; }
+        if (r.invite_error) toast(MSG[r.invite_error] || MSG.code_bad, 'err');
+        openVerify(f);
+      };
       closeSheet();
-      if (r.invite_error) toast(MSG[r.invite_error] || MSG.code_bad, 'err');
-      openVerify(f);
+      if (r.recovery) showRecovery(r.recovery, next); else next();     // 가입 직후 복구 코드를 한 번 보여 준다(서버는 해시만 둔다)
     } catch (e) { err.hidden = false; err.textContent = errText(e); }
     finally { btn.disabled = false; }
+  }
+  // 복구 코드 보여 주기(가입 직후 · 새로 만들 때 · 복구 뒤). 배경을 눌러 닫아도 다음 단계로 간다.
+  function showRecovery(code, next, title) {
+    showSheet('<div class="sheet" role="dialog" aria-modal="true" aria-label="복구 코드"><div class="grip"></div><h2>' + esc(title || '복구 코드를 적어 두세요') + '</h2>'
+      + '<p>폰을 바꾸거나 브라우저 저장소가 지워졌을 때 이 코드로 같은 닉네임에 돌아올 수 있어요. 이메일이 없으니 이 코드가 유일한 길이에요. 한 번 쓰면 새 코드로 바뀌어요.</p>'
+      + '<div class="reccode" id="recCode">' + esc(code) + '</div>'
+      + '<button type="button" class="btn line" id="recCopy">복사하기</button>'
+      + '<button type="button" class="btn primary" id="recOk">적어 두었어요</button></div>', null);
+    const done = () => { closeSheet(); if (next) next(); };
+    sheetEl().onclick = ev => { if (ev.target === sheetEl()) done(); };
+    $('#recCopy').addEventListener('click', async () => { try { await navigator.clipboard.writeText(code); toast('복사했어요. 메모 앱에 붙여 두세요'); } catch (e) { window.prompt('이 코드를 적어 두세요', code); } });
+    $('#recOk').addEventListener('click', done);
+  }
+  // 복구 코드로 이어 쓰기: 이 기기에 남은 옛 토큰은 버리고 새 토큰으로 그 계정에 붙는다(이전 폰은 끊김)
+  function openRecover(after) {
+    showSheet('<div class="sheet" role="dialog" aria-modal="true" aria-label="복구 코드로 이어 쓰기"><div class="grip"></div><h2>복구 코드로 이어 쓰기</h2>'
+      + '<p>가입할 때 받은 12자 복구 코드를 넣으면 그 닉네임을 이 폰에서 이어 써요. 이전 폰은 그 순간 로그아웃돼요.</p>'
+      + '<label class="lbl" for="recIn">복구 코드</label><input class="inp code" id="recIn" maxlength="14" placeholder="ABCD-EFGH-2345" autocomplete="off" autocapitalize="characters">'
+      + '<div class="err" id="recErr" hidden></div>'
+      + '<button type="button" class="btn primary" id="recGo">이어 쓰기</button>'
+      + '<button type="button" class="btn ghost" id="recLater">취소</button></div>', after);
+    $('#recLater').addEventListener('click', closeSheet);
+    const run = async () => {
+      const err = $('#recErr'), btn = $('#recGo'), code = $('#recIn').value.trim();
+      if (code.replace(/[^A-Za-z0-9]/g, '').length !== 12) { err.hidden = false; err.textContent = '복구 코드는 12자예요'; return; }
+      btn.disabled = true;
+      try {
+        store.del('token'); setMe(null);
+        const r = await api('recover', code);
+        setMe(r.user); store.set('recovery', r.recovery); clearInvite();
+        const f = sheetAfter; closeSheet();
+        showRecovery(r.recovery, () => { toast('돌아왔어요, ' + r.user.nick + '님'); if (f) f(); else render(); }, '새 복구 코드예요');
+      } catch (e) { err.hidden = false; err.textContent = errText(e); btn.disabled = false; }
+    };
+    $('#recGo').addEventListener('click', run);
+    $('#recIn').addEventListener('keydown', ev => { if (ev.key === 'Enter' && !ev.isComposing) { ev.preventDefault(); run(); } });
+    setTimeout(() => { const n = $('#recIn'); if (n) n.focus(); }, 60);
   }
   // 아빠 인증: 초대 코드(바로) · 신청서(운영자 승인)
   function openVerify(after) {
@@ -941,7 +1068,7 @@
     const setTabV = t => { tab = t; $$('#vTabs button').forEach(b => b.classList.toggle('on', b.dataset.t === t)); $('#vCode').hidden = t !== 'code'; $('#vApply').hidden = t !== 'apply'; $('#vGo').textContent = t === 'code' ? '인증하기' : '신청하기'; $('#vErr').hidden = true; };
     $('#vTabs').addEventListener('click', ev => { const b = ev.target.closest('[data-t]'); if (b) setTabV(b.dataset.t); });
     $('#vStage').addEventListener('click', ev => { const b = ev.target.closest('[data-s]'); if (!b) return; stage = b.dataset.s; $$('#vStage .chip').forEach(x => x.classList.toggle('on', x === b)); });
-    $('#vLater').addEventListener('click', () => { pendingInvite = ''; closeSheet(); if (['me', 'community', 'home'].includes(parse().name)) render(); });
+    $('#vLater').addEventListener('click', () => { invitePrompted = true; closeSheet(); if (['me', 'community', 'home'].includes(parse().name)) render(); });
     $('#vGo').addEventListener('click', async () => {
       const err = $('#vErr'), btn = $('#vGo'); err.hidden = true;
       const show = m => { err.hidden = false; err.textContent = m; };
@@ -959,7 +1086,7 @@
         const r = tab === 'code' ? await api('verifyCode', $('#vcode').value.trim()) : await api('verifyApply', body);
         if (r.user) setMe(r.user);
         const f = sheetAfter;
-        pendingInvite = '';
+        if (tab === 'code') clearInvite();
         if (canWrite()) { toast(r.instant ? '시험 모드라 바로 인증됐어요' : '인증됐어요. 반가워요!'); closeSheet(); if (f) f(); else render(); }
         else { closeSheet(); toast('신청을 받았어요. 승인되면 MY에 표시돼요'); render(); }
       } catch (e) { show(errText(e)); }

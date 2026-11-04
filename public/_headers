@@ -1,0 +1,9 @@
+# Cloudflare Pages 보안 응답 머리글(public/ 정적 파일에 붙는다. /api 응답은 server/app.js json()이 따로 붙인다). 2026-11-04 검수 4.
+# 토큰이 localStorage에 있어 XSS 한 번이 계정 탈취라, 밖에서 오는 스크립트를 막고(script-src 'self') 다른 사이트 안에 끼워 넣지 못하게 한다(frame-ancestors).
+# 글꼴은 cdn.jsdelivr.net(Pretendard)만. 화면 코드가 style="…"을 쓰므로 style-src에 'unsafe-inline'이 필요하다(인라인 <script>는 없다).
+/*
+  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; font-src 'self' https://cdn.jsdelivr.net; img-src 'self' data:; connect-src 'self'; manifest-src 'self'; worker-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'
+  X-Frame-Options: DENY
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=()

@@ -1,7 +1,9 @@
 /* 육아맨 계산기(2026-11-04, 앱개발부). 화면 없는 순수 계산만 둔다(test/calc-test.js로 시험).
    기준은 2026-11-04에 국가법령정보센터 원문으로 확인했다. 법이 바뀌면 RULES만 고치고 시험을 다시 돌린다.
    - 육아휴직 급여: 고용보험법 시행령 제95조(일반) · 제95조의3(부모 모두 18개월 특례 = 6+6, 한부모) · 제98조(회사 금품 감액). [시행 2026.9.18.]
+     6+6은 제95조의3 제1항 "피보험자인 부모가 모두 육아휴직을 하는 경우"에만 — 배우자가 고용보험 피보험자가 아니면(공무원·자영업·전업주부) 일반 기준(opts.spouseInsured = false, 11-04 검수 2).
    - 6+6 공통 기간: 고용노동부 답변 "부모가 공통으로 사용한 기간을 기준", "개시 시점에 생후 18개월 이내", "겹치지 않아도 적용".
+   - 급여 요건: 고용보험법 제70조 제1항 — 육아휴직 30일 이상(단기 육아휴직은 7일 이상), 시작 전 피보험 단위기간 합산 180일. 제2항 — 시작 1개월 뒤부터 끝난 뒤 12개월 안 신청.
    - 육아기 근로시간 단축 급여: 고용보험법 시행령 제104조의2(2026.1.1.부터 상한 250만·160만, 하한 50만).
    - 배우자 출산전후휴가: 남녀고용평등법 제18조의2(20일 유급, 예정일 50일 전~출산 후 120일, 3회 분할). 급여 상한 20일 1,684,210원 · 1일 84,210원(고용노동부 2026).
    - 대상 기간: 남녀고용평등법 제19조(만 8세 이하 또는 초2 이하) · 제19조의2(만 12세 이하 또는 초6 이하). 시행령 제11조(30일 전 신청). 고용보험법 제70조(시작 1개월 뒤~끝난 뒤 12개월 안 신청). */
@@ -71,14 +73,15 @@
     }
     return out;
   }
-  // opts: {ordinary(원), start, end, mode:'general'|'both'|'single', spouseMonths, companyPay(원/월)}
+  // opts: {ordinary(원), start, end, mode:'general'|'both'|'single', spouseMonths, spouseInsured(기본 true), companyPay(원/월)}
   function leaveBenefit(opts) {
     const ordinary = Math.max(0, Math.floor(+opts.ordinary || 0));
     const mode = opts.mode === 'both' || opts.mode === 'single' ? opts.mode : 'general';
     const company = Math.max(0, Math.floor(+opts.companyPay || 0));
+    const insured = opts.spouseInsured !== false;         // 6+6은 부모 모두 피보험자일 때만(제95조의3 제1항)
     const periods = monthlyPeriods(opts.start, opts.end);
     const fullMonths = periods.filter(p => p.full).length;
-    const common = mode === 'both' ? Math.min(6, fullMonths, Math.max(0, Math.floor(+opts.spouseMonths || 0))) : 0;
+    const common = mode === 'both' && insured ? Math.min(6, fullMonths, Math.max(0, Math.floor(+opts.spouseMonths || 0))) : 0;
     let total = 0, deducted = 0;
     const rows = periods.map(p => {
       const m = leaveMonthly(ordinary, p.no, mode, common);
@@ -92,15 +95,17 @@
     });
     const days = periods.reduce((s, p) => s + p.days, 0);
     const warnings = [];
+    if (!ordinary) warnings.push('pay');                   // 통상임금 0이면 하한 70만원으로 계산되어 버리니 화면은 결과를 숨긴다
     if (!periods.length) warnings.push('dates');
     else {
       if (days < RULES.leave.minDays) warnings.push('short');
       if (periods.length > RULES.leave.maxMonths || (periods.length === RULES.leave.maxMonths && !periods[periods.length - 1].full && false)) warnings.push('over18');
       else if (fullMonths > RULES.leave.baseMonths || (fullMonths === RULES.leave.baseMonths && periods.length > fullMonths)) warnings.push('over12');
-      if (mode === 'both' && common < 1) warnings.push('noCommon');
+      if (mode === 'both' && !insured) warnings.push('spouseNotInsured');
+      else if (mode === 'both' && common < 1) warnings.push('noCommon');
     }
     return {
-      ordinary, mode, common, rows, total, deducted, days, months: periods.length, fullMonths, warnings,
+      ordinary, mode, common, insured, rows, total, deducted, days, months: periods.length, fullMonths, warnings,
       applyBy: periods.length ? addDays(opts.start, -RULES.leave.applyBeforeDays) : '',
       claimFrom: periods.length ? addMonths(opts.start, 1) : '',
       claimTo: periods.length ? addMonths(opts.end, 12) : ''
@@ -115,6 +120,7 @@
     const before = +opts.before || 0, after = +opts.after || 0, months = Math.max(1, Math.floor(+opts.months || R.baseMonths));
     const cut = before - after;
     const warnings = [];
+    if (!ordinary) warnings.push('pay');
     if (before <= 0 || cut <= 0) warnings.push('hours');
     if (after < R.afterMin || after > R.afterMax) warnings.push('range');
     if (months > R.maxMonths) warnings.push('over36');
@@ -141,7 +147,7 @@
     const total = Math.floor(daily * days);
     const capAll = days === P.days ? P.fullCap : P.dailyCap * days;
     const gov = opts.priority ? Math.min(total, capAll) : 0;
-    return { ordinary, days, daily: Math.floor(daily), total, gov, company: total - gov, capAll };
+    return { ordinary, days, daily: Math.floor(daily), total, gov, company: total - gov, capAll, warnings: ordinary ? [] : ['pay'] };
   }
 
   // ----- 내 아이 기준 날짜 -----

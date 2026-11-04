@@ -1,9 +1,10 @@
 # 육아맨 미리 보기·올리기(2026-11-04). 화면은 public/ 그대로(만드는 단계 없음), 서버는 functions/·server/, 자료는 D1.
 #   python -X utf8 deploy.py dev [--port 8799] [--fresh]   내 컴퓨터에서 미리 보기(가짜 D1에 schema.sql + seed/official.sql + test/seed-local.sql, --fresh면 가짜 D1을 비우고 다시)
 #   python -X utf8 deploy.py setup                         처음 한 번(휴먼쌤 "올려" 뒤): D1 'yukaman' 만들기 → wrangler.toml database_id 채우기 → 표 → 자료실 글 → Pages 프로젝트 만들기
-#   python -X utf8 deploy.py migrate                       공개 D1에 schema.sql(몇 번 돌려도 그대로)
-#   python -X utf8 deploy.py seed                          공개 D1에 seed/official.sql(자료실 계정의 글, 몇 번 돌려도 그대로)
+#   python -X utf8 deploy.py migrate                       공개 D1에 schema.sql + MIGRATIONS(이미 있는 표에 칸 더하기. 몇 번 돌려도 그대로)
+#   python -X utf8 deploy.py seed                          공개 D1에 seed/official.sql(자료실 계정의 글 넣기) + seed/official-update.sql(이미 있는 글의 제목·본문 맞추기). 몇 번 돌려도 그대로
 #   python -X utf8 deploy.py admin-code                    공개 D1에 첫 관리자 코드 하나를 만들어 화면에 보여 준다(한 번 쓰면 끝. 저장소에 남기지 않는다)
+#   python -X utf8 deploy.py logout-user <회원 번호>        공개 D1에서 그 회원의 기기 토큰을 끊는다(폰을 잃은 관리자 등. 복구 코드로만 돌아온다)
 #   python -X utf8 deploy.py deploy                        Pages에 올리기(휴먼쌤이 시킨 때만)
 # 지어낸 견본 글(test/seed-local.sql)은 내 컴퓨터 미리 보기에서만 쓴다. 공개 D1에는 넣지 않는다.
 # wrangler: 환경 변수 WRANGLER_JS(wrangler.js 경로, NODE가 있으면 그 node로) → 위쪽 폴더 어딘가의 tools/cf-wrangler(포터블, 로그인 정보 config/ 포함) → npx wrangler.
@@ -14,6 +15,11 @@ PROJECT = 'humanssaem-yukaman'
 DB = 'yukaman'
 PLACEHOLDER = '00000000-0000-0000-0000-000000000000'
 ALPHA = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+# schema.sql은 새 표만 만든다. 이미 있는 표에 칸을 더할 때는 여기에 한 줄(이미 있으면 'duplicate column' 오류가 나고 그냥 넘어간다)
+MIGRATIONS = [
+    'ALTER TABLE users ADD COLUMN recovery_hash TEXT',      # 2026-11-04 복구 코드(검수 3)
+]
+SEEDS = [os.path.join('seed', 'official.sql'), os.path.join('seed', 'official-update.sql')]
 
 
 def portable():
@@ -58,10 +64,21 @@ def db_id():
     return m.group(1) if m else ''
 
 
+def migrations(where):
+    """ALTER TABLE 한 줄씩. 칸이 이미 있으면 오류가 나는데 그게 정상이라 넘어간다."""
+    for sql in MIGRATIONS:
+        r = wrangler('d1', 'execute', DB, where, '--command', sql, '-y', capture=True)
+        if r.returncode and 'duplicate column' not in (r.stdout + r.stderr):
+            sys.exit('칸 더하기 실패: ' + sql)
+
+
 def dev():
     if '--fresh' in sys.argv:
         shutil.rmtree(os.path.join(HERE, '.wrangler', 'state'), ignore_errors=True)
-    for f in ('schema.sql', os.path.join('seed', 'official.sql'), os.path.join('test', 'seed-local.sql')):
+    if wrangler('d1', 'execute', DB, '--local', '--file', 'schema.sql'):
+        sys.exit(1)
+    migrations('--local')
+    for f in SEEDS + [os.path.join('test', 'seed-local.sql')]:
         if wrangler('d1', 'execute', DB, '--local', '--file', f):
             sys.exit(1)
     sys.exit(wrangler('pages', 'dev', 'public', '--port', opt('--port', '8799'), '--ip', '127.0.0.1'))
@@ -78,8 +95,10 @@ def setup():
         print('wrangler.toml database_id =', m.group(1))
     if wrangler('d1', 'execute', DB, '--remote', '--file', 'schema.sql', '-y'):
         sys.exit(1)
-    if wrangler('d1', 'execute', DB, '--remote', '--file', os.path.join('seed', 'official.sql'), '-y'):
-        sys.exit(1)
+    migrations('--remote')
+    for f in SEEDS:
+        if wrangler('d1', 'execute', DB, '--remote', '--file', f, '-y'):
+            sys.exit(1)
     # --force가 없으면 Worker로 만들어 버린다(앱개발부 노하우 10-20). 이미 있으면 오류가 나도 괜찮다.
     wrangler('pages', 'project', 'create', PROJECT, '--production-branch', 'main', '--force')
 
@@ -100,11 +119,21 @@ def main():
     elif what == 'setup':
         setup()
     elif what == 'migrate':
-        sys.exit(wrangler('d1', 'execute', DB, '--remote', '--file', 'schema.sql', '-y'))
+        if wrangler('d1', 'execute', DB, '--remote', '--file', 'schema.sql', '-y'):
+            sys.exit(1)
+        migrations('--remote')
     elif what == 'seed':
-        sys.exit(wrangler('d1', 'execute', DB, '--remote', '--file', os.path.join('seed', 'official.sql'), '-y'))
+        for f in SEEDS:
+            if wrangler('d1', 'execute', DB, '--remote', '--file', f, '-y'):
+                sys.exit(1)
     elif what == 'admin-code':
         admin_code()
+    elif what == 'logout-user':
+        uid = int(opt('logout-user', '0'))
+        if uid <= 0:
+            sys.exit('회원 번호를 적어 주세요: deploy.py logout-user 7')
+        sql = "UPDATE users SET token_hash = 'off|' || id || '|' || datetime('now') WHERE id = %d AND role != 'official'" % uid
+        sys.exit(wrangler('d1', 'execute', DB, '--remote', '--command', sql, '-y'))
     elif what == 'deploy':
         if db_id() == PLACEHOLDER:
             sys.exit('먼저 `deploy.py setup`으로 D1을 만들고 database_id를 채워 주세요')

@@ -1,4 +1,5 @@
-# seed/official-posts.json → seed/official.sql (자료실 계정의 글. 공개 D1에도 넣는다)
+# seed/official-posts.json → seed/official.sql (자료실 계정의 글. 공개 D1에도 넣는다. INSERT OR IGNORE라 이미 있는 글은 안 바뀐다)
+#                          → seed/official-update.sql (이미 있는 글의 제목·본문을 파일과 같게 맞추는 UPDATE. 글을 고친 뒤 deploy.py seed)
 #                          → public/official-data.js (같은 글을 아빠 가이드 'Q&A·정보'에 넣어 인증 전에도 누구나 본다. 2026-11-04 휴먼쌤 "가이드는 전부다 열어둬")
 # 사람이 쓴 것처럼 꾸미지 않는다: 글쓴이는 늘 '육아맨 자료실'(로그인 불가 계정), 내용은 공식 자료·출처가 있는 것만. 지어낸 경험담은 넣지 않는다.
 # 몇 번 돌려도 그대로(INSERT OR IGNORE). 글 번호는 파일 순서대로 1번부터라 앞에 끼워 넣지 말고 뒤에 더한다.
@@ -90,6 +91,12 @@ def main():
     path = os.path.join(HERE, 'seed', 'official.sql')
     open(path, 'w', encoding='utf-8', newline='\n').write('\n'.join(out) + '\n')
     print('글', len(posts), '→', path)
+    upd = ['-- 만들어지는 파일: tools/build_seed.py. 이미 들어 있는 자료실 글의 제목·본문을 seed/official-posts.json과 같게 맞춘다(user_id = 1인 글만).']
+    for i, p in enumerate(posts, 1):
+        upd.append('UPDATE posts SET cat = %s, title = %s, body = %s WHERE id = %d AND user_id = 1 AND deleted IS NULL;' % (q(p['cat']), q(p['title']), q(p['body']), i))
+    path = os.path.join(HERE, 'seed', 'official-update.sql')
+    open(path, 'w', encoding='utf-8', newline='\n').write('\n'.join(upd) + '\n')
+    print('고치기', len(posts), '→', path)
     write_guide(posts)
 
 

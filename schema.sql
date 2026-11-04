@@ -1,12 +1,13 @@
 -- 육아맨 D1 짜임(2026-11-04). 몇 번 돌려도 그대로(IF NOT EXISTS).
--- 처음 한 번: deploy.py setup (표 + seed/official.sql)
+-- 처음 한 번: deploy.py setup (표 + seed/official.sql). 이미 있는 표에 칸을 더하는 것은 deploy.py의 MIGRATIONS(ALTER TABLE, 있으면 건너뜀).
 
 -- 사용자: 닉네임 + 기기 토큰 해시 + 아빠 인증 상태. 이메일·전화·서류·아이 정보는 받지 않는다. 토큰 자체는 폰(localStorage)에만 있다.
 CREATE TABLE IF NOT EXISTS users (
   id           INTEGER PRIMARY KEY,
   nick         TEXT NOT NULL,
   nick_key     TEXT NOT NULL UNIQUE,     -- 띄어쓰기를 빼고 소문자(같은 닉네임 막기)
-  token_hash   TEXT NOT NULL UNIQUE,     -- SHA-256('tok|' + 기기 토큰)
+  token_hash   TEXT NOT NULL UNIQUE,     -- SHA-256('tok|' + 기기 토큰). 기기를 끊으면 'off|…'(어떤 토큰과도 안 맞음)
+  recovery_hash TEXT,                    -- SHA-256('rec|' + 복구 코드 12자). 코드는 가입 때 한 번 보여 주고 폰을 바꿀 때 쓴다(한 번 쓰면 새 코드). 11-04 검수 3
   created      TEXT NOT NULL,            -- ISO 시각(UTC)
   last_seen    TEXT NOT NULL DEFAULT '',
   role         TEXT NOT NULL DEFAULT 'user',   -- user · official(자료실 계정, 로그인 불가) · admin(휴먼쌤)
@@ -44,7 +45,7 @@ CREATE TABLE IF NOT EXISTS applications (
 CREATE INDEX IF NOT EXISTS applications_status ON applications (status, id);
 CREATE INDEX IF NOT EXISTS applications_user ON applications (user_id, id);
 
--- 글. 지운 글은 deleted에 지운 시각(목록·상세에서 빠짐, 되살리기 = 비움)
+-- 글. 지운 글은 deleted에 지운 시각을 적고 title·body를 비운다(되살리기 없음). 탈퇴한 사람의 글도 같다.
 CREATE TABLE IF NOT EXISTS posts (
   id            INTEGER PRIMARY KEY,
   user_id       INTEGER NOT NULL,
@@ -59,7 +60,7 @@ CREATE INDEX IF NOT EXISTS posts_list ON posts (deleted, id);
 CREATE INDEX IF NOT EXISTS posts_cat  ON posts (cat, deleted, id);
 CREATE INDEX IF NOT EXISTS posts_user ON posts (user_id);
 
--- 댓글(한 단계, 답글 없음 — 1판)
+-- 댓글(한 단계, 답글 없음 — 1판). 지운 댓글은 deleted에 시각, body는 빈 글자.
 CREATE TABLE IF NOT EXISTS comments (
   id      INTEGER PRIMARY KEY,
   post_id INTEGER NOT NULL,

@@ -33,6 +33,20 @@ eq(paid(r), [250, 250, 300].map(x => x * MAN), '내가 3개월이면 3개월까�
 r = C.leaveBenefit({ ordinary: 500 * MAN, ...span(4), mode: 'both', spouseMonths: 0 });
 eq(r.warnings.includes('noCommon'), true, '배우자 사용 없음 경고');
 eq(paid(r), [250, 250, 250, 200].map(x => x * MAN), '배우자 안 쓰면 일반');
+// 제95조의3 제1항 "피보험자인 부모가 모두": 배우자가 고용보험 피보험자가 아니면(공무원·자영업·전업주부) 6+6이 아니다
+r = C.leaveBenefit({ ordinary: 500 * MAN, ...span(6), mode: 'both', spouseMonths: 6, spouseInsured: false });
+eq(paid(r), [250, 250, 250, 200, 200, 200].map(x => x * MAN), '배우자 미가입이면 일반 기준');
+eq(r.common, 0, '배우자 미가입 공통 0');
+eq(r.warnings.includes('spouseNotInsured') && !r.warnings.includes('noCommon'), true, '배우자 미가입 경고 하나만');
+r = C.leaveBenefit({ ordinary: 500 * MAN, ...span(6), mode: 'both', spouseMonths: 6, spouseInsured: true });
+eq(r.total, 2000 * MAN, 'spouseInsured true는 기본과 같다');
+
+// 통상임금 0은 하한 70만원으로 계산되지 않게 경고
+r = C.leaveBenefit({ ordinary: 0, ...span(12) });
+eq(r.warnings.includes('pay'), true, '통상임금 0 경고(육아휴직)');
+eq(C.reduceBenefit({ ordinary: 0, before: 40, after: 30 }).warnings.includes('pay'), true, '통상임금 0 경고(단축)');
+eq(C.paternityPay({ ordinary: 0, priority: true }).warnings, ['pay'], '통상임금 0 경고(배우자 출산휴가)');
+eq(C.paternityPay({ ordinary: 350 * MAN, priority: true }).warnings, [], '통상임금 있으면 경고 없음');
 
 // 한부모(제95조의3 제3항)
 r = C.leaveBenefit({ ordinary: 350 * MAN, ...span(8), mode: 'single' });
