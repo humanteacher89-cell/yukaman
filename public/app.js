@@ -3,7 +3,7 @@
               #/community[/<분류>] 커뮤니티 · #/p/<번호> 글 · #/write 글쓰기 · #/me MY · #/join/<코드> 초대 · #/admin 관리자
    커뮤니티 글·댓글·인증: 서버(/api, server/app.js)가 있으면 서버에, 없으면(정적 서버·파일로 열기) 시험 모드 — 견본 글(sample-data.js) + 이 기기(localStorage)에만.
    가이드 글: guide-data.js · 자료실: data/library.json · 계산: calc.js(법령 기준, test/calc-test.js). 사진·영상 없음 — 줄글 + 댓글만, 검색 됨(11-04 휴먼쌤).
-   아빠 인증: 읽기는 누구나, 글·댓글은 인증 아빠만. 초대 코드(바로) 또는 신청서(관리자 승인). 서류·아이 정보는 받지 않는다. */
+   아빠 인증: 커뮤니티는 읽기도 쓰기도 인증 아빠만(2026-11-04 휴먼쌤 "인증 아빠만"), 가이드·계산기·자료실은 누구나. 초대 코드(바로) 또는 신청서(관리자 승인). 서류·아이 정보는 받지 않는다. */
 (function () {
   'use strict';
   const CFG = window.YK_CONFIG || {};
@@ -28,7 +28,7 @@
     limit: '너무 자주 했어요. 잠시 뒤에 다시 해 주세요', title_len: '제목은 2~60자로 해 주세요', body_len: '내용을 적어 주세요(3000자까지)',
     comment_len: '댓글은 1~1000자로 해 주세요', cat: '분류를 골라 주세요', not_found: '글을 찾을 수 없어요(지워졌을 수 있어요)',
     forbidden: '내가 쓴 것만 지울 수 있어요', bad_json: '보낼 내용이 잘못됐어요', server: '서버에 문제가 있어요. 잠시 뒤 다시 해 주세요', network: '인터넷 연결을 확인해 주세요',
-    verify: '글과 댓글은 인증한 아빠만 쓸 수 있어요', blocked: '이용이 제한된 계정이에요',
+    verify: '커뮤니티는 인증한 아빠만 읽고 쓸 수 있어요', blocked: '이용이 제한된 계정이에요',
     code_bad: '맞지 않는 초대 코드예요', code_used: '이미 쓴 초대 코드예요', stage: '지금 상황을 골라 주세요', answer_len: '이야기는 20자 이상으로 적어 주세요', pledge: '약속에 체크해 주세요', invite_max: '초대 코드는 3개까지 만들 수 있어요'
   };
 
@@ -87,6 +87,7 @@
   let me = store.get('me', null);
   function setMe(u) { me = u ? { id: u.id, nick: u.nick, created: u.created, verified: !!u.verified, role: u.role || 'user', how: u.how || '', blocked: !!u.blocked } : null; if (me) store.set('me', me); else store.del('me'); }
   const canWrite = () => me && !me.blocked && (me.verified || me.role === 'admin');
+  const canRead = canWrite;   // 커뮤니티 읽기 자격은 쓰기와 같다
   const pub = u => ({ id: u.id, nick: u.nick, created: u.created, verified: !!u.verified, role: 'user', how: u.how || '', blocked: false });
   let pendingInvite = '';
 
@@ -149,12 +150,14 @@
     needDad() { const u = this.need(); if (!u.verified) throw new ApiError('verify', 403); return u; },
     card(p) { const d = this.db; return { id: p.id, cat: p.cat, title: p.title, preview: p.body.slice(0, 140), created: p.created, comments: d.comments.filter(c => c.post_id === p.id && !c.deleted).length, nick: this.u(p.user_id).nick, uid: p.user_id, badge: this.badge(p.user_id) }; },
     async listPosts(p) {
+      this.needDad();
       const d = this.load(), limit = p.limit || PAGE, words = String(p.q || '').toLowerCase().split(/\s+/).filter(Boolean);
       let rows = d.posts.filter(x => { if (x.deleted || (p.cat && x.cat !== p.cat) || (p.before && x.id >= p.before)) return false; const hay = (x.title + '\n' + x.body).toLowerCase(); return words.every(w => hay.indexOf(w) >= 0); }).sort((a, b) => b.id - a.id);
       const more = rows.length > limit; rows = rows.slice(0, limit);
       return { ok: true, posts: rows.map(x => this.card(x)), next: more ? rows[rows.length - 1].id : null };
     },
     async getPost(id) {
+      this.needDad();
       const d = this.load(); const p = d.posts.find(x => x.id === id && !x.deleted); if (!p) throw new ApiError('not_found', 404);
       const post = this.card(p); post.body = p.body;
       return { ok: true, post, comments: d.comments.filter(c => c.post_id === id && !c.deleted).map(c => ({ id: c.id, body: c.body, created: c.created, nick: this.u(c.user_id).nick, uid: c.user_id, badge: this.badge(c.user_id) })) };
@@ -211,6 +214,14 @@
     if (code === 'verify') { if (me) { me.verified = false; store.set('me', me); } openVerify(after); return; }
     toast(MSG[code] || MSG.server, 'err');
     if (window.console && code === 'server') console.warn('yukaman', e);
+  }
+  // 서버가 커뮤니티 읽기를 막았을 때(인증 해제·막힘·모르는 기기): 내 정보를 맞추고 true를 돌려준다. 화면은 잠금으로 바꾼다.
+  function readDenied(e) {
+    const code = e && e.code;
+    if (code === 'verify') { if (me) { me.verified = false; store.set('me', me); } return true; }
+    if (code === 'blocked') { if (me) { me.blocked = true; store.set('me', me); } return true; }
+    if (code === 'unknown_user') { setMe(null); return true; }
+    return code === 'login';
   }
   const errText = e => { const code = e && e.code; return MSG[code] || (e && e.name === 'TypeError' ? MSG.network : MSG.server); };
   const empty = (title, sub) => '<div class="empty"><div class="big">🍼</div>' + esc(title) + (sub ? '<br><span style="font-weight:600;font-size:13px">' + esc(sub) + '</span>' : '') + '</div>';
@@ -295,8 +306,8 @@
     setTab('home');
     bar(brandBar());
     view.innerHTML = '<section class="pad"><div class="loading">불러오는 중…</div></section>';
-    let posts = [], err = null;
-    try { posts = (await api('listPosts', { limit: 4 })).posts; } catch (e) { err = e; }
+    let posts = [], err = null, locked = !canRead();
+    if (!locked) { try { posts = (await api('listPosts', { limit: 4 })).posts; } catch (e) { if (readDenied(e)) locked = true; else err = e; } }
     const feat = GD.items.filter(g => g.home).slice(0, 3);
     view.innerHTML = '<section class="pad">'
       + '<div class="hero"><p class="hi">' + (me ? esc(me.nick) + '님, 안녕하세요' : '육아하는 아빠들의 동네') + '</p><h1>서로 묻고, 알려 주고,<br>자랑하는 곳</h1><p>아빠 가이드로 제도를 챙기고,<br>커뮤니티에서 아빠끼리 솔직하게.</p><div class="mascot">' + LOGO + '</div></div>'
@@ -304,8 +315,10 @@
       + '<div class="sec"><h2>아빠 가이드</h2><a class="all" href="#/guide">전체 보기 →</a></div>'
       + calcCard()
       + '<div class="glist" style="margin-top:8px">' + feat.map(grow).join('') + '<a class="grow" href="#/library"><span class="ge">🗂️</span><span class="tx"><b>남성 육아휴직 자료실</b><small>법령 · 통계 · 연구 · 판례 · 경험담을 키워드로</small></span></a></div>'
-      + '<div class="sec"><h2>커뮤니티 새 글</h2><a class="all" href="#/community">전체 보기 →</a></div>'
-      + '<div class="list" id="homeList">' + (err ? empty('글을 못 불러왔어요', '잠시 뒤 다시 열어 주세요') : (posts.length ? posts.map(pcard).join('') : empty('아직 글이 없어요', '첫 글을 써 보세요!'))) + '</div>'
+      + (locked
+        ? '<div class="sec"><h2>커뮤니티</h2></div><a class="notice vcta" id="homeLock" href="#/community"><span class="e">🔒</span><span>커뮤니티 글은 인증한 아빠만 볼 수 있어요. <b>' + (me ? '아빠 인증하기' : '시작하기') + '</b></span></a>'
+        : '<div class="sec"><h2>커뮤니티 새 글</h2><a class="all" href="#/community">전체 보기 →</a></div>'
+          + '<div class="list" id="homeList">' + (err ? empty('글을 못 불러왔어요', '잠시 뒤 다시 열어 주세요') : (posts.length ? posts.map(pcard).join('') : empty('아직 글이 없어요', '첫 글을 써 보세요!'))) + '</div>')
       + '<p class="foot-note">육아맨 ' + esc(CFG.VERSION || '') + ' · 사진·영상 없이 줄글로 · 인증한 아빠끼리</p>'
       + '</section>';
     window.scrollTo(0, 0);
@@ -555,8 +568,46 @@
       + '<h3>' + esc(p.title) + '</h3><p>' + esc(p.preview || '') + '</p>'
       + '<div class="foot">' + who(p.nick, p.badge) + '<span class="cmt">' + ICON.chat + ' ' + (p.comments || 0) + '</span></div></a>';
   }
+  // 커뮤니티 잠금: 인증 전에는 목록·글·검색을 열지 않고, 왜 닫혀 있는지와 인증하는 길을 보여 준다
+  function renderLock() {
+    fab.hidden = true;
+    view.innerHTML = '<section class="pad"><h1 class="htitle">커뮤니티 💬</h1><p class="hsub">사진·영상 없이 줄글로, 아빠끼리 솔직하게</p>'
+      + (mode === 'local' ? mockBadge() : '')
+      + '<div class="lockbox" id="lockBox"><div class="lk">🔒</div><h2>인증한 아빠만 볼 수 있어요</h2>'
+      + '<p>회사 이야기, 아이 이야기를 마음 놓고 나눌 수 있게 글과 댓글, 검색을 아빠끼리만 열어 두었어요.</p>'
+      + '<div class="catpick lockcats">' + CATS.map(c => '<span class="chip"><span class="e">' + c.e + '</span>' + esc(c.name) + '</span>').join('') + '</div>'
+      + (me && me.blocked ? '<div class="vstate bad">이용이 제한된 계정이에요.</div>'
+        : '<div id="lockCta"><button type="button" class="btn primary" id="lockGo">' + (me ? '아빠 인증하기' : '시작하기') + '</button><small class="hint">초대 코드가 있으면 바로, 없으면 신청서를 쓰면 운영자가 읽고 승인해요. 서류나 사진은 받지 않아요.</small></div>')
+      + '</div>'
+      + '<div class="sec"><h2>인증 전에도 볼 수 있어요</h2></div>'
+      + '<div class="glist" style="margin-top:0">'
+      + '<a class="grow" href="#/guide"><span class="ge">📚</span><span class="tx"><b>아빠 가이드</b><small>육아휴직 · 놀이 · 심리 · 정책</small></span></a>'
+      + '<a class="grow" href="#/calc"><span class="ge">💰</span><span class="tx"><b>계산기</b><small>육아휴직 · 단축근무 · 출산휴가 · 아이 날짜</small></span></a>'
+      + '<a class="grow" href="#/library"><span class="ge">🗂️</span><span class="tx"><b>자료실</b><small>법령 · 통계 · 연구 · 판례 · 경험담</small></span></a>'
+      + '</div></section>';
+    window.scrollTo(0, 0);
+    const after = () => render();
+    const start = $('#lockGo');
+    if (start) start.addEventListener('click', () => { if (!me) openSheet(after); else openVerify(after); });
+    if (!me) return;
+    // 승인·해제가 다른 곳에서 일어났을 수 있으니 서버에 맞춘다. 신청 중이면 그 상태를 보여 준다.
+    const wasBlocked = !!me.blocked;
+    api('me').then(r => {
+      if (!$('#lockBox')) return;
+      setMe(r.user);
+      if (canRead()) { render(); return; }
+      if (!!me.blocked !== wasBlocked) { renderLock(); return; }
+      const cta = $('#lockCta');
+      if (cta && r.application && r.application.status === 'pending') {
+        cta.innerHTML = statusBox(r);
+        const d = $('#doVerify'); if (d) d.addEventListener('click', () => openVerify(after));
+      }
+    }).catch(e => { if (e && e.code === 'unknown_user' && $('#lockBox')) { setMe(null); renderLock(); } });
+  }
   async function renderCommunity(cat) {
-    setTab('community'); fab.hidden = false;
+    setTab('community');
+    if (!canRead()) { bar(brandBar()); renderLock(); return; }
+    fab.hidden = false;
     bar(brandBar('<button class="searchcta" id="btnSearch" aria-label="키워드 검색"><span class="bubble" id="searchBubble">키워드 검색</span><span class="sc">' + ICON.search + '</span></button>'));
     const reuse = listState.keep && listState.cat === cat && listState.posts.length > 0;
     listState.keep = false;
@@ -567,7 +618,6 @@
       + '<div class="chips">' + chip('', '전체', '🏠', cat) + CATS.map(c => chip(c.key, c.name, c.e, cat)).join('') + '</div>'
       + '<div class="searchbar" id="searchbar"' + (q ? '' : ' hidden') + '><input id="q" type="search" placeholder="키워드로 글 찾기 (예: 복직, 이유식)" enterkeyhint="search" autocomplete="off" value="' + esc(q) + '"><button type="button" class="sgo" id="qgo">찾기</button><button type="button" class="sx" id="qx" aria-label="검색 지우기">✕</button></div>'
       + (mode === 'local' ? mockBadge() : '')
-      + (me && !canWrite() ? '<button type="button" class="notice vcta" id="vcta"><span class="e">✅</span><span>글과 댓글은 인증한 아빠만 쓸 수 있어요. <b>아빠 인증하기</b></span></button>' : '')
       + '<div class="list" id="list"></div><button type="button" class="more" id="more" hidden>더 보기</button>'
       + '</section>';
     const syncBubble = () => { const b = $('#searchBubble'); if (b) b.hidden = !$('#searchbar').hidden; };
@@ -578,7 +628,6 @@
     $('#qgo').addEventListener('click', doSearch);
     $('#qx').addEventListener('click', () => { $('#q').value = ''; $('#searchbar').hidden = true; syncBubble(); if (listState.q) { listState.q = ''; loadList(false); } });
     $('#more').addEventListener('click', () => loadList(true));
-    const v = $('#vcta'); if (v) v.addEventListener('click', () => openVerify(() => render()));
     if (reuse) { paintList(); window.scrollTo(0, listState.scroll); } else { window.scrollTo(0, 0); await loadList(false); }
   }
   async function loadList(more) {
@@ -590,7 +639,11 @@
       listState.posts = more ? listState.posts.concat(r.posts) : r.posts; listState.next = r.next;
       if (mode === 'local' && !$('#mockBadge') && $('#list')) $('#list').insertAdjacentHTML('beforebegin', mockBadge());
       paintList();
-    } catch (e) { if (!more) list.innerHTML = empty('글을 못 불러왔어요', '잠시 뒤 다시 열어 주세요'); fail(e); }
+    } catch (e) {
+      if (readDenied(e)) { listState.posts = []; bar(brandBar()); renderLock(); return; }
+      if (!more) list.innerHTML = empty('글을 못 불러왔어요', '잠시 뒤 다시 열어 주세요');
+      fail(e);
+    }
     finally { if (btn) { btn.disabled = false; btn.textContent = '더 보기'; } }
   }
   function paintList() {
@@ -609,13 +662,16 @@
       + (mine ? '<button type="button" class="del" data-del-cmt="' + c.id + '">삭제</button>' : '') + '</span></div><div class="txt">' + rich(c.body) + '</div></div>';
   }
   async function renderPost(id) {
-    setTab('community'); app.classList.add('notab', 'composing');
+    setTab('community');
+    const lockPost = () => { app.classList.remove('notab', 'composing'); bar(backBtn('#/community') + '<div class="fill atitle">글</div>'); renderLock(); };
+    if (!canRead()) { lockPost(); return; }
+    app.classList.add('notab', 'composing');
     bar(backBtn('#/community') + '<div class="fill atitle">글</div><span id="postAct"></span>');
     view.innerHTML = '<section class="pad"><div class="loading">불러오는 중…</div></section>';
     window.scrollTo(0, 0);
     let r;
     try { r = await api('getPost', id); }
-    catch (e) { view.innerHTML = '<section class="pad">' + empty('글을 찾을 수 없어요', '지워졌거나 주소가 틀렸어요') + '</section>'; app.classList.remove('composing'); if (!(e && e.code === 'not_found')) fail(e); return; }
+    catch (e) { if (readDenied(e)) { lockPost(); return; } view.innerHTML = '<section class="pad">' + empty('글을 찾을 수 없어요', '지워졌거나 주소가 틀렸어요') + '</section>'; app.classList.remove('composing'); if (!(e && e.code === 'not_found')) fail(e); return; }
     const p = r.post, c = CAT[p.cat] || { name: p.cat, e: '' }, mine = me && (p.uid === me.id || me.role === 'admin');
     if (mine) $('#postAct').innerHTML = '<button type="button" class="abtn danger" id="delPost">삭제</button>';
     const ph = !me ? '닉네임을 정하면 댓글을 쓸 수 있어요' : canWrite() ? '댓글을 남겨 보세요' : '아빠 인증을 하면 댓글을 쓸 수 있어요';
@@ -673,7 +729,7 @@
       + '<label class="lbl" for="wtitle">제목</label><input class="inp" id="wtitle" maxlength="60" placeholder="한 줄로 요약해 주세요" value="' + esc(d.title || '') + '" autocomplete="off">'
       + '<label class="lbl" for="wbody">내용</label><textarea class="inp" id="wbody" maxlength="3000" placeholder="아빠들에게 묻고 싶은 것, 알려 주고 싶은 것을 편하게 적어 주세요. 사진·영상 없이 글로만 올라가요.">' + esc(d.body || '') + '</textarea>'
       + '<div class="cnt"><span id="wcnt">' + len(d.body || '') + '</span>/3000</div>'
-      + '<div class="notice"><span class="e">🔒</span><span>아이의 이름·얼굴·어린이집 이름 같은 개인정보는 적지 말아 주세요. 글은 모두에게 보여요.</span></div>'
+      + '<div class="notice"><span class="e">🔒</span><span>아이의 이름·얼굴·어린이집 이름 같은 개인정보는 적지 말아 주세요. 글은 인증한 아빠들에게 보여요.</span></div>'
       + '<button class="btn primary" type="submit" style="margin-top:14px">올리기</button>'
       + '</form></section>';
     window.scrollTo(0, 0);
@@ -704,7 +760,7 @@
   function aboutBox() {
     return '<div class="about"><b>육아맨은</b> 육아하는 아빠들이 서로 묻고, 알려 주고, 자랑하는 곳이에요.<ul>'
       + '<li>저장하는 것: 닉네임, 내가 쓴 글·댓글, 인증 신청 내용(결정 뒤 지움). 이메일·전화번호·서류·아이 정보는 받지 않아요.</li>'
-      + '<li>사진·영상 없이 글로만. 글은 모두 읽을 수 있고, 쓰기는 인증한 아빠만 해요.</li>'
+      + '<li>사진·영상 없이 글로만. 커뮤니티는 인증한 아빠끼리만 읽고 써요.</li>'
       + '<li>내 글·댓글은 내가 지울 수 있어요. 이 기기의 브라우저 저장소를 지우면 닉네임과 연결이 끊겨요.</li>'
       + (mode === 'local' ? '<li>지금은 시험 모드라 글이 이 기기에만 저장돼요.</li>' : '') + '</ul></div>';
   }
@@ -737,14 +793,14 @@
     if (u.verified || u.role === 'admin') return '<div class="vstate ok">' + CHECK + '<span><b>인증 아빠</b>' + (u.role === 'admin' ? ' · 관리자' : '') + '</span></div>';
     const ap = r.application;
     if (ap && ap.status === 'pending') return '<div class="vstate wait"><span><b>인증 신청을 확인하고 있어요.</b><br>승인되면 여기에 바로 표시돼요. 초대 코드가 생기면 먼저 쓸 수도 있어요.</span><button type="button" class="edit" id="doVerify">코드 넣기</button></div>';
-    return '<div class="vstate"><span><b>아직 인증 전이에요.</b><br>글과 댓글은 인증한 아빠만 쓸 수 있어요.' + (ap && ap.status === 'rejected' ? ' 지난 신청은 승인되지 않았어요. 다시 신청할 수 있어요.' : '') + '</span><button type="button" class="edit" id="doVerify">인증하기</button></div>';
+    return '<div class="vstate"><span><b>아직 인증 전이에요.</b><br>커뮤니티는 인증한 아빠만 읽고 쓸 수 있어요.' + (ap && ap.status === 'rejected' ? ' 지난 신청은 승인되지 않았어요. 다시 신청할 수 있어요.' : '') + '</span><button type="button" class="edit" id="doVerify">인증하기</button></div>';
   }
   async function renderMe() {
     setTab('me');
     bar(brandBar());
     if (!me) {
       view.innerHTML = '<section class="pad"><h1 class="htitle">MY</h1>'
-        + '<div class="profile" style="margin-top:12px"><span class="big">👋</span><div class="tx"><b>아직 닉네임이 없어요</b><small>닉네임을 정하고 아빠 인증을 하면 글과 댓글을 쓸 수 있어요. 이메일·서류는 받지 않아요.</small></div></div>'
+        + '<div class="profile" style="margin-top:12px"><span class="big">👋</span><div class="tx"><b>아직 닉네임이 없어요</b><small>닉네임을 정하고 아빠 인증을 하면 커뮤니티를 읽고 쓸 수 있어요. 이메일·서류는 받지 않아요.</small></div></div>'
         + '<button type="button" class="btn primary" id="startBtn" style="margin-top:12px">시작하기</button>' + installBox() + aboutBox() + '</section>';
       $('#startBtn').addEventListener('click', () => openSheet(() => render()));
       bindInstall(); window.scrollTo(0, 0);
@@ -870,7 +926,7 @@
     if (!me) { openSheet(after); return; }
     let tab = 'code', stage = '';
     showSheet('<div class="sheet" role="dialog" aria-modal="true" aria-label="아빠 인증"><div class="grip"></div><h2>아빠 인증</h2>'
-      + '<p>글과 댓글은 인증한 아빠만 쓸 수 있어요. 읽기는 지금도 돼요. 서류나 사진은 받지 않아요.</p>'
+      + '<p>커뮤니티는 인증한 아빠만 읽고 쓸 수 있어요. 서류나 사진은 받지 않아요.</p>'
       + '<div class="seg" id="vTabs"><button type="button" class="on" data-t="code">초대 코드</button><button type="button" data-t="apply">코드가 없어요</button></div>'
       + '<div id="vCode"><label class="lbl" for="vcode">초대 코드</label><input class="inp code" id="vcode" maxlength="12" placeholder="ABCD-2345" autocomplete="off" autocapitalize="characters" value="' + esc(pendingInvite) + '"><small class="hint">먼저 가입한 아빠에게 받은 코드를 넣으면 바로 인증돼요.</small></div>'
       + '<div id="vApply" hidden><span class="lbl">지금 상황</span><div class="catpick" id="vStage"><button type="button" class="chip" data-s="raising">아이를 키워요</button><button type="button" class="chip" data-s="expecting">곧 아빠가 돼요</button></div>'
@@ -922,6 +978,8 @@
   if (mode === 'local') { const u = local.user(); setMe(u ? pub(u) : null); }
   render();
   // 승인·해제가 다른 기기에서 일어나도 다음에 열 때 맞춘다(화면을 막지 않는다)
-  if (me && mode === 'server') api('me').then(r => { setMe(r.user); }).catch(e => { if (e && e.code === 'unknown_user') setMe(null); });
+  // 읽기 자격이 바뀌었으면 커뮤니티가 보이는 화면을 다시 그린다(잠금 ↔ 글 목록)
+  const syncMe = next => { const was = canRead(); setMe(next); if (!!was !== !!canRead() && ['home', 'community', 'post'].includes(parse().name)) render(); };
+  if (me && mode === 'server') api('me').then(r => { syncMe(r.user); }).catch(e => { if (e && e.code === 'unknown_user') syncMe(null); });
   if ('serviceWorker' in navigator && location.protocol !== 'file:') window.addEventListener('load', () => { navigator.serviceWorker.register('sw.js').catch(() => {}); });
 })();

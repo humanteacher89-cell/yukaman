@@ -1,9 +1,9 @@
 // 육아맨 서버(2026-11-04) — Cloudflare Pages Functions + D1. 화면(public/)과 같은 주소라 따로 허용(CORS)할 것이 없다.
 // 약속: 응답은 늘 JSON — {ok:true, …} 또는 {ok:false, error:'이름'}(HTTP 상태도 함께). 글자는 모두 다듬어(trim) 길이 한도를 넘기면 거절.
 // 쓰기와 '내 정보'는 머리글 Authorization: Bearer <기기 토큰>. 토큰은 폰이 만든 임의 글자(16~80자)이고, 서버는 SHA-256 해시만 둔다.
-// 읽기는 누구나, 글·댓글 쓰기는 '인증 아빠'만(verified = 1). 인증 길 둘: 초대 코드(바로) · 신청서(관리자 승인).
-//  GET    /api/posts?cat=&q=&before=&limit=   글 목록(최신순). before = 이 번호보다 작은 글부터(더 보기). 응답 next = 다음 before 값(없으면 null)
-//  GET    /api/posts/<id>                      글 하나 + 댓글
+// 커뮤니티는 읽기(목록·글·검색)도 쓰기도 '인증 아빠'만(verified = 1. 2026-11-04 휴먼쌤 "인증 아빠만"). 인증 길 둘: 초대 코드(바로) · 신청서(관리자 승인).
+//  GET    /api/posts?cat=&q=&before=&limit=   글 목록(최신순, 인증 아빠만). before = 이 번호보다 작은 글부터(더 보기). 응답 next = 다음 before 값(없으면 null)
+//  GET    /api/posts/<id>                      글 하나 + 댓글(인증 아빠만)
 //  POST   /api/join {nick, invite?}            닉네임 정하기(기기 토큰 등록). 코드가 맞으면 바로 인증. 이미 등록된 토큰이면 그 사용자(existing:true)
 //  GET    /api/me                              내 정보(인증 상태·신청 상태·초대 코드) + 내 글 + 내 댓글
 //  PATCH  /api/me {nick}                       닉네임 바꾸기(하루 3번)
@@ -64,11 +64,11 @@ export async function handleApi(request, env) {
     const m = request.method;
     const isId = s => /^\d{1,12}$/.test(s || '');
     if (seg[0] === 'posts' && !seg[1]) {
-      if (m === 'GET') return listPosts(env.DB, u.searchParams);
+      if (m === 'GET') return listPosts(request, env, u.searchParams);
       if (m === 'POST') return createPost(request, env);
     }
     if (seg[0] === 'posts' && isId(seg[1]) && !seg[2]) {
-      if (m === 'GET') return getPost(env.DB, +seg[1]);
+      if (m === 'GET') return getPost(request, env, +seg[1]);
       if (m === 'DELETE') return deletePost(request, env, +seg[1]);
     }
     if (seg[0] === 'posts' && isId(seg[1]) && seg[2] === 'comments' && !seg[3] && m === 'POST') return addComment(request, env, +seg[1]);
@@ -107,6 +107,13 @@ async function auth(request, db) {
 }
 const isAdmin = u => u && u.role === 'admin';
 const canWrite = u => u && !u.blocked && (u.verified === 1 || u.role === 'admin' || u.role === 'official');
+// 커뮤니티 읽기 자격은 쓰기와 같다. 글이 있는지 없는지도 자격을 본 뒤에야 알려 준다.
+async function reader(request, db) {
+  const a = await auth(request, db);
+  if (a.err) return a;
+  if (!canWrite(a.user)) return { err: no(a.user.blocked ? 'blocked' : 'verify', 403) };
+  return a;
+}
 
 async function readJson(request) {
   try { const b = await request.json(); return b && typeof b === 'object' ? b : null; } catch (e) { return null; }
@@ -131,7 +138,10 @@ const rowPost = r => ({ id: r.id, cat: r.cat, title: r.title, preview: r.preview
 const pubUser = u => ({ id: u.id, nick: u.nick, created: u.created, verified: u.verified === 1 && !u.blocked, role: u.role, how: u.verified_how || '', blocked: !!u.blocked });
 
 // ----- 글 -----
-async function listPosts(db, sp) {
+async function listPosts(request, env, sp) {
+  const a = await reader(request, env.DB);
+  if (a.err) return a.err;
+  const db = env.DB;
   const cat = str(sp.get('cat'), 20), q = str(sp.get('q'), 60), before = +sp.get('before') || 0;
   const limit = Math.min(Math.max(+sp.get('limit') || LIM.list, 1), LIM.listMax);
   const where = ['p.deleted IS NULL'], args = [];
@@ -155,7 +165,10 @@ async function listPosts(db, sp) {
   return json({ ok: true, posts: rows.map(rowPost), next: more ? rows[rows.length - 1].id : null });
 }
 
-async function getPost(db, id) {
+async function getPost(request, env, id) {
+  const a = await reader(request, env.DB);
+  if (a.err) return a.err;
+  const db = env.DB;
   const p = await db.prepare('SELECT p.id, p.cat, p.title, p.body, p.created, p.comment_count, u.nick, u.id AS uid, ' + BADGE + ' '
     + 'FROM posts p JOIN users u ON u.id = p.user_id WHERE p.id = ?1 AND p.deleted IS NULL').bind(id).first();
   if (!p) return no('not_found', 404);

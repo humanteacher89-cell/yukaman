@@ -16,11 +16,17 @@ async function call(method, path, token, body) {
 const ok = (cond, what) => { n++; assert.ok(cond, what); };
 const A = rnd(), B = rnd(), C = rnd(), ADMIN = rnd();
 
-// 읽기는 누구나, 쓰기는 로그인·인증
+// 커뮤니티는 읽기도 쓰기도 인증 아빠만. 로그인이 없으면 목록·글·검색 모두 내용 없이 401
 let r = await call('GET', '/posts?limit=2');
-ok(r.status === 200 && r.data.posts.length === 2, '읽기');
-ok(r.data.posts[0].badge === 'official', '자료실 글 표시');
-const firstId = r.data.posts[0].id;
+ok(r.status === 401 && r.data.error === 'login' && !r.data.posts, '토큰 없으면 목록 401');
+r = await call('GET', '/posts/1');
+ok(r.status === 401 && r.data.error === 'login' && !r.data.post, '토큰 없으면 글 401');
+r = await call('GET', '/posts/999999');
+ok(r.status === 401, '없는 글도 자격부터 본다');
+r = await call('GET', '/posts?q=' + encodeURIComponent('육아휴직'));
+ok(r.status === 401 && !r.data.posts, '토큰 없으면 검색 401');
+r = await call('GET', '/posts?limit=2', rnd());
+ok(r.status === 401 && r.data.error === 'unknown_user' && !r.data.posts, '모르는 기기 401');
 r = await call('POST', '/posts', null, { cat: 'tip', title: '제목입니다', body: '내용' });
 ok(r.status === 401 && r.data.error === 'login', '토큰 없으면 401');
 
@@ -36,10 +42,16 @@ ok(r.data.existing === true, '같은 기기는 기존 사용자');
 r = await call('POST', '/join', B, { nick: '시험A' + stamp });
 ok(r.data.error === 'nick_taken', '같은 닉네임 막기');
 
-// 인증 전에는 못 쓴다
+// 인증 전에는 못 읽고 못 쓴다
+r = await call('GET', '/posts?limit=2', A);
+ok(r.status === 403 && r.data.error === 'verify' && !r.data.posts, '인증 전 목록 금지');
+r = await call('GET', '/posts/1', A);
+ok(r.status === 403 && r.data.error === 'verify' && !r.data.post && !r.data.comments, '인증 전 글 금지');
+r = await call('GET', '/posts?q=' + encodeURIComponent('육아휴직'), A);
+ok(r.status === 403 && !r.data.posts, '인증 전 검색 금지');
 r = await call('POST', '/posts', A, { cat: 'tip', title: '제목입니다', body: '내용' });
-ok(r.status === 403 && r.data.error === 'verify', '인증 전 글 금지');
-r = await call('POST', `/posts/${firstId}/comments`, A, { body: '댓글' });
+ok(r.status === 403 && r.data.error === 'verify', '인증 전 글쓰기 금지');
+r = await call('POST', '/posts/1/comments', A, { body: '댓글' });
 ok(r.status === 403 && r.data.error === 'verify', '인증 전 댓글 금지');
 r = await call('POST', '/invites', A, {});
 ok(r.status === 403, '인증 전 초대 금지');
@@ -49,6 +61,9 @@ r = await call('POST', '/verify/code', A, { code: 'ZZZZ-ZZZZ' });
 ok(r.data.error === 'code_bad', '틀린 코드');
 r = await call('POST', '/verify/code', A, { code: 'test-dads' });
 ok(r.data.ok && r.data.user.verified === true && r.data.user.how === 'invite', '코드로 인증(대소문자·하이픈 무시)');
+r = await call('GET', '/posts?limit=2', A);
+ok(r.status === 200 && r.data.posts.length === 2, '인증 뒤 읽기');
+ok(r.data.posts[0].badge === 'official', '자료실 글 표시');
 r = await call('POST', '/join', C, { nick: '시험C' + stamp, invite: 'TESTDADS' });
 ok(r.data.ok && r.data.user.verified === false && r.data.invite_error === 'code_used', '쓴 코드는 다시 못 씀, 가입은 됨');
 
@@ -56,18 +71,20 @@ ok(r.data.ok && r.data.user.verified === false && r.data.invite_error === 'code_
 r = await call('POST', '/posts', A, { cat: 'daily', title: '시험 글 ' + stamp, body: '독특한낱말' + stamp + ' 내용입니다' });
 ok(r.data.ok && r.data.post.badge === 'dad', '인증 뒤 글쓰기');
 const pid = r.data.id;
-r = await call('GET', '/posts?q=' + encodeURIComponent('독특한낱말' + stamp));
+r = await call('GET', '/posts?q=' + encodeURIComponent('독특한낱말' + stamp), A);
 ok(r.data.posts.length === 1 && r.data.posts[0].id === pid, '본문 검색');
-r = await call('GET', '/posts?q=' + encodeURIComponent('독특한낱말' + stamp + ' 없는낱말'));
+r = await call('GET', '/posts?q=' + encodeURIComponent('독특한낱말' + stamp + ' 없는낱말'), A);
 ok(r.data.posts.length === 0, '낱말 모두 있어야 찾음');
-r = await call('GET', '/posts?q=' + encodeURIComponent('100%_'));
+r = await call('GET', '/posts?q=' + encodeURIComponent('100%_'), A);
 ok(r.status === 200, '특수문자 검색 오류 없음');
-r = await call('GET', '/posts?cat=leave&limit=50');
+r = await call('GET', '/posts?cat=leave&limit=50', A);
 ok(r.data.posts.every(p => p.cat === 'leave') && r.data.posts.length > 0, '분류');
 r = await call('POST', `/posts/${pid}/comments`, A, { body: '<script>alert(1)</script> 댓글' });
 ok(r.data.ok, '댓글');
 const cid = r.data.comment.id;
 r = await call('GET', `/posts/${pid}`);
+ok(r.status === 401 && !r.data.comments, '토큰 없으면 댓글도 못 봄');
+r = await call('GET', `/posts/${pid}`, A);
 ok(r.data.comments.length === 1 && r.data.post.comments === 1, '댓글 수');
 
 // 남의 것은 못 지운다
@@ -84,6 +101,8 @@ r = await call('POST', '/invites', A, {});
 ok(r.data.error === 'invite_max', '3개 넘게 못 만듦');
 r = await call('POST', '/verify/code', C, { code: codes[0] });
 ok(r.data.user.verified === true, '받은 코드로 인증');
+r = await call('GET', '/posts?limit=1', C);
+ok(r.status === 200 && r.data.posts.length === 1, '받은 코드로 인증한 뒤 읽기');
 r = await call('GET', '/me', A);
 ok(r.data.invites.length === 3 && r.data.invites[0].used === true && r.data.invites[0].nick === '시험C' + stamp, '누가 썼는지 보임');
 
@@ -111,8 +130,10 @@ r = await call('GET', '/admin/queue', ADMIN);
 ok(!r.data.queue.find(q => q.id === app.id), '대기에서 빠짐');
 r = await call('GET', '/me', B);
 ok(r.data.user.verified === true && r.data.user.how === 'apply' && r.data.application.status === 'approved', 'B 인증');
-r = await call('GET', '/posts?q=' + encodeURIComponent('밤에 자주 깨서'));
-ok(r.data.posts.length === 0, '신청 답변은 글로 안 나옴');
+r = await call('GET', '/posts?q=' + encodeURIComponent('밤에 자주 깨서'), B);
+ok(r.status === 200 && r.data.posts.length === 0, '승인 뒤 읽기 · 신청 답변은 글로 안 나옴');
+r = await call('GET', '/posts?limit=1', ADMIN);
+ok(r.status === 200, '관리자 읽기');
 
 // 해제·막기
 const uid = (await call('GET', '/me', C)).data.user.id;
@@ -120,6 +141,15 @@ r = await call('POST', '/admin/user', ADMIN, { user_id: uid, action: 'block' });
 ok(r.data.ok, '막기');
 r = await call('POST', '/posts', C, { cat: 'tip', title: '제목입니다', body: '내용' });
 ok(r.status === 403 && r.data.error === 'blocked', '막힌 회원 글 금지');
+r = await call('GET', '/posts?limit=1', C);
+ok(r.status === 403 && r.data.error === 'blocked' && !r.data.posts, '막힌 회원 읽기 금지');
+const bid = (await call('GET', '/me', B)).data.user.id;
+r = await call('POST', '/admin/user', ADMIN, { user_id: bid, action: 'unverify' });
+ok(r.data.ok, '인증 해제');
+r = await call('GET', '/posts?limit=1', B);
+ok(r.status === 403 && r.data.error === 'verify' && !r.data.posts, '인증이 풀리면 읽기도 막힘');
+r = await call('GET', '/me', B);
+ok(r.status === 200 && r.data.user.verified === false, '내 정보는 볼 수 있음');
 r = await call('POST', '/verify/code', C, { code: codes[1] });
 ok(r.data.error === 'blocked', '막힌 회원 재인증 금지');
 r = await call('POST', '/admin/user', ADMIN, { user_id: 1, action: 'block' });
@@ -128,7 +158,7 @@ ok(r.status === 403, '자료실 계정은 못 바꿈');
 // 관리자는 글을 지울 수 있고, 지운 글은 안 보인다
 r = await call('DELETE', `/posts/${pid}`, ADMIN);
 ok(r.data.ok, '관리자 삭제');
-r = await call('GET', `/posts/${pid}`);
+r = await call('GET', `/posts/${pid}`, A);
 ok(r.status === 404, '지운 글 404');
 r = await call('GET', '/nope');
 ok(r.status === 404, '없는 주소');
