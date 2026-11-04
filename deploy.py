@@ -145,7 +145,10 @@ def main():
         for t in ('users', 'invites', 'applications', 'posts', 'comments', 'reports'):
             r = subprocess.run(wrangler_cmd() + ['d1', 'execute', DB, '--remote', '--json', '--command', 'SELECT * FROM ' + t], cwd=HERE, capture_output=True, text=True, encoding='utf-8', errors='replace')
             if r.returncode:
-                sys.exit('백업 실패: ' + t + '\n' + r.stderr)
+                if 'no such table' in r.stdout + r.stderr:      # 아직 migrate 전이라 표가 없는 경우
+                    data[t] = []
+                    continue
+                sys.exit('백업 실패: ' + t + '\n' + r.stdout[:500] + r.stderr[:500])
             data[t] = json.loads(r.stdout)[0]['results']
         out = os.path.join('backups', 'yukaman-' + datetime.datetime.now().strftime('%Y%m%d-%H%M') + '.json')
         json.dump(data, open(os.path.join(HERE, out), 'w', encoding='utf-8'), ensure_ascii=False)
