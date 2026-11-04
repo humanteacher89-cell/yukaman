@@ -186,7 +186,7 @@
   // ----- 화면 틀 -----
   const view = $('#view'), appbar = $('#appbar'), app = $('#app'), fab = $('#fab');
   const bar = h => { appbar.innerHTML = h; };
-  const brandBar = (right) => '<div class="brand"><span class="logo">' + LOGO + '</span><span>육아맨</span></div><div class="grow"></div>' + (right || '');
+  const brandBar = (right) => '<div class="brand"><span class="logo">' + LOGO + '</span><span>육아맨</span></div><div class="fill"></div>' + (right || '');
   const backBtn = to => '<button class="circ" data-back="' + esc(to) + '" aria-label="뒤로">' + ICON.back + '</button>';
   function setTab(name) { $$('.tab').forEach(t => t.classList.toggle('on', t.dataset.tab === name)); }
   function go(h, replace) { if (replace) location.replace(h); else location.hash = h; }
@@ -268,9 +268,9 @@
   function renderGuideItem(id) {
     setTab('guide');
     const g = GD.items.find(x => x.id === id);
-    if (!g) { bar(backBtn('#/guide') + '<div class="grow atitle">아빠 가이드</div>'); view.innerHTML = '<section class="pad">' + empty('글을 찾을 수 없어요', '') + '</section>'; return; }
+    if (!g) { bar(backBtn('#/guide') + '<div class="fill atitle">아빠 가이드</div>'); view.innerHTML = '<section class="pad">' + empty('글을 찾을 수 없어요', '') + '</section>'; return; }
     const c = GCAT[g.cat] || {};
-    bar(backBtn('#/guide/' + g.cat) + '<div class="grow atitle">아빠 가이드 · ' + esc(c.name || '') + '</div>');
+    bar(backBtn('#/guide/' + g.cat) + '<div class="fill atitle">아빠 가이드 · ' + esc(c.name || '') + '</div>');
     view.innerHTML = '<section class="pad"><article class="garticle">'
       + '<div class="meta"><span class="badge c-etc">' + esc(c.e || '') + ' ' + esc(c.name || '') + '</span>' + (g.tag ? '<span class="tag ' + tagCls(g.tag) + '">' + esc(g.tag) + '</span>' : '') + '</div>'
       + '<h1>' + esc(g.title) + '</h1><p class="gsub">' + esc(g.sub) + '</p>'
@@ -394,7 +394,7 @@
   }
   async function renderPost(id) {
     setTab('community'); app.classList.add('notab', 'composing');
-    bar(backBtn('#/community') + '<div class="grow atitle">글</div><span id="postAct"></span>');
+    bar(backBtn('#/community') + '<div class="fill atitle">글</div><span id="postAct"></span>');
     view.innerHTML = '<section class="pad"><div class="loading">불러오는 중…</div></section>';
     window.scrollTo(0, 0);
     let r;
@@ -443,7 +443,7 @@
   // ----- 글쓰기 -----
   function renderWrite() {
     setTab('community'); app.classList.add('notab');
-    bar(backBtn('#/community') + '<div class="grow atitle">글쓰기</div><button class="abtn" id="submitTop" type="submit" form="wform">올리기</button>');
+    bar(backBtn('#/community') + '<div class="fill atitle">글쓰기</div><button class="abtn" id="submitTop" type="submit" form="wform">올리기</button>');
     const d = store.get('draft', null) || {};
     view.innerHTML = '<section class="pad"><form class="form" id="wform" novalidate>'
       + '<span class="lbl">분류</span><div class="catpick" id="catpick">' + CATS.map(c => '<button type="button" class="chip' + (d.cat === c.key ? ' on' : '') + '" data-pick="' + c.key + '"><span class="e">' + c.e + '</span>' + esc(c.name) + '</button>').join('') + '</div>'
