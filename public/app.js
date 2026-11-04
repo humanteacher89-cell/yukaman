@@ -347,6 +347,7 @@
 
   function parse() {
     const s = location.hash.replace(/^#\/?/, '').split('/').map(x => { try { return decodeURIComponent(x); } catch (e) { return x; } });
+    if (s[0] === 'guide' && s[1] === 'age' && AGE[s[2]]) return { name: 'guideage', key: s[2] };
     if (s[0] === 'guide') return { name: 'guide', cat: s[1] && GCAT[s[1]] ? s[1] : '' };
     if (s[0] === 'g' && s[1]) return { name: 'garticle', id: s[1] };
     if (s[0] === 'calc') return { name: 'calc', tab: CALC_TABS.some(t => t.key === s[1]) ? s[1] : 'leave' };
@@ -368,6 +369,7 @@
     try {
       if (r.name === 'home') await renderHome();
       else if (r.name === 'guide') renderGuide(r.cat);
+      else if (r.name === 'guideage') renderGuideAge(r.key);
       else if (r.name === 'garticle') renderGuideItem(r.id);
       else if (r.name === 'calc') renderCalc(r.tab);
       else if (r.name === 'library') await renderLibrary();
@@ -610,7 +612,7 @@
     setTab('home');
     bar(brandBar());
     const seq = renderSeq;
-    // 아이 나이 길(UI 3안): 나이 칸 → 우리 아이 → 지금 챙길 것(기한 D-데이) → 계산기·자료실 타일 → 이 나이에 맞는 글 → 또래 아빠들 글. 서버를 기다리지 않고 바로 그린다(검수 18)
+    // 아이 나이 길(UI 3안): 나이 칸 → 우리 아이 → 지금 챙길 것(기한 D-데이) → 가이드로 가는 큰 버튼 → 이 나이에 맞는 글 → 또래 아빠들 글. 서버를 기다리지 않고 바로 그린다(검수 18)
     // 긴 계산기 카드는 가이드 '육아휴직' 칸에만 둔다(11-04 휴먼쌤 "특히 홈화면이 가독성이 떨어져" · "글자수도 너무 많고")
     const key = currentAge(), a = AGE[key], d = K.childDates(kidDates());
     const picks = a ? a.ids.map(id => GD.items.find(g => g.id === id)).filter(Boolean) : GD.items.filter(g => g.home).slice(0, 3);
@@ -621,8 +623,8 @@
       + '<div class="sec"><h2>' + (a ? esc(a.name) + ', 지금 챙길 것' : '지금 챙길 것') + '</h2>' + (a ? '<span>순서대로</span>' : '') + '</div>'
       + (a && calcS.job !== 'worker' ? '<a class="jobhint" href="#/g/leave-job">회사원 등 고용보험 기준이에요. <b>다른 직종 보기 ›</b></a>' : '')
       + timeline(key, d)
-      + '<div class="tiles">' + tile('💰', '급여 계산기', '#/calc/leave') + tile('🗂️', '자료실', '#/library') + '</div>'
-      + '<div class="sec"><h2>' + (a ? '이 나이에 맞는 글' : '아빠 가이드') + '</h2><a class="all" href="#/guide">전체 보기 →</a></div>'
+      + '<a class="btn primary gobig" href="#/guide">가이드 탭에서 더 많은 정보를 <span class="nw">확인하세요 →</span></a>'
+      + '<div class="sec"><h2>' + (a ? '이 나이에 맞는 글' : '아빠 가이드') + '</h2>' + (!a ? '<a class="all" href="#/guide">전체 보기 →</a>' : picks.length > 4 ? '<a class="all" href="#/guide/age/' + key + '">전체 보기 →</a>' : '') + '</div>'
       + '<div class="tiles" style="margin-top:0">' + picks.slice(0, 4).map(g => tile(g.e, g.title, '#/g/' + g.id)).join('') + '</div>'
       + '<div id="homeCom">' + (canRead() ? '<div class="sec"><h2>' + (a ? '또래 아빠들 글' : '커뮤니티 새 글') + '</h2><a class="all" href="#/community">전체 보기 →</a></div><div class="loading">불러오는 중…</div>' : '') + '</div>'
       + '<p class="foot-note"><a href="#/terms">이용약관</a> · <a href="#/privacy">개인정보 처리방침</a></p>'
@@ -676,9 +678,12 @@
       + (g.tag ? '<span class="tag ' + tagCls(g.tag) + '">' + esc(g.tag) + '</span>' : '') + '</a>';
   }
   function guideChips(cur) {
-    return '<div class="chips">' + GD.cats.map(c => '<a class="chip' + (c.key === cur ? ' on' : '') + '" href="#/guide/' + c.key + '"><span class="e">' + c.e + '</span>' + esc(c.name) + '</a>').join('')
-      + '<a class="chip' + (cur === 'library' ? ' on' : '') + '" href="#/library"><span class="e">🗂️</span>자료실</a></div>';
+    const link = (h, e, name, on) => '<a class="chip' + (on ? ' on' : '') + '" href="' + h + '"><span class="e">' + e + '</span>' + esc(name) + '</a>';
+    return '<div class="chips" data-keep="guide">' + GD.cats.map(c => link('#/guide/' + c.key, c.e, c.name, c.key === cur) + (c.key === 'faq' ? link('#/calc', '💰', '계산기', cur === 'calc') : '')).join('')
+      + link('#/library', '🗂️', '자료실', cur === 'library') + '</div>';
   }
+  // 가이드 탭은 표지 없이 바로 글로(11-05 휴먼쌤 "네모칸으로 버튼 누르게 하는 표지는 없는게 더 낫고"). 어느 칸이든 제목과 상단 버튼 자리가 같다
+  const guideHead = cur => pageHead('📚', '아빠 가이드') + guideChips(cur);
   // 근거 법령 표시(11-05 휴먼쌤 "'2026.11.04 법령기준'은 사실이 아니지 … 실제 법령의 명칭과 유효일자를 적어서 신뢰를 확보해"). 표는 law-data.js, 글과는 출처 주소로 잇는다
   const LAW_DATA = window.YK_LAWS || { checked: '', items: [] };
   const lawsFor = list => { const urls = list.reduce((a, g) => a.concat((g.sources || []).map(s => s.u || '')), []); return LAW_DATA.items.filter(l => urls.some(u => l.match.some(m => u.indexOf(m) >= 0))); };
@@ -698,21 +703,13 @@
     if (g.status !== '일반 조언' && g.updated && daysAgo(g.updated) > 180) return '<div class="warn">⚠️ 확인한 지 6개월이 넘은 글이에요. 신청 전에 1350에 확인해 주세요.</div>';
     return '';
   }
-  // 가이드 첫 화면(11-05 휴먼쌤 "'가이드' 누르면 이렇게 육아휴직/계산기/등 큰 네모 버튼이 바로 나오도록")
-  const HUB = [['💼', '육아휴직', '#/guide/leave'], ['🙋', 'Q&A', '#/guide/faq'], ['💰', '계산기', '#/calc'], ['🗂️', '자료실', '#/library'], ['🎮', '놀이', '#/guide/play'], ['🧠', '심리', '#/guide/mind'], ['📢', '정책', '#/guide/policy'], ['📌', '정보', '#/guide/info']];
-  function renderGuideHub() {
-    setTab('guide');
-    bar(brandBar());
-    view.innerHTML = '<section class="pad">' + pageHead('📚', '아빠 가이드') + '<div class="tiles big">' + HUB.map(x => tile(x[0], x[1], x[2])).join('') + '</div></section>';
-    window.scrollTo(0, 0);
-  }
   // Q&A(11-05 휴먼쌤 "Q&A인데 그냥 읽기 자료같은 느낌이야"): 질문을 누르면 답이 펼쳐진다. 저장된 Q&A는 서버 없이 보이고, 관리자가 답한 질문을 위에 더한다
   const qaItem = (q, a, more) => '<details class="qa"><summary><span class="qm">Q</span><b>' + esc(q) + '</b></summary><div class="qa-a"><span class="am">A</span><div><p>' + rich(a) + '</p>' + (more ? '<a class="lk2" href="' + esc(more) + '">자세히 보기 ›</a>' : '') + '</div></div></details>';
   async function renderQna() {
     setTab('guide');
-    bar(backBtn('#/guide') + '<div class="fill atitle">아빠 가이드</div>');
+    bar(brandBar());
     const items = GD.items.filter(g => g.cat === 'faq'), seq = renderSeq;
-    view.innerHTML = '<section class="pad">' + pageHead('🙋', 'Q&A') + guideChips('faq')
+    view.innerHTML = '<section class="pad">' + guideHead('faq')
       + '<div class="qalist"><div id="qaNew"></div>' + items.map(g => qaItem(g.q, g.a, '#/g/' + g.id)).join('') + '</div>'
       + '<button type="button" class="btn primary qaask" data-ask="1">질문하기</button>'
       + notes(['운영자가 확인해서 답을 여기에 올려요', '답은 법률 자문이 아니에요'])
@@ -725,20 +722,27 @@
     } catch (e) { /* 끊겨도 저장된 Q&A는 보인다 */ }
   }
   function renderGuide(cat) {
-    if (!cat) { renderGuideHub(); return; }
+    if (!cat) cat = 'leave';
     if (cat === 'faq') { renderQna(); return; }
     setTab('guide');
-    bar(backBtn('#/guide') + '<div class="fill atitle">아빠 가이드</div>');
-    const c = GCAT[cat], items = GD.items.filter(g => g.cat === cat);
+    bar(brandBar());
+    const items = GD.items.filter(g => g.cat === cat);
     view.innerHTML = '<section class="pad">'
-      + pageHead(c.e, c.name)
-      + guideChips(cat)
+      + guideHead(cat)
       + (cat === 'leave' ? calcCard() + '<a class="grow" href="#/calc" style="margin-top:16px"><span class="ge">🧮</span><span class="tx"><b>계산기 모음</b><small>단축근무 · 출산휴가 · 아이 날짜</small></span></a>' : '')
       + '<div class="glist">' + (items.length ? items.map(grow).join('') : empty('준비 중이에요', '곧 글이 올라와요')) + '</div>'
       + lawBox(lawsFor(items))
       + '</section>';
     window.scrollTo(0, 0);
     bindCalcCard();
+  }
+  // 이 나이에 맞는 글 전체(홈의 '전체 보기', 11-05 휴먼쌤 "그냥 아빠가이드가 나오는데 이건 아니니까")
+  function renderGuideAge(key) {
+    setTab('home');
+    bar(backBtn('#/') + '<div class="fill atitle">이 나이에 맞는 글</div>');
+    const a = AGE[key], items = a.ids.map(id => GD.items.find(g => g.id === id)).filter(Boolean);
+    view.innerHTML = '<section class="pad">' + pageHead('📖', a.name, '이 나이에 맞는 글') + '<div class="glist">' + items.map(grow).join('') + '</div></section>';
+    window.scrollTo(0, 0);
   }
   function blocks(b) {
     return (b || []).map(x => x.h ? '<h2>' + esc(x.h) + '</h2>' : x.p ? '<p>' + rich(x.p) + '</p>'
@@ -773,9 +777,9 @@
   // ----- 계산기 -----
   function renderCalc(tab) {
     setTab('guide');
-    bar(backBtn('#/guide') + '<div class="fill atitle">계산기</div>');
+    bar(brandBar());
     const chips = '<div class="chips">' + CALC_TABS.map(t => '<a class="chip' + (t.key === tab ? ' on' : '') + '" href="#/calc/' + t.key + '"><span class="e">' + t.e + '</span>' + esc(t.name) + '</a>').join('') + '</div>';
-    view.innerHTML = '<section class="pad">' + chips + '<div id="calcJob"></div><div id="calcForm"></div><div id="calcOut"></div></section>';
+    view.innerHTML = '<section class="pad">' + guideHead('calc') + chips + '<div id="calcJob"></div><div id="calcForm"></div><div id="calcOut"></div></section>';
     window.scrollTo(0, 0);
     const fill = ({ leave: calcLeave, reduce: calcReduce, paternity: calcPaternity, dates: calcDates })[tab];
     // 고용보험 근로자는 세 계산기 모두, 공무원·교원은 육아휴직 수당을 계산한다. 그 밖의 직종은 정보와 이동 단추. 날짜 칸은 누구나
@@ -1024,8 +1028,8 @@
   }
   async function renderLibrary() {
     setTab('guide');
-    bar(backBtn('#/guide') + '<div class="fill atitle">아빠 가이드</div>');
-    view.innerHTML = '<section class="pad">' + pageHead('🗂️', '자료실') + guideChips('library') + '<div class="loading" id="libLoad">불러오는 중…</div></section>';
+    bar(brandBar());
+    view.innerHTML = '<section class="pad">' + guideHead('library') + '<div class="loading" id="libLoad">불러오는 중…</div></section>';
     window.scrollTo(0, 0);
     try { await loadLibrary(); } catch (e) { $('#libLoad').outerHTML = empty('자료를 못 불러왔어요', '잠시 뒤 다시 열어 주세요'); return; }
     const sec = $('#view section');
@@ -1062,7 +1066,7 @@
         : '<div id="lockCta"><button type="button" class="btn primary" id="lockGo">초대 코드가 있어요</button><button type="button" class="btn line" id="lockNo">코드가 없어요 (신청서)</button><small class="hint">서류나 사진은 받지 않아요.</small></div>')
       + '</div>'
       + '<div class="sec"><h2>' + (kakaoOn() ? '가입 전에도' : '인증 전에도') + ' 볼 수 있어요</h2></div>'
-      + '<div class="tiles" style="margin-top:0">' + tile('📚', '아빠 가이드', '#/guide') + tile('🙋', 'Q&A', '#/guide/faq') + tile('💰', '계산기', '#/calc') + tile('🗂️', '자료실', '#/library') + '</div></section>';
+      + '<div class="tiles center" style="margin-top:0">' + tile('📚', '아빠 가이드', '#/guide') + tile('🙋', 'Q&A', '#/guide/faq') + tile('💰', '계산기', '#/calc') + tile('🗂️', '자료실', '#/library') + '</div></section>';
     window.scrollTo(0, 0);
     const after = () => render();
     const lk = $('#lockKakao'); if (lk) lk.addEventListener('click', kakaoGo);
@@ -1738,8 +1742,23 @@
       syncMore(el, el.parentNode.querySelector('.hsmore'));
     });
   }
-  let markPending = false;
-  new MutationObserver(() => { if (markPending) return; markPending = true; setTimeout(() => { markPending = false; markScrollers(); }, 30); }).observe(view, { childList: true, subtree: true });
+  // 상단 버튼을 눌러 화면이 다시 그려져도 옆으로 민 자리를 지킨다(11-05 휴먼쌤 "맨 왼쪽으로 돌아가지 않게"). 가이드 줄은 칸을 옮겨도 같은 줄로 친다. 눌린 버튼이 가려져 있으면 보이게 민다
+  const chipPos = {};
+  const chipKey = el => el.dataset.keep || parse().name + ':' + $$('#view .chips, #view .ages').indexOf(el);
+  view.addEventListener('scroll', ev => { const t = ev.target; if (t.classList && (t.classList.contains('chips') || t.classList.contains('ages'))) chipPos[chipKey(t)] = t.scrollLeft; }, true);
+  function restoreChips() {
+    $$('#view .chips, #view .ages').forEach(el => {
+      if (el.chipKept) return;
+      el.chipKept = true;
+      el.scrollLeft = chipPos[chipKey(el)] || 0;
+      const on = el.querySelector('.on');
+      if (!on) return;
+      const a = on.getBoundingClientRect(), b = el.getBoundingClientRect();
+      if (a.right > b.right - 8 || a.left < b.left) el.scrollLeft += a.left - b.left - 16;
+    });
+  }
+  // 그려지는 즉시(화면에 나오기 전에) 돌려놓는다. 묶음을 씌우면 위치가 지워지니 묶은 다음에
+  new MutationObserver(() => { markScrollers(); restoreChips(); }).observe(view, { childList: true, subtree: true });
   window.addEventListener('resize', markScrollers);
 
   // ----- 시작 -----

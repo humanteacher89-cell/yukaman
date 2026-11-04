@@ -260,11 +260,10 @@ button.notice.vcta { display: flex; width: 100%; text-align: left; font: inherit
 .nlist li + li { margin-top: 3px; }
 .nlist li:before { content: ""; position: absolute; left: 2px; top: .58em; width: 4px; height: 4px; border-radius: 50%; background: var(--mute); }
 .nlist a { color: var(--pri-d); text-decoration: underline; }
-/* 가이드 첫 화면 큰 버튼(11-05 휴먼쌤) */
-.tiles.big { gap: 14px; margin-top: 14px; }
-.tiles.big .tile { min-height: 124px; padding: 18px 16px; justify-content: space-between; }
-.tiles.big .ge { width: 52px; height: 52px; border-radius: 16px; font-size: 29px; }
-.tiles.big b { font-size: 18.5px; font-weight: 900; }
+/* 홈에서 가이드로 가는 큰 버튼 · 커뮤니티 잠금 아래 타일 가운데 정렬(11-05 휴먼쌤) */
+.btn.gobig { margin-top: 16px; text-align: center; }
+.btn.gobig .nw { white-space: nowrap; }
+.tiles.center .tile { align-items: center; text-align: center; }
 /* 근거 법령과 시행일(11-05 휴먼쌤 "실제 법령의 명칭과 유효일자") */
 .lawbox { margin-top: 18px; padding: 14px 16px; border-radius: 16px; background: var(--card); box-shadow: var(--shadow); }
 .lawbox > b { display: block; font-size: 14.5px; font-weight: 900; }
