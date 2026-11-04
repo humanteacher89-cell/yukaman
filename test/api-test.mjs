@@ -77,7 +77,7 @@ r = await call('POST', '/join', C, { nick: N('시험C' + stamp), invite: 'TESTDA
 ok(r.data.ok && r.data.user.verified === false && r.data.invite_error === 'code_used', '쓴 코드는 다시 못 씀, 가입은 됨');
 
 // 글·댓글·검색
-r = await call('POST', '/posts', A, { cat: 'daily', title: '시험 글 ' + stamp, body: '독특한낱말' + stamp + ' 내용입니다' });
+r = await call('POST', '/posts', A, { cat: 'etc', title: '시험 글 ' + stamp, body: '독특한낱말' + stamp + ' 내용입니다' });
 ok(r.data.ok && r.data.post.badge === 'dad', '인증 뒤 글쓰기');
 const pid = r.data.id;
 r = await call('GET', '/posts?q=' + encodeURIComponent('독특한낱말' + stamp), A);
@@ -88,10 +88,14 @@ r = await call('GET', '/posts?q=' + encodeURIComponent('100%_'), A);
 ok(r.status === 200, '특수문자 검색 오류 없음');
 r = await call('GET', '/posts?q=' + encodeURIComponent('낱말'), A);
 ok(r.data.posts.some(p => p.id === pid), '두 글자 검색(색인 대신 LIKE)');
-r = await call('GET', '/posts?cat=daily&limit=50', A);
-ok(r.data.posts.every(p => p.cat === 'daily') && r.data.posts.length > 0, '분류');
-r = await call('POST', '/posts', A, { cat: 'school', title: '돌봄교실 질문 ' + stamp, body: '학교 분류' });
-ok(r.data.ok, '학교·학습 분류');
+r = await call('GET', '/posts?cat=etc&limit=50', A);
+ok(r.data.posts.every(p => p.cat === 'etc') && r.data.posts.length > 0, '분류');
+for (const cat of ['leave', 'play', 'gear', 'question', 'tip', 'vent']) {
+  r = await call('POST', '/posts', A, { cat, title: '분류 시험 ' + cat + stamp, body: '분류 시험 내용' });
+  ok(r.data.ok && r.data.post.cat === cat, '새 분류 ' + cat);
+}
+r = await call('POST', '/posts', A, { cat: 'daily', title: '없어진 분류 ' + stamp, body: '없어진 분류' });
+ok(!r.data.ok && r.data.error === 'cat', '없어진 분류는 거절');
 // 아이 나이 칸(11-04 UI 3안): 글에 붙이면 또래 글로 거른다
 r = await call('POST', '/posts', A, { cat: 'question', age: 'baby', title: '나이 글 ' + stamp, body: '아이 나이 칸 시험' });
 ok(r.data.ok && r.data.post.age === 'baby', '아이 나이 칸으로 글쓰기');
@@ -289,7 +293,7 @@ ok(r.status === 401 && r.data.error === 'unknown_user', '로그아웃 뒤 모르
 // 탈퇴: 글·댓글 내용이 비고 계정 줄이 지워진다. 관리자는 못 한다
 r = await call('POST', '/admin/user', ADMIN, { user_id: bid, action: 'verify' });
 ok(r.data.ok, 'B 다시 인증');
-r = await call('POST', '/posts', B, { cat: 'daily', title: '탈퇴 전 글 ' + stamp, body: '지워질내용' + stamp });
+r = await call('POST', '/posts', B, { cat: 'etc', title: '탈퇴 전 글 ' + stamp, body: '지워질내용' + stamp });
 ok(r.data.ok, 'B 글');
 const bpid = r.data.id;
 r = await call('DELETE', '/me', B, {});

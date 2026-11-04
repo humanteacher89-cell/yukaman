@@ -39,7 +39,7 @@
 // 저장하는 개인정보: 닉네임 · 기기 토큰 해시 · 복구 코드 해시 · 쓴 글·댓글 · 대기 중인 신청 답변(결정 뒤 지움) · 누가 초대했는지 · 마지막 접속 시각.
 //   횟수 제한용 기기 주소(IP)는 해시 16자로 짧게(가입·코드·복구 시도에만, 이틀 안에 지움). 지운 글·댓글은 내용을 비우고 시각만 남긴다. 탈퇴하면 계정 줄을 지운다.
 
-const CATS = ['question', 'tip', 'daily', 'leave', 'play', 'school', 'gear'];           // public/app.js CATS와 같게('school' = 학교·학습, 검수 23)
+const CATS = ['leave', 'play', 'gear', 'question', 'tip', 'vent', 'etc'];           // public/app.js CATS와 같게(11-05 휴먼쌤: 육아휴직 / 나들이 / 용품 / 질문 / 정보 / 하소연 / 기타)
 const AGES = ['expect', 'baby', 'kid', 'low', 'high', 'teen'];   // 아이 나이 칸(public/app.js AGES와 같게). 글에 붙이면 또래 아빠들 글로 거른다(11-04 UI 3안 '아이 나이 길')
 const STAGES = ['raising', 'expecting'];
 const LIM = { title: [2, 60], body: [1, 3000], comment: [1, 1000], answer: [20, 500], ask: [5, 300], qa: [2, 1000], list: 20, listMax: 50 };

@@ -13,13 +13,13 @@
   const GD = window.YK_GUIDES || { cats: [], items: [] };
   const K = window.YK_CALC;
   const CATS = [
-    { key: 'question', name: '질문·고민', e: '🙋' },
-    { key: 'tip', name: '정보·꿀팁', e: '💡' },
-    { key: 'daily', name: '일상·자랑', e: '🎉' },
-    { key: 'leave', name: '육아휴직·제도', e: '📋' },
-    { key: 'play', name: '놀이·나들이', e: '⚽' },
-    { key: 'school', name: '학교·학습', e: '🏫' },
-    { key: 'gear', name: '용품·장비', e: '🍼' }
+    { key: 'leave', name: '육아휴직', e: '📋' },
+    { key: 'play', name: '나들이', e: '🎡' },
+    { key: 'gear', name: '용품', e: '🍼' },
+    { key: 'question', name: '질문', e: '🙋' },
+    { key: 'tip', name: '정보', e: '💡' },
+    { key: 'vent', name: '하소연', e: '😩' },
+    { key: 'etc', name: '기타', e: '💬' }
   ];
   const CAT = {}; CATS.forEach(c => { CAT[c.key] = c; });
   const GCAT = {}; GD.cats.forEach(c => { GCAT[c.key] = c; });
@@ -1240,7 +1240,7 @@
       + (!canWrite() ? '<button type="button" class="notice vcta" id="vcta" style="margin-bottom:8px"><span class="e">✅</span><span>글은 ' + (kakaoOn() ? '가입한' : '인증한') + ' 아빠만 올릴 수 있어요. 써 둔 글은 이 기기에 남아요. <b>' + joinWord() + '</b></span></button>' : '')
       + '<form class="form" id="wform" novalidate>'
       + '<span class="lbl">분류</span><div class="catpick" id="catpick">' + CATS.map(c => '<button type="button" class="chip' + (d.cat === c.key ? ' on' : '') + '" data-pick="' + c.key + '"><span class="e">' + c.e + '</span>' + esc(c.name) + '</button>').join('') + '</div>'
-      + '<span class="lbl">아이 나이 <small style="font-weight:600">(선택 — 또래 아빠들이 찾기 쉬워요)</small></span><div class="catpick" id="agepick">' + AGES.map(x => '<button type="button" class="chip' + ((d.age || currentAge()) === x.key ? ' on' : '') + '" data-age="' + x.key + '">' + esc(x.name) + '</button>').join('') + '</div>'
+      + '<span class="lbl">아이 나이 <small style="font-weight:600">(또래 아빠들이 찾기 쉬워요)</small></span><div class="catpick" id="agepick">' + AGES.map(x => '<button type="button" class="chip' + ((d.age || currentAge()) === x.key ? ' on' : '') + '" data-age="' + x.key + '">' + esc(x.name) + '</button>').join('') + '</div>'
       + '<label class="lbl" for="wtitle">제목</label><input class="inp" id="wtitle" maxlength="60" placeholder="한 줄로 요약해 주세요" value="' + esc(d.title || '') + '" autocomplete="off">'
       + '<label class="lbl" for="wbody">내용</label><textarea class="inp" id="wbody" maxlength="3000" placeholder="묻고 싶은 것, 알려 주고 싶은 것을 편하게 적어 주세요. 링크도 붙일 수 있어요.">' + esc(d.body || '') + '</textarea>'
       + '<div class="cnt"><span id="wcnt">' + len(d.body || '') + '</span>/3000</div>'
