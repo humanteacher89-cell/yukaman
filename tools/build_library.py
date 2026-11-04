@@ -41,8 +41,8 @@ def main():
                 continue
             v = verdicts.get(k)
             if v:
-                if v.get('verdict') == 'wrong':
-                    dropped.append((fn, title, '검증 틀림'))
+                if v.get('verdict') in ('wrong', 'unverifiable'):
+                    dropped.append((fn, title, '재검증 ' + v.get('verdict')))
                     continue
                 if v.get('facts') is not None:
                     x['facts'] = v['facts']
