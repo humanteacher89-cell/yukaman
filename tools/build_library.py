@@ -7,12 +7,17 @@ import json, os, re
 HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SRC = os.path.join(HERE, 'data-src')
 ORDER = ['법령·제도', '통계', '불이익 대처', '지원금', '직군별', '지자체', '기업 사례', '연구', '해외', '경험담', '책', '채널', '커뮤니티']
-FILES = ['law.json', 'stats.json', 'workplace.json', 'research.json', 'stories.json']
+FILES = ['law.json', 'stats.json', 'workplace.json', 'research.json', 'stories.json', 'more.json']
 UPDATED = '2026-11-04'
+NOISE = {'call_from', 'f', 'fbclid', 'pageindex', 'print', 'ref'}     # 같은 글을 가리키는데 주소만 달라지는 조각
 
 
 def norm_url(u):
-    return re.sub(r'[#?].*$', lambda m: m.group(0) if 'newsId' in m.group(0) or 'seq' in m.group(0) or 'Seq' in m.group(0) or 'Id=' in m.group(0) or 'no=' in m.group(0) or 'nttId' in m.group(0) else '', u).rstrip('/').replace('http://', 'https://').replace('https://www.', 'https://')
+    """중복을 가리는 열쇠. 글을 가리키는 물음표 뒤(유튜브 v=, 통계표 tblId=, 글 번호)는 남기고 꾸밈 조각만 지운다."""
+    u = u.split('#')[0].replace('http://', 'https://').replace('https://www.', 'https://')
+    base, _, query = u.partition('?')
+    keep = sorted(p for p in query.split('&') if p and p.split('=')[0].lower() not in NOISE and not p.lower().startswith('utm_'))
+    return base.rstrip('/') + ('?' + '&'.join(keep) if keep else '')
 
 
 def main():
