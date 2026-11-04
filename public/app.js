@@ -89,7 +89,6 @@
   const nickParts = s => { const m = String(s || '').match(/^([^/]+)\/([^/]+)\/(\d{2})$/); return m ? { name: m[1], place: m[2], year: m[3] } : { name: '', place: '', year: '' }; };
   function checkPost(p) { if (!CAT[p.cat]) return 'cat'; const t = len(p.title), b = len(p.body); if (t < LIM.title[0] || t > LIM.title[1]) return 'title_len'; if (b < LIM.body[0] || b > LIM.body[1]) return 'body_len'; return ''; }
   const ICON = {
-    search: '<svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>',
     back: '<svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg>',
     send: '<svg viewBox="0 0 24 24"><path d="M4 12 20 4l-4 16-4-7z"/></svg>',
     chat: '<svg viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4z"/></svg>'
@@ -327,7 +326,7 @@
   const view = $('#view'), appbar = $('#appbar'), app = $('#app'), fab = $('#fab');
   const bar = h => { appbar.innerHTML = h; };
   // 부제는 11-04 휴먼쌤 말씀. 오른쪽 단추가 있는 화면(커뮤니티)은 자리가 좁아 두 줄로 접는다
-  const brandBar = (right) => '<div class="brand' + (right ? ' compact' : '') + '"><span class="logo">' + DAD + '</span><span class="wm" role="img" aria-label="육아맨">' + WORDMARK + '</span><span class="tagline"><span>아빠 육아의</span> <span>모든 정보</span></span></div><div class="fill"></div>' + (right || '');
+  const brandBar = () => '<div class="brand"><span class="logo">' + DAD + '</span><span class="wm" role="img" aria-label="육아맨">' + WORDMARK + '</span><span class="tagline"><span>아빠 육아의</span> <span>모든 정보</span></span></div><div class="fill"></div>';
   const backBtn = to => '<button class="circ" data-back="' + esc(to) + '" aria-label="뒤로">' + ICON.back + '</button>';
   // 탭 제목(11-05 휴먼쌤 "상단에 이런 제목부분이 눈에 잘 안띄어. 심지어 홈 탭에는 이런 제목도 없어"): 노란 띠 + 그림 타일 + 큰 제목. right = 오른쪽 단추
   const pageHead = (e, t, sub, right) => '<header class="phead"><span class="pe" aria-hidden="true">' + e + '</span><div class="tx"><h1>' + esc(t) + '</h1>' + (sub ? '<p>' + esc(sub) + '</p>' : '') + '</div>' + (right || '') + '</header>';
@@ -1049,7 +1048,6 @@
 
   // ----- 커뮤니티 -----
   const listState = { cat: '', age: '', q: '', posts: [], next: null, scroll: 0, keep: false };   // age = 아이 나이로 거르기(UI 3안). 분류를 바꿔도 유지
-  const ageChip = (key, name) => '<button type="button" class="chip' + (key === listState.age ? ' on' : '') + '" data-age="' + key + '" aria-pressed="' + (key === listState.age) + '">' + esc(name) + '</button>';
   function chip(key, name, e, cur) { return '<a class="chip' + (key === cur ? ' on' : '') + '" href="#/community' + (key ? '/' + key : '') + '"><span class="e">' + e + '</span>' + esc(name) + '</a>'; }
   function pcard(p) {
     const c = CAT[p.cat] || { name: p.cat, e: '' };
@@ -1098,7 +1096,7 @@
     setTab('community');
     if (!canRead()) { bar(brandBar()); renderLock(); return; }
     fab.hidden = false;
-    bar(brandBar('<button class="searchcta" id="btnSearch" aria-label="키워드 검색"><span class="bubble" id="searchBubble">키워드 검색</span><span class="sc">' + ICON.search + '</span></button>'));
+    bar(brandBar());
     const reuse = listState.keep && listState.cat === cat && listState.posts.length > 0;
     listState.keep = false;
     if (!reuse) { listState.cat = cat; listState.q = ''; listState.posts = []; listState.next = null; }
@@ -1106,21 +1104,22 @@
     view.innerHTML = '<section class="pad">'
       + pageHead('💬', '커뮤니티')
       + '<div class="chips">' + chip('', '전체', '🏠', cat) + CATS.map(c => chip(c.key, c.name, c.e, cat)).join('') + '</div>'
-      + '<div class="chips ages" id="ages2" role="group" aria-label="아이 나이로 거르기">' + ageChip('', '전체 나이') + AGES.map(x => ageChip(x.key, x.name)).join('') + '</div>'
-      + '<div class="searchbar" id="searchbar"' + (q ? '' : ' hidden') + '><input id="q" type="search" placeholder="키워드로 글 찾기 (예: 복직, 이유식)" enterkeyhint="search" autocomplete="off" value="' + esc(q) + '"><button type="button" class="sgo" id="qgo">찾기</button><button type="button" class="sx" id="qx" aria-label="검색 지우기">✕</button></div>'
+      // 나이는 드롭다운, 검색창은 늘 이 자리에(11-05 휴먼쌤 "드롭다운으로" · "지금 위치에 고정")
+      + '<label class="agesel"><select id="ageSel" aria-label="아이 나이로 거르기"><option value="">전체 나이</option>' + AGES.map(x => '<option value="' + x.key + '"' + (x.key === listState.age ? ' selected' : '') + '>' + esc(x.name) + '</option>').join('') + '</select></label>'
+      + '<div class="searchbar" id="searchbar"><input id="q" type="search" placeholder="키워드로 글 찾기 (예: 복직, 이유식)" enterkeyhint="search" autocomplete="off" value="' + esc(q) + '"><button type="button" class="sgo" id="qgo">찾기</button><button type="button" class="sx" id="qx" aria-label="검색 지우기">✕</button></div>'
       + (mode === 'local' ? mockBadge() : '')
       + '<div id="hotBox"></div>'
       + '<div class="list" id="list"></div><button type="button" class="more" id="more" hidden>더 보기</button>'
       + '</section>';
-    const syncBubble = () => { const b = $('#searchBubble'); if (b) b.hidden = !$('#searchbar').hidden; };
-    syncBubble();
+    const syncClear = () => { $('#qx').hidden = !$('#q').value; };     // 지울 글자가 있을 때만 ✕
+    syncClear();
     const doSearch = () => { listState.q = $('#q').value.trim(); $('#q').blur(); loadList(false); };
-    $('#btnSearch').addEventListener('click', () => { const sb = $('#searchbar'); sb.hidden = !sb.hidden; syncBubble(); if (!sb.hidden) $('#q').focus(); else if (listState.q) { listState.q = ''; loadList(false); } });
+    $('#q').addEventListener('input', syncClear);
     $('#q').addEventListener('keydown', ev => { if (ev.key === 'Enter' && !ev.isComposing) { ev.preventDefault(); doSearch(); } });
     $('#qgo').addEventListener('click', doSearch);
-    $('#qx').addEventListener('click', () => { $('#q').value = ''; $('#searchbar').hidden = true; syncBubble(); if (listState.q) { listState.q = ''; loadList(false); } });
+    $('#qx').addEventListener('click', () => { $('#q').value = ''; syncClear(); if (listState.q) { listState.q = ''; loadList(false); } });
     $('#more').addEventListener('click', () => loadList(true));
-    $('#ages2').addEventListener('click', ev => { const b = ev.target.closest('[data-age]'); if (!b) return; listState.age = b.dataset.age; $$('#ages2 .chip').forEach(x => { x.classList.toggle('on', x === b); x.setAttribute('aria-pressed', x === b); }); loadList(false); });
+    $('#ageSel').addEventListener('change', ev => { listState.age = ev.target.value; loadList(false); });
     if (reuse) { paintList(); loadHot(); window.scrollTo(0, listState.scroll); } else { window.scrollTo(0, 0); await loadList(false); }
   }
   // 지금 뜨는 글(11-05 휴먼쌤 "핫한 글이 있으면 상위로 띄워서"). 분류·나이·검색을 고르면 그 결과만 보이게 숨긴다
