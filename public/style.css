@@ -429,6 +429,11 @@ html[data-theme=dark] { background: #0D1119; }
 .jobnote b { display: block; font-size: 14px; font-weight: 900; line-height: 1.4; word-break: keep-all; }
 .jobnote p { margin: 4px 0 0; font-size: 13.5px; font-weight: 600; line-height: 1.6; }
 .jobnote .lk2 { color: var(--pri-d); }
+.jobgo { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; min-height: 44px; margin-top: 8px; padding: 9px 12px; border: 1px solid rgba(92,67,0,.22); border-radius: 12px; background: #fff; color: var(--ink); font: inherit; font-size: 13.5px; font-weight: 800; line-height: 1.35; text-align: left; word-break: keep-all; cursor: pointer; }
+.jobgo i { flex: none; font-style: normal; font-size: 18px; color: var(--pri-d); }
+.jobnote p + .jobgo, .jobnote b + .jobgo { margin-top: 10px; }
+.offi { display: flex; align-items: center; justify-content: center; min-height: 44px; margin-top: 10px; padding: 9px 12px; border: 1.5px solid var(--line); border-radius: 12px; background: var(--card); color: var(--pri-d); font-size: 13.5px; font-weight: 800; text-align: center; }
+.qnote .offi { display: none; }
 .jobline { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px dashed var(--line); font-size: 12.5px; font-weight: 600; color: var(--sub); text-align: left; }
 .jobline b { color: var(--ink); font-weight: 800; }
 .jobline button { position: relative; flex: none; border: 0; background: none; padding: 2px 0; color: var(--pri-d); font-size: 12.5px; font-weight: 800; text-decoration: underline; }
@@ -438,6 +443,7 @@ html[data-theme=dark] { background: #0D1119; }
 #cIns button { font-size: 12.5px; line-height: 1.3; word-break: keep-all; padding: 9px 3px; }
 [data-theme=dark] .jobnote { background: #33290F; color: #FDE68A; }
 [data-theme=dark] .jobnote .lk2 { color: #FDE68A; }
+[data-theme=dark] .jobgo { background: var(--card); border-color: #5A4A1E; }
 
 /* 로고(띠 로고 1, 11-04 휴먼쌤 확정): 타일 + 앱 바 글자 로고(글자색 currentColor, 깎는 선은 --bg) */
 .brand .wm { display: inline-flex; align-items: center; color: var(--ink); }

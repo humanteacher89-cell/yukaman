@@ -343,9 +343,10 @@
   const todayStr = () => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
   // 기본 시작일: 회사 신청 기한(30일 전)이 아직 남은 가장 가까운 1일(11-04 검수 9 — 다음 달 1일로 두면 이미 지난 기한을 챙기라고 한다)
   function nextFirst() { const d = new Date(); let t = new Date(d.getFullYear(), d.getMonth() + 1, 1); if ((t - d) / 86400000 < 31) t = new Date(d.getFullYear(), d.getMonth() + 2, 1); return t.getFullYear() + '-' + String(t.getMonth() + 1).padStart(2, '0') + '-01'; }
-  const calcS = Object.assign({ job: '', pay: 350, start: nextFirst(), months: 12, end: '', mode: 'general', spouseMonths: 6, used: 0, spousePay: '', company: '', birth: '', due: '', before: 40, after: 30, rMonths: 12, priority: true, days: 20 }, store.get('calc', {}));
+  const calcS = Object.assign({ job: '', pay: 350, bong: 300, cMonths: 12, cMode: 'general', cLonger: false, start: nextFirst(), months: 12, end: '', mode: 'general', spouseMonths: 6, used: 0, spousePay: '', company: '', birth: '', due: '', before: 40, after: 30, rMonths: 12, priority: true, days: 20 }, store.get('calc', {}));
   if (!calcS.spouseJob) calcS.spouseJob = calcS.spouseInsured === false ? 'none' : 'worker';   // 옛 저장값(고용보험 가입 여부) 옮기기
   delete calcS.spouseInsured;
+  if (calcS.job === 'private') calcS.job = '';                  // 잠깐 있던 값. 교원과 직원으로 나눴다
   if (!K.parse(calcS.start)) calcS.start = nextFirst();
   if (!K.parse(calcS.end)) calcS.end = K.addDays(K.addMonths(calcS.start, 12), -1);
   const saveCalc = () => store.set('calc', calcS);
@@ -353,26 +354,42 @@
 
   // 홈·가이드의 계산기 카드: 월급만 넣으면 바로 계산된다(일반 12개월). 자세히는 #/calc/leave
   function quickCalc(man) { const s = '2027-01-01'; return K.leaveBenefit({ ordinary: toWon(man), start: s, end: K.addDays(K.addMonths(s, 12), -1) }); }
-  // 직종(11-04 재검토 "다양한 직종이 있어서 헷갈리진 않는지"): 이 계산기는 고용보험 근로자용이다. 고르기 전과 다른 직종에는 금액을 보여 주지 않는다
+  // 직종(11-04 재검토 + 휴먼쌤 "전부다 해당이 안되면 선택에 무슨 의미가 있지? 차라리 관련 정보를 보여주거나 이동하는 버튼"). 고르면 그 직종에 맞는 계산이나 정보·이동 단추가 나온다
   const JOBS = [
     { key: 'worker', name: '회사원·계약직·공무직' },
     { key: 'civil', name: '공무원·국공립 교원' },
-    { key: 'private', name: '사립학교 교직원' },
+    { key: 'pteacher', name: '사립학교 교원' },
+    { key: 'pstaff', name: '사립학교 직원' },
     { key: 'self', name: '자영업·프리랜서' },
     { key: 'unknown', name: '잘 모르겠어요' }
   ];
+  const JOB_LINE = { worker: '회사원 등 <b>고용보험 근로자</b> 기준이에요', civil: '<b>공무원·국공립 교원</b> 기준이에요', pteacher: '<b>사립학교 교원</b> 기준이에요' };
+  const isCivilJob = () => calcS.job === 'civil' || calcS.job === 'pteacher';
   const JOB_NOTE = {
-    civil: { t: '공무원·국공립 교원은 이 계산기가 맞지 않아요', p: '고용보험이 아니라 수당 규정을 따라요. 기준도 통상임금이 아니라 월봉급액(수당을 뺀 봉급)이에요. 첫 6개월은 월봉급액, 7개월째부터 80%이고, 상한은 1~3개월 250만원, 4~6개월 200만원, 7개월째부터 160만원이에요. 수당은 1년까지(요건이 맞으면 1년 6개월까지) 나와요. 자녀 기준은 일반 공무원 12세·초6 이하, 교사 만 8세·초2 이하예요. 내 금액은 소속 기관에 확인해 주세요.' },
-    private: { t: '사립학교 교직원은 이 계산기가 맞지 않아요', p: '사학연금을 적용받으면 고용보험 대상이 아니에요(고용보험법 제10조). 교원은 국공립 교원의 수당 규정을 준용해요(사립학교법 시행령 제24조의9). 행정직원은 법령에 정한 금액이 없고 학교법인 내부 규정을 따라요. 학교 행정실에 확인해 주세요.' },
-    self: { t: '자영업·프리랜서는 육아휴직 급여 대상이 아니에요', p: '육아휴직 급여는 고용보험에 가입한 근로자의 제도예요. 자영업자·예술인·노무제공자로 가입한 기간은 180일에 들어가지 않아요. 계약은 프리랜서인데 실제로 회사 지시를 받고 일했다면 1350에 물어보세요.' },
-    unknown: { t: '급여명세서로 확인할 수 있어요', p: '고용보험료가 빠져 있으면 "회사원·계약직·공무직"을 고르세요. 공기업·공공기관 직원도 공무원이 아니면 여기예요. 공무원연금이면 공무원, 사학연금이면 사립학교 교직원이에요. 세금 3.3%만 떼면 프리랜서 계약일 수 있어요. 고용24 마이페이지에서 고용보험 가입 이력을 볼 수 있고, 그래도 모르면 1350에 물어보세요.' }
+    pstaff: { t: '사립학교 직원은 학교 규정을 먼저 봐요', p: '사학연금을 적용받으면 고용보험 대상이 아니에요. 육아휴직은 남녀고용평등법대로 쓸 수 있지만, 돈은 법령에 정한 금액이 없고 학교법인 내부 규정을 따라요. 학교 행정실에 육아휴직수당 규정을 물어보세요.',
+      go: [{ t: '직종별 안내 보기', h: '#/g/leave-job' }, { t: '육아휴직 신청 순서 보기', h: '#/g/leave-apply' }] },
+    self: { t: '자영업·프리랜서는 육아휴직 급여 대상이 아니에요', p: '근로자가 아니면 고용보험에 가입했어도 육아휴직과 급여 대상이 아니에요(고용노동부 답변). 대신 직종과 상관없이 받는 돈이 있어요.',
+      go: [{ t: '직종 상관없이 받는 돈: 부모급여·첫만남이용권·아동수당', h: '#/g/birth-2weeks' }, { t: '서울 1인 자영업 아빠 출산휴가급여', h: '#/g/leave-job' }, { t: '지역 아빠 장려금 찾기(자료실)', h: '#/library' }, { t: '실제로 회사 지시를 받고 일했다면 1350에 전화', h: 'tel:1350' }] },
+    unknown: { t: '급여명세서에서 찾아 눌러 주세요', p: '',
+      pick: [{ t: '고용보험료가 있어요', j: 'worker' }, { t: '공무원연금이 있어요', j: 'civil' }, { t: '사학연금이 있고 교사예요', j: 'pteacher' }, { t: '사학연금이 있고 행정직원이에요', j: 'pstaff' }, { t: '세금 3.3%만 떼요', j: 'self' }],
+      go: [{ t: '고용24에서 내 고용보험 가입 이력 보기', h: 'https://www.work24.go.kr/', out: true }, { t: '그래도 모르면 1350에 전화', h: 'tel:1350' }] }
   };
   function jobBox() {
-    if (calcS.job === 'worker') return '<div class="jobline"><span>회사원 등 <b>고용보험 근로자</b> 기준이에요</span><button type="button" data-job="">바꾸기</button></div>';
+    if (JOB_LINE[calcS.job]) return '<div class="jobline"><span>' + JOB_LINE[calcS.job] + '</span><button type="button" data-job="">바꾸기</button></div>';
     const n = JOB_NOTE[calcS.job];
-    return '<div class="jobs"><b>어떻게 일하세요?</b><small>직종마다 제도가 달라요. 고르면 맞는 안내를 보여 드려요.</small>'
+    const goes = list => (list || []).map(g => '<a class="jobgo" href="' + esc(g.h) + '"' + (g.out ? ' target="_blank" rel="noopener"' : '') + '><span>' + esc(g.t) + '</span><i>›</i></a>').join('');
+    return '<div class="jobs"><b>어떻게 일하세요?</b><small>직종마다 받는 곳과 금액이 달라요. 고르면 맞는 계산이나 안내를 보여 드려요.</small>'
       + '<div class="catpick" role="group" aria-label="직종">' + JOBS.map(j => '<button type="button" class="chip' + (j.key === calcS.job ? ' on' : '') + '" data-job="' + j.key + '" aria-pressed="' + (j.key === calcS.job) + '">' + esc(j.name) + '</button>').join('') + '</div>'
-      + (n ? '<div class="jobnote"><b>' + esc(n.t) + '</b><p>' + esc(n.p) + '</p><a class="lk2" href="#/g/leave-job">직종별 안내 보기</a></div>' : '') + '</div>';
+      + (n ? '<div class="jobnote"><b>' + esc(n.t) + '</b>' + (n.p ? '<p>' + esc(n.p) + '</p>' : '')
+        + (n.pick || []).map(x => '<button type="button" class="jobgo" data-job="' + x.j + '"><span>' + esc(x.t) + '</span><i>›</i></button>').join('') + goes(n.go) + '</div>' : '') + '</div>';
+  }
+  // 공무원·교원 수당 어림(카드용). 12개월
+  const civilQuick = man => K.civilBenefit({ bong: toWon(man), months: 12 });
+  const civilTotal = man => (toWon(man) ? won(civilQuick(man).total) : '—');
+  function civilNote(man) {
+    if (!toWon(man)) return '수당을 뺀 봉급(월봉급액)을 넣으면 바로 계산돼요.';
+    const r = civilQuick(man);
+    return '1~3개월 월 ' + won(r.rows[0].paid) + ' · 4~6개월 월 ' + won(r.rows[3].paid) + ' · 7개월부터 월 ' + won(r.rows[6].paid);
   }
   // 달마다 받는 돈을 함께 보여 준다. 월 250만원을 넘으면 상한에 걸려 총액이 같으니, 고장처럼 보이지 않게 까닭을 적는다
   function quickNote(man) {
@@ -382,18 +399,31 @@
   }
   const quickTotal = man => (toWon(man) ? won(quickCalc(man).total) : '—');     // 0원이면 하한 70만원으로 계산된 840만원이 나와 버리니 비워 둔다
   const W24_SIM = 'https://m.work24.go.kr/cm/c/f/1100/selecSimulate12.do?systClId=SC00000251&systId=SI00000402';
+  const MPM_LEAVE = 'https://www.mpm.go.kr/mpm/info/infoBiz/bizHr05/';
+  // 이 계산이 어디서 나왔는지 밝힌다(휴먼쌤 "이게 고용24에서 직접 제공하는거야?"). 고용24 것이 아니라 육아맨이 법령 숫자로 만든 어림이다
+  function calcSource(civil) {
+    if (!civil) return '<small class="qnote">고용24가 아니라 육아맨이 시행령 숫자로 만든 어림이에요. 고용보험 180일 이상이어야 받고, 실제 금액은 고용센터가 정해요.</small><a class="offi" href="' + W24_SIM + '" target="_blank" rel="noopener">고용24 공식 모의계산 열기</a>';
+    return '<small class="qnote">' + (calcS.job === 'pteacher' ? '사립학교 교원은 국공립 교원 규정을 준용해요(사립학교법 시행령 제24조의9). ' : '') + '육아맨이 수당 규정 숫자로 만든 어림이에요. 고용24 계산기는 고용보험 가입자용이라 여기엔 맞지 않아요. 실제 금액은 소속 기관이 정해요.</small><a class="offi" href="' + MPM_LEAVE + '" target="_blank" rel="noopener">인사혁신처 공무원 휴직 안내 열기</a>';
+  }
   function calcCard() {
-    const head = '<div class="gcalc" id="qcalc"><div class="top"><b>💰 육아휴직 급여 계산기</b>' + (calcS.job === 'worker' ? '<a class="fold" href="#/calc/leave">자세히</a>' : '') + '</div>';
-    if (calcS.job !== 'worker') return head + '<div class="big">' + jobBox() + '</div></div>';
-    return head + '<div class="big">' + jobBox() + '<label class="qpay">내 월 통상임금 <input id="qPay" type="number" inputmode="decimal" min="0" max="3000" step="10" value="' + esc(calcS.pay) + '" aria-label="월 통상임금(만원)"> 만원</label>'
-      + '<strong id="qTotal">' + quickTotal(calcS.pay) + '</strong><em>부부 중 한 사람만 12개월 쉴 때 어림</em><small class="qnote" id="qNote">' + quickNote(calcS.pay) + '</small>'
-      + '<small class="qnote">고용보험 180일 이상이어야 받아요. 실제 금액은 고용센터가 정해요. <a href="' + W24_SIM + '" target="_blank" rel="noopener">고용24 공식 계산기</a></small></div></div>';
+    const civil = isCivilJob(), worker = calcS.job === 'worker';
+    const head = '<div class="gcalc" id="qcalc"><div class="top"><b>💰 ' + (civil ? '육아휴직 수당 계산기' : '육아휴직 급여 계산기') + '</b>' + (worker || civil ? '<a class="fold" href="#/calc/leave">자세히</a>' : '') + '</div>';
+    if (!worker && !civil) return head + '<div class="big">' + jobBox() + '</div></div>';
+    const v = civil ? calcS.bong : calcS.pay;
+    return head + '<div class="big">' + jobBox() + '<label class="qpay">' + (civil ? '내 월봉급액' : '내 월 통상임금') + ' <input id="qPay" type="number" inputmode="decimal" min="0" max="3000" step="10" value="' + esc(v) + '" aria-label="' + (civil ? '월봉급액' : '월 통상임금') + '(만원)"> 만원</label>'
+      + '<strong id="qTotal">' + (civil ? civilTotal(v) : quickTotal(v)) + '</strong><em>' + (civil ? '12개월 쉴 때 수당 어림' : '부부 중 한 사람만 12개월 쉴 때 어림') + '</em><small class="qnote" id="qNote">' + (civil ? civilNote(v) : quickNote(v)) + '</small>'
+      + calcSource(civil) + '</div></div>';
   }
   function bindCalcCard() {
     const box = $('#qcalc'); if (!box) return;
     box.addEventListener('click', ev => { const b = ev.target.closest('[data-job]'); if (!b) return; calcS.job = b.dataset.job; saveCalc(); box.outerHTML = calcCard(); bindCalcCard(); });
     const p = $('#qPay'); if (!p) return;
-    p.addEventListener('input', () => { calcS.pay = parseFloat(p.value) || 0; saveCalc(); $('#qTotal').textContent = quickTotal(calcS.pay); $('#qNote').innerHTML = quickNote(calcS.pay); });
+    p.addEventListener('input', () => {
+      const v = parseFloat(p.value) || 0;
+      if (isCivilJob()) { calcS.bong = v; $('#qTotal').textContent = civilTotal(v); $('#qNote').innerHTML = civilNote(v); }
+      else { calcS.pay = v; $('#qTotal').textContent = quickTotal(v); $('#qNote').innerHTML = quickNote(v); }
+      saveCalc();
+    });
   }
 
   // ----- 홈 -----
@@ -633,11 +663,13 @@
     view.innerHTML = '<section class="pad">' + chips + '<div id="calcJob"></div><div id="calcForm"></div><div id="calcOut"></div></section>';
     window.scrollTo(0, 0);
     const fill = ({ leave: calcLeave, reduce: calcReduce, paternity: calcPaternity, dates: calcDates })[tab];
-    // 육아휴직·단축·출산휴가 금액은 고용보험 근로자만 계산한다. 다른 직종은 안내만 보여 준다. 날짜 칸은 누구나
+    // 고용보험 근로자는 세 계산기 모두, 공무원·교원은 육아휴직 수당을 계산한다. 그 밖의 직종은 정보와 이동 단추. 날짜 칸은 누구나
     const paint = () => {
       if (tab === 'dates') { fill(); return; }
       $('#calcJob').innerHTML = '<div class="about jobwrap">' + jobBox() + '</div>';
-      if (calcS.job === 'worker') fill(); else { $('#calcForm').innerHTML = ''; $('#calcOut').innerHTML = ''; }
+      if (calcS.job === 'worker') { fill(); return; }
+      if (isCivilJob() && tab === 'leave') { calcCivil(); return; }
+      $('#calcForm').innerHTML = isCivilJob() ? civilOther(tab) : ''; $('#calcOut').innerHTML = '';
     };
     $('#calcJob').addEventListener('click', ev => { const b = ev.target.closest('[data-job]'); if (!b) return; calcS.job = b.dataset.job; saveCalc(); paint(); });
     paint();
@@ -661,6 +693,8 @@
     over12: '12개월을 넘는 기간은 부모가 각각 3개월 이상 쓰거나, 한부모·중증 장애아동의 부모일 때 쓸 수 있어요.',
     over18: '육아휴직은 가장 길어도 18개월이에요. 끝나는 날을 앞당겨 주세요.',
     noCommon: '6+6은 부모가 모두 써야 적용돼요. 배우자 사용 기간이 없으면 일반 기준으로 계산돼요.',
+    bong: '월봉급액을 넣어 주세요. 수당을 뺀 봉급이에요.',
+    over3y: '육아휴직은 자녀 1명당 3년 이내예요. 기간을 줄여 주세요.',
     spouseNoLeave: '배우자가 육아휴직을 쓸 수 없으면(자영업·프리랜서·전업) 부모가 모두 쓰는 경우가 아니라서 일반 기준으로 계산했어요.',
     needBirth: '6+6은 아이가 생후 18개월 안일 때 부모가 모두 휴직을 시작해야 해요. 아이가 태어난 날이나 출산 예정일을 넣으면 계산해 드려요.',
     hours: '단축 후 시간이 단축 전보다 짧아야 해요.',
@@ -740,8 +774,40 @@
     bindOrd(out);
     out();
   }
+  // 공무원·교원 육아휴직 수당(공무원수당 규정 제11조의3 등). 고용보험과 달리 월봉급액 기준이고, 나오는 기간에 끝이 있다
+  function calcCivil() {
+    $('#calcForm').innerHTML = '<div class="form">'
+      + manField('cBong', '내 월봉급액', calcS.bong, '수당을 뺀 봉급이에요. 급여명세서의 봉급 칸을 봐요. 휴직 시작일 기준이에요.')
+      + '<label class="lbl" for="cMon">쉬는 기간</label><div class="unit"><input class="inp" id="cMon" type="number" inputmode="numeric" min="1" max="36" value="' + esc(calcS.cMonths) + '"><span>개월</span></div>'
+      + '<div class="quick" id="cMq">' + [6, 12, 18, 36].map(m => '<button type="button" class="chip" data-m="' + m + '">' + m + '개월</button>').join('') + '</div>'
+      + '<span class="lbl">내 상황</span><div class="seg" id="cCm"><button type="button" data-m="general">일반</button><button type="button" data-m="second">두 번째로 쉬어요</button><button type="button" data-m="single">한부모</button></div>'
+      + '<small class="hint">같은 자녀로 부모가 모두 쉬고 내가 두 번째면 첫 6개월 상한이 올라가요. 배우자가 회사원이어도 돼요.</small>'
+      + '<label class="chk"><input type="checkbox" id="cLong"' + (calcS.cLonger ? ' checked' : '') + '> 부모가 각각 3개월 이상 쉬거나 장애 자녀의 부모예요(수당 1년 6개월까지)</label>'
+      + '</div>';
+    const out = () => {
+      const r = K.civilBenefit({ bong: toWon(calcS.bong), months: calcS.cMonths, mode: calcS.cMode, longer: calcS.cLonger });
+      $$('#cCm button').forEach(b => b.classList.toggle('on', b.dataset.m === calcS.cMode));
+      const tbl = groupRows(r.rows).map(g => '<tr><td>' + (g.from === g.to ? g.from + '개월째' : g.from + '~' + g.to + '개월째') + '<small>' + Math.round(g.rate * 100) + '% · 상한 ' + (g.cap / 10000) + '만원</small></td><td>월 ' + won(g.paid) + '</td></tr>').join('');
+      $('#calcOut').innerHTML = warnBox(r.warnings)
+        + (r.bong && r.rows.length ? '<div class="result"><small>' + r.months + '개월 쉴 때 받는 수당(어림)</small><strong>' + won(r.total) + '</strong>'
+          + (r.unpaidMonths ? '<p class="cline">수당은 ' + r.paidMonths + '개월까지예요. 나머지 ' + r.unpaidMonths + '개월은 수당이 없어요.</p>' : '')
+          + '<table class="calctbl">' + tbl + '</table></div>' : '')
+        + '<div class="about"><b>자녀 나이와 기간</b><ul><li>일반 공무원: 12세 이하 또는 초6 이하 자녀(국가공무원법 제71조, 지방공무원법 제63조)</li><li>교사: 만 8세 이하 또는 초2 이하 자녀(교육공무원법 제44조, 사립학교법 제59조)</li><li>자녀 1명당 3년 이내</li></ul><a class="lk2" href="#/g/leave-job">직종별 안내 보기</a></div>'
+        + '<p class="calcnote">' + (calcS.job === 'pteacher' ? '사립학교 교원은 국공립 교원 규정을 준용해요(사립학교법 시행령 제24조의9). 실제 지급은 학교 행정실에 확인해 주세요. ' : '') + '고용24가 아니라 육아맨이 수당 규정 숫자로 만든 어림이에요. 실제 금액은 소속 기관이 정해요. 근거: 공무원수당 규정 제11조의3(시행 2026.10.2.), 지방공무원 수당 규정 제11조의2(시행 2026.10.1.), ' + esc(dot(K.RULES.checkedAt)) + ' 확인.</p>';
+    };
+    bindInputs({ cBong: el => { calcS.bong = parseFloat(el.value) || 0; }, cMon: el => { calcS.cMonths = parseInt(el.value, 10) || 0; }, cLong: el => { calcS.cLonger = el.checked; } }, out);
+    $('#cMq').addEventListener('click', ev => { const b = ev.target.closest('[data-m]'); if (b) { calcS.cMonths = +b.dataset.m; $('#cMon').value = calcS.cMonths; saveCalc(); out(); } });
+    $('#cCm').addEventListener('click', ev => { const b = ev.target.closest('[data-m]'); if (b) { calcS.cMode = b.dataset.m; saveCalc(); out(); } });
+    out();
+  }
+  // 공무원·교원의 단축·출산휴가 칸: 근로자용 계산식이 아니라서 안내로 보낸다
+  function civilOther(tab) {
+    const t = tab === 'reduce' ? '공무원·교원은 육아기 근무시간 단축수당이 따로 있어요(공무원수당 규정 제11조의3 제5항). 이 칸은 회사원 등 고용보험 근로자용이에요. 금액은 소속 기관에 확인해 주세요.'
+      : '공무원·교원의 배우자 출산휴가는 복무 규정을 따라요. 이 칸은 회사원 등 고용보험 근로자용이에요. 소속 기관에 확인해 주세요.';
+    return '<div class="about">' + t + '<a class="lk2" href="#/g/leave-job" style="display:block">직종별 안내 보기</a></div>';
+  }
   function basis(law, simUrl, extra) {
-    return '<p class="calcnote">' + esc(extra || '') + ' 근거: ' + esc(law) + ', ' + esc(dot(K.RULES.checkedAt)) + ' 확인. <a href="' + esc(simUrl) + '" target="_blank" rel="noopener">고용24 공식 모의계산</a>에서 한 번 더 확인해 보세요.</p>';
+    return '<p class="calcnote">고용24가 아니라 육아맨이 법령 숫자로 만든 어림이에요. ' + esc(extra || '') + ' 근거: ' + esc(law) + ', ' + esc(dot(K.RULES.checkedAt)) + ' 확인.</p><a class="offi" href="' + esc(simUrl) + '" target="_blank" rel="noopener">고용24 공식 사이트에서 확인하기</a>';
   }
   function calcReduce() {
     $('#calcForm').innerHTML = '<div class="form">' + manField('cPay', '내 월 통상임금', calcS.pay) + ORD_HELP

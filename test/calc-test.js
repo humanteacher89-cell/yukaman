@@ -61,6 +61,26 @@ eq(r.warnings.includes('over18'), true, '합쳐서 18개월 넘으면 경고');
 r = C.leaveBenefit({ ordinary: 300 * MAN, start: '2027-03-01', end: '2027-03-20', usedMonths: 2 });
 eq(r.warnings.includes('short'), false, '앞서 쓴 기간이 있으면 30일 미만 경고 안 함');
 
+// 공무원·교원 수당(공무원수당 규정 제11조의3): 월봉급액 기준
+r = C.civilBenefit({ bong: 300 * MAN, months: 12 });
+eq(r.rows.map(x => x.paid), [250, 250, 250, 200, 200, 200, 160, 160, 160, 160, 160, 160].map(x => x * MAN), '공무원 일반 300만원');
+eq(r.total, 2310 * MAN, '공무원 일반 12개월');
+r = C.civilBenefit({ bong: 180 * MAN, months: 8 });
+eq(r.rows.map(x => x.paid), [180, 180, 180, 180, 180, 180, 144, 144].map(x => x * MAN), '낮은 봉급은 그대로, 7개월째부터 80%');
+r = C.civilBenefit({ bong: 60 * MAN, months: 1 });
+eq(r.rows[0].paid, 70 * MAN, '하한 70만원');
+r = C.civilBenefit({ bong: 500 * MAN, months: 7, mode: 'second' });
+eq(r.rows.map(x => x.paid), [250, 250, 300, 350, 400, 450, 160].map(x => x * MAN), '두 번째 휴직자 상한');
+r = C.civilBenefit({ bong: 350 * MAN, months: 4, mode: 'single' });
+eq(r.rows.map(x => x.paid), [300, 300, 300, 200].map(x => x * MAN), '한부모 공무원');
+r = C.civilBenefit({ bong: 300 * MAN, months: 36 });
+eq([r.paidMonths, r.unpaidMonths], [12, 24], '3년 쉬어도 수당은 12개월');
+r = C.civilBenefit({ bong: 300 * MAN, months: 36, longer: true });
+eq([r.paidMonths, r.unpaidMonths], [18, 18], '요건이 맞으면 18개월');
+eq(C.civilBenefit({ bong: 300 * MAN, months: 36, mode: 'single' }).paidMonths, 18, '한부모는 18개월');
+eq(C.civilBenefit({ bong: 0, months: 12 }).warnings.includes('bong'), true, '월봉급액 0 경고');
+eq(C.civilBenefit({ bong: 300 * MAN, months: 40 }).warnings.includes('over3y'), true, '3년 넘으면 경고');
+
 // 통상임금 0은 하한 70만원으로 계산되지 않게 경고
 r = C.leaveBenefit({ ordinary: 0, ...span(12) });
 eq(r.warnings.includes('pay'), true, '통상임금 0 경고(육아휴직)');

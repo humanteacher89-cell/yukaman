@@ -20,6 +20,7 @@
       both: [2500000, 2500000, 3000000, 3500000, 4000000, 4500000],
       minDays: 30, shortMinDays: 7, maxMonths: 18, baseMonths: 12, applyBeforeDays: 30
     },
+    civil: { general: [2500000, 2000000, 1600000], second: [2500000, 2500000, 3000000, 3500000, 4000000, 4500000], singleCap: 3000000, floor: 700000, baseMonths: 12, longMonths: 18, maxMonths: 36 },
     reduce: { firstHours: 10, firstCap: 2500000, restCap: 1600000, floor: 500000, restRate: 0.8, afterMin: 15, afterMax: 35, baseMonths: 12, maxMonths: 36 },
     paternity: { days: 20, dailyCap: 84210, fullCap: 1684210, hoursPerDay: 8, monthlyHours: 209, beforeDue: 50, afterBirth: 120, splits: 3, minHourly: 10320 }   // 하한 = 최저임금(2026년 시급 10,320원, 정부24 "지급 금액 하한: 최저임금액")
   };
@@ -116,6 +117,35 @@
     };
   }
 
+  // ----- 공무원·교원 육아휴직수당 -----
+  // 공무원수당 규정 제11조의3(시행 2026.10.2.), 지방공무원 수당 규정 제11조의2(시행 2026.10.1.), 사립학교 교원은 사립학교법 시행령 제24조의9로 준용.
+  // 기준은 통상임금이 아니라 월봉급액. opts: {bong(원), months(쉬는 개월), mode:'general'|'second'(두 번째 휴직자)|'single'(한부모), longer(부모 각각 3개월 이상·장애 자녀로 18개월까지)}
+  function civilBenefit(opts) {
+    const C = RULES.civil;
+    const bong = Math.max(0, Math.floor(+opts.bong || 0));
+    const mode = opts.mode === 'second' || opts.mode === 'single' ? opts.mode : 'general';
+    const months = Math.max(0, Math.floor(+opts.months || 0));
+    const limit = opts.longer || mode === 'single' ? C.longMonths : C.baseMonths;     // 제6항·제7항: 지급은 최초 1년, 요건이 맞으면 18개월
+    const paidMonths = Math.min(months, limit);
+    const rows = [];
+    let total = 0;
+    for (let no = 1; no <= paidMonths; no++) {
+      let rate, cap, special = false;
+      if (mode === 'second' && no <= 6) { rate = 1; cap = C.second[no - 1]; special = true; }
+      else if (mode === 'single' && no <= 3) { rate = 1; cap = C.singleCap; special = true; }
+      else if (no <= 3) { rate = 1; cap = C.general[0]; }
+      else if (no <= 6) { rate = 1; cap = C.general[1]; }
+      else { rate = 0.8; cap = C.general[2]; }
+      const paid = Math.floor(Math.max(Math.min(bong * rate, cap), C.floor));
+      rows.push({ no, full: true, days: 0, rate, cap, special, paid, cut: 0 });
+      total += paid;
+    }
+    const warnings = [];
+    if (!bong) warnings.push('bong');
+    if (months > C.maxMonths) warnings.push('over3y');
+    return { bong, mode, months, paidMonths, unpaidMonths: Math.max(0, months - paidMonths), limit, rows, total, warnings };
+  }
+
   // ----- 육아기 근로시간 단축 급여(제104조의2) -----
   // opts: {ordinary(원), before(단축 전 주 소정시간), after(단축 후), months, lastDays(마지막 달이 한 달을 못 채우면 그 일수, 선택)}
   function reduceBenefit(opts) {
@@ -188,7 +218,7 @@
     return out;
   }
 
-  const api = { RULES, leaveMonthly, monthlyPeriods, leaveBenefit, reduceBenefit, paternityPay, childDates, addDays, addMonths, addYears, parse, fmt };
+  const api = { RULES, leaveMonthly, monthlyPeriods, leaveBenefit, civilBenefit, reduceBenefit, paternityPay, childDates, addDays, addMonths, addYears, parse, fmt };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.YK_CALC = api;
 })(typeof window !== 'undefined' ? window : this);
