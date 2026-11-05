@@ -561,7 +561,6 @@ html[data-theme=dark] { background: #0D1119; }
 /* 홈 아이 나이 길(UI 3안, 11-04 휴먼쌤 선택): 나이 칸 → 우리 아이 → 지금 챙길 것(시간순, D-데이) */
 /* 아이가 둘 이상일 때(11-05): 나이 칩과 헷갈리지 않게 칸 모양으로 고른다 */
 .kidrow { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
-.kidrow.one { justify-content: flex-end; }
 .kidrow .seg { flex: 1; min-width: 0; margin: 0; }
 .seg.kidseg { margin: 0 0 8px; padding: 3px; }
 .kidrow .seg.kidseg { margin: 0; }
