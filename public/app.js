@@ -1638,7 +1638,7 @@
       + adm('queue', '인증 신청', todo(r.queue.length, '건'), r.queue.length > 0, (r.queue.length ? r.queue.map(q => '<div class="appl" data-id="' + q.id + '"><div class="meta"><b>' + esc(q.nick) + '</b><span class="time">' + ago(q.created) + '</span></div><small>' + esc(STAGE[q.stage] || '') + '</small><p>' + esc(q.answer) + '</p><div class="two"><button type="button" class="btn primary small" data-d="1">승인</button><button type="button" class="btn line small" data-d="0">거절</button></div></div>').join('') : '<div class="about">대기 중인 신청이 없어요.</div>')
         + '<p class="calcnote">승인·거절하면 신청 내용은 바로 지워져요.</p>')
       + (qaPub.length ? adm('pub', '올라간 Q&amp;A', todo(qaPub.length, '건'), false, qaPub.map(pubCard).join('')) : '')
-      + adm('fresh', '최신화 점검', oldDocs.length ? '오래된 글 ' + oldDocs.length + '편' : '', oldDocs.length > 0, '<div class="about">' + notes(['법령 표 확인: ' + dotd(LAW_DATA.checked) + ' (' + daysAgo(LAW_DATA.checked) + '일 전)', '예고된 개정: ' + (upcoming.join(', ') || '없음'), '확인한 지 90일 넘은 글: ' + oldDocs.length + '편'])
+      + adm('fresh', '최신화 점검', oldDocs.length ? '오래된 글 ' + oldDocs.length + '편' : '', oldDocs.length > 0, '<div class="about"><div id="watchBox"></div>' + notes(['법령 표 확인: ' + dotd(LAW_DATA.checked) + ' (' + daysAgo(LAW_DATA.checked) + '일 전)', '예고된 개정: ' + (upcoming.join(', ') || '없음'), '확인한 지 90일 넘은 글: ' + oldDocs.length + '편'])
         + oldDocs.slice(0, 20).map(g => '<a class="lk2" style="display:block" href="#/g/' + esc(g.id) + '">' + esc(g.title) + '</a>').join('') + '</div>')
       + adm('invites', '초대 코드', '', false, '<div class="about"><div class="two"><input class="inp" id="invNote" placeholder="어디에 쓸 코드인가요(메모)" maxlength="60"><button type="button" class="btn primary small" id="invMake">5개 만들기</button></div>'
         + '<div id="invList">' + r.invites.map(i => '<div class="irow"><code>' + esc(i.code) + '</code><span class="time">' + (i.used ? '사용함' : esc(i.note || '안 씀')) + '</span>' + (i.used ? '' : '<button type="button" class="edit" data-share="' + esc(i.code) + '">보내기</button>') + '</div>').join('') + '</div></div>')
@@ -1646,6 +1646,27 @@
       + '</section>';
     window.scrollTo(0, 0);
     view.addEventListener('click', adminClick);
+    paintWatch();
+  }
+  // 매주 도는 자동 점검(법령 조문 · 자료 링크)이 연 이슈(tools/post_issue.sh, 11-05 휴먼쌤 "1단계 시작"). 저장소가 공개라 키 없이 읽고, 칸을 다시 그릴 때마다 묻지 않게 한 번만 읽는다. 못 읽으면 목록 링크만 둔다
+  const WATCH_REPO = 'humanteacher89-cell/yukaman', WATCH_LABEL = encodeURIComponent('자동 점검');
+  let watchIssues;
+  async function paintWatch() {
+    const list = 'https://github.com/' + WATCH_REPO + '/issues?q=is%3Aopen+label%3A%22' + WATCH_LABEL + '%22';
+    if (watchIssues === undefined) {
+      try {
+        const res = await fetch('https://api.github.com/repos/' + WATCH_REPO + '/issues?state=open&labels=' + WATCH_LABEL);
+        watchIssues = res.ok ? (await res.json()).map(x => ({ title: String(x.title || ''), url: String(x.html_url || '') })) : null;
+      } catch (e) { watchIssues = null; }
+    }
+    const box = $('#watchBox');
+    if (!box) return;
+    const link = (href, text) => '<a class="lk2" style="display:block" href="' + esc(href) + '" target="_blank" rel="noopener">' + esc(text) + '</a>';
+    if (watchIssues === null) { box.innerHTML = '<p class="calcnote">자동 점검 결과를 못 읽었어요.</p>' + link(list, '점검 결과 열기'); return; }
+    if (!watchIssues.length) { box.innerHTML = '<p class="calcnote">자동 점검(매주 월요일): 확인할 것 없음</p>'; return; }
+    box.innerHTML = '<p class="calcnote">자동 점검(매주 월요일): 확인할 것 ' + watchIssues.length + '건</p>' + watchIssues.map(x => link(/^https:\/\/github\.com\//.test(x.url) ? x.url : list, x.title)).join('');
+    const sum = box.closest('.adm').querySelector('summary');
+    if (!sum.querySelector('.watchn')) sum.insertAdjacentHTML('beforeend', '<span class="admn due watchn">자동 점검 ' + watchIssues.length + '건</span>');
   }
   async function adminClick(ev) {
     if (parse().name !== 'admin') { view.removeEventListener('click', adminClick); return; }
