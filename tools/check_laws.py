@@ -6,7 +6,7 @@
 # 읽는 곳: /법령/<이름>의 iframe 주소(lsiSeq·efYd = 지금 시행 중인 판) + lsSideInfoP 머리줄([시행 …] [법률 제…호, …]) + lsHstListR 연혁 목록(앞으로 시행될 판의 번호와 시행일).
 # 예고는 연혁 목록으로 읽는다. 머리줄을 efYd 없이 읽는 옛 방법은 같은 번호 안의 시행일만 보여 번호가 다른 예고판(남녀고용평등법 2026-11-27)을 놓쳤다.
 # 시험: python -X utf8 test/watch-test.py
-import datetime, difflib, html as htmllib, json, os, re, sys, time, urllib.parse, urllib.request
+import datetime, difflib, html as htmllib, json, os, re, sys, time, urllib.error, urllib.parse, urllib.request
 
 HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT = os.path.join(HERE, 'public', 'law-data.js')
@@ -45,9 +45,16 @@ ART_RE = r'제\d+조(?:의\d+)?'
 
 
 def get(path):
+    """잠깐 끊겨도 점검 전체가 실패하지 않게 네 번까지 읽는다(2026-11-05 GitHub 서버에서 이름 찾기가 한 번 실패)."""
     req = urllib.request.Request(BASE + path, headers={'User-Agent': 'Mozilla/5.0 (yukaman law watch)'})
-    with urllib.request.urlopen(req, timeout=30) as r:
-        return r.read().decode('utf-8', 'replace')
+    for wait in (5, 15, 30, None):
+        try:
+            with urllib.request.urlopen(req, timeout=30) as r:
+                return r.read().decode('utf-8', 'replace')
+        except (urllib.error.URLError, TimeoutError, ConnectionError) as e:
+            if wait is None or (isinstance(e, urllib.error.HTTPError) and e.code < 500):
+                raise
+            time.sleep(wait)
 
 
 def dashed(ef):

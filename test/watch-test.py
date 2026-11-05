@@ -104,8 +104,54 @@ eq(ok('https://a.kr/1', 'https://a.kr/1', '<p>죄송합니다. 기술적인 문�
 eq(ok('https://a.kr/1', 'https://a.kr/1', '<script>var a="페이지를 찾을 수 없습니다"</script><p>글</p>')[0], 'ok', '스크립트 안의 글자는 안 봄')
 eq(K.judge_page('https://a.kr/1', 'https://a.kr/1', '<p>삭제된 기사입니다</p>'.encode('euc-kr'))[0], 'suspect', 'EUC-KR 사이트')
 
+# 끊김: 잠깐 끊기면 다시 읽고, 없는 이름만 없어짐으로 친다
+import io, socket, urllib.error  # noqa: E402
+calls = []
+
+
+def flaky(req, timeout=0):
+    calls.append(1)
+    if len(calls) < 3:
+        raise urllib.error.URLError(socket.gaierror(-5, 'No address associated with hostname'))
+    return io.BytesIO('본문'.encode('utf-8'))
+
+
+real_open, real_sleep = L.urllib.request.urlopen, L.time.sleep
+L.urllib.request.urlopen, L.time.sleep = flaky, lambda s: None
+eq(L.get('/x'), '본문', '끊겨도 다시 읽음')
+eq(len(calls), 3, '세 번째에 읽음')
+
+
+def gone(req, timeout=0):
+    calls.append(1)
+    raise urllib.error.HTTPError('u', 404, 'Not Found', {}, None)
+
+
+calls.clear()
+L.urllib.request.urlopen = gone
+try:
+    L.get('/x')
+    eq('예외', '없음', '404는 바로 실패')
+except urllib.error.HTTPError:
+    eq(len(calls), 1, '404는 다시 읽지 않음')
+L.urllib.request.urlopen, L.time.sleep = real_open, real_sleep
+
+
+def fail_with(err):
+    def f(url, verify=True):
+        raise urllib.error.URLError(err)
+    return f
+
+
+real_url = K.open_url
+K.open_url = fail_with(socket.gaierror(socket.EAI_NONAME, 'not known'))
+eq(K.check('https://a.kr/1')[0], 'dead', '없는 이름')
+K.open_url = fail_with(socket.gaierror(-5, 'No address'))
+eq(K.check('https://a.kr/1')[0], 'unknown', '이름 찾기 일시 실패')
+K.open_url = real_url
+
 # 이슈 본문
-WHERE = {'https://a.kr/1': ['자료실: 가'], 'https://b.kr/2': ['글: 나'], 'https://c.kr/3': ['자료실: 다'], 'https://d.kr/4': ['자료실: 라']}
+WHERE ={'https://a.kr/1': ['자료실: 가'], 'https://b.kr/2': ['글: 나'], 'https://c.kr/3': ['자료실: 다'], 'https://d.kr/4': ['자료실: 라']}
 RES = {'https://a.kr/1': ('dead', '404'), 'https://b.kr/2': ('suspect', '첫 화면으로 넘어감'), 'https://c.kr/3': ('unknown', '403'), 'https://d.kr/4': ('ok', '')}
 body, unknown = K.report(RES, WHERE, {})
 has(body, '없어진 주소 1개', '없어진 주소')

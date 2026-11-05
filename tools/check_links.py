@@ -86,8 +86,8 @@ def check(url):
     except urllib.error.HTTPError as e:
         return ('dead', '%d' % e.code) if e.code in (404, 410) else ('unknown', '%d' % e.code)
     except urllib.error.URLError as e:
-        if isinstance(e.reason, socket.gaierror):
-            return 'dead', '도메인 없음'
+        if isinstance(e.reason, socket.gaierror):      # 정말 없는 이름만 없어짐으로. 서버 쪽 이름 찾기가 잠깐 실패한 것(-3, -5)은 못 읽음
+            return ('dead', '도메인 없음') if e.reason.errno == socket.EAI_NONAME else ('unknown', '이름 찾기 실패')
         return 'unknown', str(e.reason)[:60]
     except Exception as e:
         return 'unknown', type(e).__name__
