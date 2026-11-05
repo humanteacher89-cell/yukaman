@@ -1,9 +1,20 @@
 // 육아맨 서버 시험: 내 컴퓨터 미리 보기(deploy.py dev --fresh)에 대고 돌린다. 공개 주소에는 돌리지 않는다.
 //   node test/api-test.mjs [http://127.0.0.1:8799]
 import assert from 'node:assert';
+import { execFileSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { startMock } from './mock-kakao.mjs';
 const BASE = (process.argv[2] || 'http://127.0.0.1:8799') + '/api';
 if (!/127\.0\.0\.1|localhost/.test(BASE)) throw new Error('내 컴퓨터 주소에서만 돌립니다');
+// 시험 DB(내 컴퓨터의 가짜 D1)에 바로 쓰기. 복무일처럼 API로 만들 수 없는 것만
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
+function localSql(sql) {
+  let d = ROOT, js = process.env.WRANGLER_JS;
+  while (!js && dirname(d) !== d) { d = dirname(d); const p = join(d, 'tools', 'cf-wrangler', 'node_modules', 'wrangler', 'bin', 'wrangler.js'); if (existsSync(p)) js = p; }
+  execFileSync(process.execPath, [js, 'd1', 'execute', 'yukaman', '--local', '--command', sql], { cwd: ROOT, stdio: 'ignore', env: { ...process.env, WRANGLER_SEND_METRICS: 'false' } });
+}
 let n = 0;
 const rnd = () => Array.from(crypto.getRandomValues(new Uint8Array(18)), b => b.toString(16).padStart(2, '0')).join('');
 const stamp = String(Date.now() % 100000);
@@ -383,7 +394,7 @@ await call('DELETE', `/posts/${hid}`, ADMIN);
 r = await call('GET', '/posts/hot', H1);
 ok(!r.data.posts.find(p => p.id === hid), '지운 글은 안 뜸');
 
-// 계급: 글 3점(하루 2개까지) · 남의 글 댓글 2점(글마다 1번) · 내 글에 남이 단 댓글 1점(글마다 사람당 1번). 지운 것은 빠진다
+// 계급: 글 3점(하루 2개까지) · 남의 글 댓글 2점(글마다 1번, 하루 5개까지) · 내 글에 남이 단 댓글 1점(글마다 사람당 1번) · 후임 10점(10명까지). 지운 것은 빠진다. 진급은 점수와 복무일을 둘 다
 const R1 = rnd(), R2 = rnd(), R3 = rnd();
 const rids = {};
 for (const [t, nm] of [[R1, '계급하'], [R2, '계급둘'], [R3, '계급셋']]) {
@@ -411,23 +422,126 @@ assert.deepStrictEqual(await pts(R1), [7, 0], '내 글에 남의 댓글 1점, �
 await call('POST', `/posts/${rp2}/comments`, R2, { body: '다른 글' });
 await call('POST', `/posts/${rp1}/comments`, R3, { body: '다른 사람' });
 await call('POST', `/posts/${rp2}/comments`, R3, { body: '다른 사람' });
-assert.deepStrictEqual(await pts(R1), [10, 1], '10점이면 일병'); n++;
+assert.deepStrictEqual(await pts(R1), [10, 0], '10점이어도 복무 전이면 이병'); n++;
 assert.deepStrictEqual(await pts(R2), [4, 0]); n++;
-r = await call('GET', '/posts?limit=5', R1);
+// 복무일은 시험 DB의 가입 시각을 앞당겨 만든다(서버에 시험용 뒷문을 두지 않으려고)
+const backdate = (uid, days) => localSql(`UPDATE users SET created = '${new Date(Date.now() - days * 86400000 - 60000).toISOString()}' WHERE id = ${uid}`);
+backdate(rids[R1], 7);
+r = await call('GET', '/me', R1);
+ok(r.data.days === 7 && r.data.rank === 0, '복무 7일이어도 점수 10점이면 이병');
+// 점수 20점 채우기: R1의 다른 글에 네 사람이 댓글(뒤의 '지금 뜨는 글' 시험에 걸리지 않게 끝나면 지운다)
+const R4 = rnd(), R5 = rnd();
+for (const [t, nm] of [[R4, '계급넷'], [R5, '계급닷']]) {
+  r = await call('POST', '/join', t, { terms: true, nick: N(nm + stamp) });
+  rids[t] = r.data.user.id;
+  await call('POST', '/admin/user', ADMIN, { user_id: r.data.user.id, action: 'verify' });
+}
+const rpFill = [];
+for (const w of ['넷', '다섯', '여섯']) rpFill.push((await call('POST', '/posts', R1, { cat: 'tip', title: '계급 글 ' + w, body: '내용입니다' })).data.id);   // 글은 오늘 2개까지라 글 점수는 그대로
+for (const t of [R2, R3, R4, R5]) await call('POST', `/posts/${rpFill[0]}/comments`, t, { body: '댓글입니다' });     // 4점
+for (const t of [R4, R5]) { await call('POST', `/posts/${rpFill[1]}/comments`, t, { body: '댓글입니다' }); await call('POST', `/posts/${rpFill[2]}/comments`, t, { body: '댓글입니다' }); }   // 4점
+assert.deepStrictEqual(await pts(R1), [18, 0]); n++;
+await call('POST', `/posts/${rpFill[0]}/comments`, R3, { body: '또 댓글' });
+assert.deepStrictEqual(await pts(R1), [18, 0], '같은 사람 같은 글은 한 번'); n++;
+const rp5 = (await call('POST', '/posts', R2, { cat: 'tip', title: '계급 남의 글', body: '내용입니다' })).data.id;
+await call('POST', `/posts/${rp5}/comments`, R1, { body: '남의 글 댓글' });
+assert.deepStrictEqual(await pts(R1), [20, 1], '20점 + 복무 7일이면 일병'); n++;
+r = await call('GET', '/posts?limit=20', R1);
 const rrow = r.data.posts.find(p => p.id === rp1);
 ok(rrow && rrow.rank === 1 && rrow.points === undefined, '목록에 계급만, 점수는 안 보임');
 r = await call('GET', `/posts/${rp1}`, R3);
 ok(r.data.post.rank === 1 && r.data.comments.every(c => c.points === undefined && c.rank === (c.uid === rids[R1] ? 1 : 0)), '글·댓글에 계급만');
+backdate(rids[R1], 6);
+assert.deepStrictEqual(await pts(R1), [20, 0], '점수 20점이어도 복무 6일이면 이병'); n++;
+backdate(rids[R1], 7);
+const r2before = (await pts(R2))[0];
 await call('DELETE', `/comments/${rc1}`, R2);
-assert.deepStrictEqual(await pts(R2), [4, 0], '같은 글에 댓글이 남아 있으면 그대로'); n++;
+assert.deepStrictEqual((await pts(R2))[0], r2before, '같은 글에 댓글이 남아 있으면 그대로'); n++;
 await call('DELETE', `/posts/${rp2}`, R1);
-assert.deepStrictEqual(await pts(R1), [8, 0], '지운 글과 거기 달린 댓글 점수 빠지고, 내려가면 계급도'); n++;
-assert.deepStrictEqual(await pts(R2), [2, 0], '지운 글에 단 댓글 점수도 빠짐'); n++;
+ok((await pts(R1))[1] === 0, '지운 글과 거기 달린 댓글 점수 빠지고, 내려가면 계급도');
+assert.deepStrictEqual((await pts(R2))[0], r2before - 2, '지운 글에 단 댓글 점수도 빠짐'); n++;
+for (const id of rpFill) await call('DELETE', `/posts/${id}`, R1);
+// 남의 글 댓글은 하루 5개 글까지 점수
+const R6 = rnd();
+r = await call('POST', '/join', R6, { terms: true, nick: N('계급여' + stamp) });
+await call('POST', '/admin/user', ADMIN, { user_id: r.data.user.id, action: 'verify' });
+const six = [];
+for (let i = 0; i < 6; i++) six.push((await call('POST', '/posts', R5, { cat: 'tip', title: '댓글 상한 글 ' + i, body: '내용입니다' })).data.id);
+for (const id of six) await call('POST', `/posts/${id}/comments`, R6, { body: '댓글입니다' });
+assert.deepStrictEqual((await pts(R6))[0], 10, '남의 글 댓글은 하루 5개까지'); n++;
 r = await call('GET', '/me', ADMIN);
-ok(r.data.rank === null, '운영 계정은 계급 없음');
+ok(r.data.rank === null && r.data.ref === null, '운영 계정은 계급과 초대 링크 없음');
 r = await call('POST', '/posts', ADMIN, { cat: 'tip', title: '운영 글 계급', body: '내용입니다' });
 ok(r.data.post.rank === null, '운영 글에 계급 없음');
 await call('DELETE', `/posts/${r.data.id}`, ADMIN);
+
+// 아빠 초대 링크: 한 사람당 하나, 여러 번 쓴다. 가입한 사람이 글이나 댓글을 써야 10점, 10명까지. 인증은 하지 않는다
+const refOf = async t => (await call('GET', '/me', t)).data.ref;
+localSql("DELETE FROM acts WHERE kind IN ('join', 'code')");     // 시험 기기 하나에서 가입이 많아 횟수 제한(10분에 20번)을 비운다
+const IV = rnd();
+r = await call('POST', '/join', IV, { terms: true, nick: N('초대자' + stamp) });
+const ivId = r.data.user.id;
+r = await call('GET', '/me', IV);
+ok(r.data.ref === null, '인증 전에는 초대 링크 없음');
+await call('POST', '/admin/user', ADMIN, { user_id: ivId, action: 'verify' });
+const ref1 = await refOf(IV);
+ok(ref1 && /^[A-Z0-9]{4}-[A-Z0-9]{4}$/.test(ref1.code) && ref1.joined === 0 && ref1.counted === 0, '초대 링크 코드');
+ok((await refOf(IV)).code === ref1.code, '다시 열어도 같은 코드');
+r = await call('GET', '/me', IV);
+ok(r.data.invites.length === 0, '초대 링크는 초대 코드 목록에 안 섞임');
+const iv1Tok = rnd(), iv2Tok = rnd();
+r = await call('POST', '/join', iv1Tok, { terms: true, nick: N('후임일' + stamp), invite: ref1.code });
+const iv1 = r.data.user.id;
+ok(r.data.ok && r.data.invite_error === '' && r.data.user.verified === false, '초대 링크만으로는 인증되지 않음');
+r = await call('POST', '/join', iv2Tok, { terms: true, nick: N('후임둘' + stamp), invite: ref1.code });
+const iv2 = r.data.user.id;
+ok(r.data.invite_error === '', '초대 링크는 여러 사람이 씀');
+r = await refOf(IV);
+ok(r.joined === 2 && r.counted === 0, '들어왔어도 활동 전에는 점수 인정 0명');
+assert.deepStrictEqual(await pts(IV), [0, 0], '가입만으로는 0점'); n++;
+await call('POST', '/admin/user', ADMIN, { user_id: iv1, action: 'verify' });
+assert.deepStrictEqual(await pts(IV), [0, 0], '인증만으로도 0점'); n++;
+r = await call('POST', '/posts', iv1Tok, { cat: 'tip', title: '후임의 첫 글', body: '내용입니다' });
+const ivPost = r.data.id;
+assert.deepStrictEqual(await pts(IV), [10, 0], '후임이 글을 쓰면 10점'); n++;
+r = await refOf(IV);
+ok(r.joined === 2 && r.counted === 1, '점수 인정 1명');
+await call('DELETE', `/posts/${ivPost}`, iv1Tok);
+assert.deepStrictEqual(await pts(IV), [0, 0], '후임이 글을 지우면 점수도 빠짐'); n++;
+r = await call('POST', '/posts', iv1Tok, { cat: 'tip', title: '후임의 다시 쓴 글', body: '내용입니다' });
+assert.deepStrictEqual(await pts(IV), [10, 0]); n++;
+await call('POST', '/admin/user', ADMIN, { user_id: iv1, action: 'block' });
+assert.deepStrictEqual(await pts(IV), [0, 0], '막힌 후임은 점수에서 빠짐'); n++;
+await call('POST', '/admin/user', ADMIN, { user_id: iv1, action: 'unblock' });
+await call('POST', '/admin/user', ADMIN, { user_id: iv1, action: 'verify' });
+await call('POST', '/admin/user', ADMIN, { user_id: iv2, action: 'verify' });
+await call('POST', '/posts', iv2Tok, { cat: 'tip', title: '후임둘의 글', body: '내용입니다' });
+assert.deepStrictEqual((await pts(IV))[0], 20, '후임 2명 20점'); n++;
+backdate(ivId, 7);
+assert.deepStrictEqual(await pts(IV), [20, 1], '초대 점수로도 진급, 복무는 그대로 필요'); n++;
+// 11명 들어와도 10명까지(가입 횟수 제한을 피해 시험 DB에 바로 넣는다)
+const fakeAt = new Date().toISOString(), fakeIds = Array.from({ length: 11 }, (_, i) => 900000 + i);
+localSql(fakeIds.map(id => `INSERT INTO users (id, nick, nick_key, token_hash, created, verified, invited_by) VALUES (${id}, '가짜${id}/청주/24', '가짜${id}/청주/24', 'fake${id}', '${fakeAt}', 1, ${ivId})`).join('; ')
+  + '; ' + fakeIds.map(id => `INSERT INTO posts (user_id, cat, title, body, created) VALUES (${id}, 'tip', '가짜 글', '내용', '${fakeAt}')`).join('; '));
+r = await call('GET', '/me', IV);
+ok(r.data.points === 100 && r.data.ref.joined === 13 && r.data.ref.counted === 13, '초대 점수는 10명까지(100점)');
+ok(r.data.rank === 1, '100점이어도 복무 7일이면 일병');
+backdate(ivId, 90);
+ok((await call('GET', '/me', IV)).data.rank === 2, '초대만으로는 상병까지(병장은 150점)');
+localSql(`DELETE FROM posts WHERE user_id >= 900000; DELETE FROM users WHERE id >= 900000`);
+// 이미 가입한 사람은 초대 점수가 되지 않고, 초대 링크로 인증도 못 한다
+const ivOld = rnd();
+await call('POST', '/join', ivOld, { terms: true, nick: N('옛회원' + stamp) });
+r = await call('POST', '/verify/code', ivOld, { code: ref1.code });
+ok(r.data.error === 'code_bad', '초대 링크로는 인증 코드를 대신하지 못함');
+const refBefore = (await refOf(IV)).joined;
+r = await call('POST', '/verify/code', R1, { code: ref1.code });
+ok(r.data.already === true && (await refOf(IV)).joined === refBefore, '이미 가입한 아빠가 링크를 열어도 점수 안 됨');
+// 막힌 사람의 초대 링크는 못 쓴다
+await call('POST', '/admin/user', ADMIN, { user_id: ivId, action: 'block' });
+r = await call('POST', '/join', rnd(), { terms: true, nick: N('막힌자' + stamp), invite: ref1.code });
+ok(r.data.invite_error === 'code_bad', '막힌 회원의 초대 링크는 폐기됨');
+await call('POST', '/admin/user', ADMIN, { user_id: ivId, action: 'unblock' });
 
 // 비속어: 글·댓글·닉네임을 서버에서 막고, 육아 글에 흔한 말은 통과시킨다(자세한 목록은 test/badwords-test.mjs)
 r = await call('POST', '/posts', R1, { cat: 'tip', title: '시1발 제목입니다', body: '내용입니다' });

@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS users (
   verified     INTEGER NOT NULL DEFAULT 0,     -- 1 = 인증 아빠(글·댓글 가능)
   verified_how TEXT NOT NULL DEFAULT '',       -- invite(초대 코드) · apply(신청서 승인) · admin
   verified_at  TEXT,
-  invited_by   INTEGER,                        -- 초대한 사람(문제가 생기면 초대 줄기를 본다)
+  invited_by   INTEGER,                        -- 초대한 사람(초대 점수를 세고, 문제가 생기면 초대 줄기를 본다)
   blocked      INTEGER NOT NULL DEFAULT 0,     -- 1 = 인증 취소하고 다시 신청 못 함
   comments_seen TEXT,                          -- 내 글의 새 댓글을 마지막으로 본 시각(MY 배지, 검수 22). 기존 표에는 MIGRATIONS로 더함
   identity_hash TEXT,                          -- SHA-256('id|' + 본인인증 DI 또는 CI). 1인 1계정 확인용, 이름·전화번호는 저장하지 않는다(11-05). 기존 표에는 MIGRATIONS로 더함. 색인도 MIGRATIONS에
@@ -37,7 +37,7 @@ CREATE TABLE IF NOT EXISTS kakao_pending (
   created    TEXT NOT NULL
 );
 
--- 초대 코드: 인증 아빠가 만들어 다른 아빠에게 준다. kind = dad(아빠 인증) · admin(첫 관리자, 한 번 쓰면 끝)
+-- 초대 코드: 인증 아빠가 만들어 다른 아빠에게 준다. kind = dad(아빠 인증) · admin(첫 관리자, 한 번 쓰면 끝) · ref(아빠 초대 링크. 한 사람당 하나, 여러 번 쓰고 인증은 하지 않는다. 11-05)
 CREATE TABLE IF NOT EXISTS invites (
   code     TEXT PRIMARY KEY,
   owner_id INTEGER,                 -- 만든 사람(운영 코드는 NULL)
@@ -49,6 +49,7 @@ CREATE TABLE IF NOT EXISTS invites (
   revoked  INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS invites_owner ON invites (owner_id);
+CREATE INDEX IF NOT EXISTS users_invited ON users (invited_by);   -- 계급 점수를 셀 때 후임을 찾는다
 
 -- 인증 신청서: 코드가 없는 아빠가 쓴다. 승인·거절하면 답변(answer)은 지운다(개인정보를 남기지 않는다).
 CREATE TABLE IF NOT EXISTS applications (

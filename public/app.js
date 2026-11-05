@@ -82,16 +82,19 @@
   const CHECK = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 8.5 6.7 11.5 12.5 5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
   const vbadge = b => (b === 'official' ? '<span class="vb of">자료</span>' : b === 'admin' ? '<span class="vb of">운영</span>' : b === 'dad' ? '<span class="vb" title="인증 아빠" aria-label="인증 아빠">' + CHECK + '</span>' : '');
   const avatar = nick => '<span class="avatar">' + esc(first(nick)) + '</span>';
-  // 계급(11-05 휴먼쌤 "1안 좋아 대신 앞에 계급이모티콘도 붙여줘 있잖아 짝대기부터해서"). 재미로만 쓰고 권한 차이는 없다. at은 server/app.js RANK_AT과 같게
+  // 계급(11-05 휴먼쌤 "1안 좋아 대신 앞에 계급이모티콘도 붙여줘 있잖아 짝대기부터해서"). 재미로만 쓰고 권한 차이는 없다. at·days는 server/app.js RANK_AT·RANK_DAYS와 같게
+  // 진급은 점수와 복무일을 둘 다 채워야 한다(11-05 휴먼쌤 "진급 조건을 조금 까다롭게 해서 모두가 너무 빨리 진급하지 않도록")
   const RANKS = [
-    { name: '이병', at: 0, line: '신병 왔습니다. 일단 기저귀부터.' },
-    { name: '일병', at: 10, line: '분유 타는 손이 빨라졌습니다.', pass: '30분' },
-    { name: '상병', at: 30, line: '오늘 밤 야간 근무도 이상 무.', pass: '1시간' },
-    { name: '병장', at: 80, line: '울음소리만 들어도 원인을 압니다.', pass: '2시간' },
-    { name: '예비군', at: 200, line: '전역했지만 부르면 옵니다.', pass: '반나절' },
-    { name: '민방위', at: 500, line: '후배 아빠들은 제가 챙깁니다.', pass: '하루' }
+    { name: '이병', at: 0, days: 0, line: '신병 왔습니다. 일단 기저귀부터.' },
+    { name: '일병', at: 20, days: 7, line: '분유 타는 손이 빨라졌습니다.', pass: '30분' },
+    { name: '상병', at: 60, days: 30, line: '오늘 밤 야간 근무도 이상 무.', pass: '1시간' },
+    { name: '병장', at: 150, days: 90, line: '울음소리만 들어도 원인을 압니다.', pass: '2시간' },
+    { name: '예비군', at: 400, days: 180, line: '전역했지만 부르면 옵니다.', pass: '반나절' },
+    { name: '민방위', at: 1000, days: 365, line: '후배 아빠들은 제가 챙깁니다.', pass: '하루' }
   ];
-  const rankLevel = pts => { let i = 0; while (RANKS[i + 1] && pts >= RANKS[i + 1].at) i++; return i; };
+  const INVITE_PTS = 10, INVITE_PTS_MAX = 10;     // server/app.js와 같게(11-05 휴먼쌤 "다른 아빠들을 초대하면 진급 포인트가 올라가는 제도")
+  const rankLevel = (pts, days) => { let i = 0; while (RANKS[i + 1] && pts >= RANKS[i + 1].at && days >= RANKS[i + 1].days) i++; return i; };
+  const serviceDays = t => Math.max(0, Math.floor((Date.now() - new Date(t).getTime()) / 86400000)) || 0;
   // 계급장 그림: 그런 이모지가 없어 직접 그렸다. 작대기 1~4개(이병~병장) · 얼룩무늬(예비군복) · 노란 바탕 삼각형(민방위)
   const RANK_CAMO = [['M2 5c2-2 5-2 6 0s-1 4-3 4-4-2-3-4z', '#2E3A22'], ['M11 3c2-1 5 0 6 2s-2 3-4 3-3-4-2-5z', '#B3A574'], ['M4 13c2-2 5-1 6 1s-1 4-3 4-4-3-3-5z', '#B3A574'], ['M12 11c2-1 5 0 6 2s-1 4-3 4-4-5-3-6z', '#2E3A22']];
   const RANK_TRI = 'M10 4 16.500 15.500H3.500z';
@@ -229,13 +232,16 @@
     needDad() { const u = this.need(); if (!u.verified) throw new ApiError('verify', 403); return u; },
     // 계급 점수: server/app.js POINTS와 같은 셈
     points(uid) {
-      const d = this.db, live = d.posts.filter(p => !p.deleted), cs = d.comments.filter(c => !c.deleted && live.some(p => p.id === c.post_id)), owner = id => live.find(p => p.id === id).user_id, days = {};
-      live.filter(p => p.user_id === uid).forEach(p => { const k = new Date(new Date(p.created).getTime() + 9 * 3600e3).toISOString().slice(0, 10); days[k] = (days[k] || 0) + 1; });
+      const d = this.db, live = d.posts.filter(p => !p.deleted), cs = d.comments.filter(c => !c.deleted && live.some(p => p.id === c.post_id)), owner = id => live.find(p => p.id === id).user_id;
+      const kst = t => new Date(new Date(t).getTime() + 9 * 3600e3).toISOString().slice(0, 10), days = {}, cdays = {}, firsts = {};
+      live.filter(p => p.user_id === uid).forEach(p => { const k = kst(p.created); days[k] = (days[k] || 0) + 1; });
+      cs.filter(c => c.user_id === uid && owner(c.post_id) !== uid).forEach(c => { if (!firsts[c.post_id] || c.created < firsts[c.post_id]) firsts[c.post_id] = c.created; });
+      Object.values(firsts).forEach(t => { const k = kst(t); cdays[k] = (cdays[k] || 0) + 1; });
       return Object.keys(days).reduce((s, k) => s + 3 * Math.min(days[k], 2), 0)
-        + 2 * new Set(cs.filter(c => c.user_id === uid && owner(c.post_id) !== uid).map(c => c.post_id)).size
+        + Object.keys(cdays).reduce((s, k) => s + 2 * Math.min(cdays[k], 5), 0)
         + new Set(cs.filter(c => c.user_id !== uid && owner(c.post_id) === uid).map(c => c.post_id + ':' + c.user_id)).size;
     },
-    rank(uid) { return rankLevel(this.points(uid)); },
+    rank(uid) { return rankLevel(this.points(uid), serviceDays(this.u(uid).created)); },
     card(p) { const d = this.db; return { id: p.id, cat: p.cat, age: p.age || '', title: p.title, preview: p.body.slice(0, 140), created: p.created, comments: d.comments.filter(c => c.post_id === p.id && !c.deleted).length, nick: this.u(p.user_id).nick, uid: p.user_id, badge: this.badge(p.user_id), rank: this.rank(p.user_id) }; },
     async listPosts(p) {
       this.needDad();
@@ -282,7 +288,7 @@
     },
     async me() {
       const u = this.need(); const d = this.db;
-      return { ok: true, user: pub(u), rank: this.rank(u.id), points: this.points(u.id), application: null, blocks: this.blocks().map(id => ({ id, nick: this.u(id).nick })), invites: d.invites, invite_max: 3,
+      return { ok: true, user: pub(u), rank: this.rank(u.id), points: this.points(u.id), days: serviceDays(u.created), ref: u.verified ? { code: 'TEST-REF0', joined: 0, counted: 0 } : null, application: null, blocks: this.blocks().map(id => ({ id, nick: this.u(id).nick })), invites: d.invites, invite_max: 3,
         posts: d.posts.filter(p => p.user_id === u.id && !p.deleted).sort((a, b) => b.id - a.id).map(p => this.card(p)),
         comments: d.comments.filter(c => c.user_id === u.id && !c.deleted).sort((a, b) => b.id - a.id)
           .map(c => { const p = d.posts.find(x => x.id === c.post_id && !x.deleted); return p ? { id: c.id, body: c.body, created: c.created, post_id: c.post_id, post_title: p.title } : null; }).filter(Boolean) };
@@ -1345,6 +1351,62 @@
   function autosize(ta) { const fit = () => { ta.style.height = 'auto'; ta.style.height = Math.min(ta.scrollHeight, 120) + 'px'; }; ta.addEventListener('input', fit); fit(); }
 
   // ----- 글쓰기 -----
+  // 글쓰기 양식(11-05 휴먼쌤 "아빠들은 아무래도 말을 잘 안하니까.."): 빈칸과 고르기만 채우면 제목과 내용이 저절로 만들어진다.
+  // opts = 눌러서 고르기, multi = 여러 개, long = 두 줄 칸, req = 꼭 채울 칸, bare = 내용에 칸 이름 없이 그 말만. 'note'는 내용 맨 아래에 한 칸 띄워 붙는다
+  const TPL_AGAIN = ['또 간다', '한 번이면 충분', '비추'];
+  const POST_TPLS = [
+    { key: 'trip', e: '🗺️', name: '여행코스 추천', cat: 'play', title: x => x('place') + ' 여행코스 추천', fields: [
+      { k: 'place', label: '어디로', ph: '예: 강릉 1박 2일', req: true },
+      { k: 'course', label: '코스', ph: '예: 아쿠아리움 → 순두부 → 해변', long: true, req: true },
+      { k: 'kid', label: '아이가 좋아한 곳', ph: '없어도 돼요' },
+      { k: 'stroller', label: '유모차', opts: ['편해요', '조금 불편', '힘들어요'] },
+      { k: 'again', label: '다시 갈래요?', opts: TPL_AGAIN },
+      { k: 'note', label: '한마디', ph: '없어도 돼요', long: true }] },
+    { key: 'camp', e: '🏕️', name: '캠핑사이트 추천', cat: 'play', title: x => x('place') + ' ' + x('name') + ' 추천', fields: [
+      { k: 'name', label: '캠핑장 이름', ph: '예: OO오토캠핑장', req: true },
+      { k: 'place', label: '지역', ph: '예: 충북 괴산' },
+      { k: 'site', label: '추천 자리', ph: '예: A-12, 화장실 가까운 쪽' },
+      { k: 'good', label: '좋았던 점', multi: true, opts: ['화장실·샤워장 깨끗', '아이 놀이터', '물놀이', '그늘 많음', '매점 있음', '조용함', '자리 넓음'] },
+      { k: 'bad', label: '아쉬운 점', ph: '없어도 돼요' },
+      { k: 'again', label: '다시 갈래요?', opts: TPL_AGAIN },
+      { k: 'note', label: '한마디', ph: '없어도 돼요', long: true }] },
+    { key: 'leave', e: '📝', name: '육아휴직 질문', cat: 'leave', title: x => '육아휴직 질문: ' + x('q'), fields: [
+      { k: 'job', label: '직종', opts: ['회사원', '계약직', '공무원', '교사', '군인', '자영업·프리랜서'] },
+      { k: 'when', label: '시기', opts: ['쓰는 중', '6개월 안', '1년 안', '아직 모름'] },
+      { k: 'topic', label: '궁금한 것', multi: true, opts: ['급여', '회사에 말하기', '나눠 쓰기', '6+6', '복직'] },
+      { k: 'q', label: '질문 한 줄', ph: '예: 6개월 쓰고 복직했다가 또 쓸 수 있나요?', req: true, bare: true }] },
+    { key: 'food', e: '🍽️', name: '아이랑 맛집', cat: 'play', title: x => x('place') + ' ' + x('name') + ' 아이랑 추천', fields: [
+      { k: 'name', label: '식당 이름', ph: '예: OO식당', req: true },
+      { k: 'place', label: '지역', ph: '예: 청주 오창' },
+      { k: 'good', label: '아이랑 좋은 점', multi: true, opts: ['아기의자', '유모차 OK', '주차 편함', '놀이방', '아이 메뉴', '룸 있음'] },
+      { k: 'menu', label: '추천 메뉴', ph: '없어도 돼요' },
+      { k: 'again', label: '다시 갈래요?', opts: TPL_AGAIN }] },
+    { key: 'gear', e: '🛒', name: '용품 후기', cat: 'gear', title: x => x('name') + ' 써 본 후기', fields: [
+      { k: 'name', label: '제품', ph: '예: 휴대용 유모차', req: true },
+      { k: 'price', label: '가격', ph: '예: 20만 원대' },
+      { k: 'good', label: '좋은 점', ph: '없어도 돼요' },
+      { k: 'bad', label: '아쉬운 점', ph: '없어도 돼요' },
+      { k: 'again', label: '또 살래요?', opts: ['또 산다', '이 값이면 괜찮음', '비추'] }] },
+    { key: 'ask', e: '🙋', name: '아빠들 질문', cat: 'question', title: x => x('q'), fields: [
+      { k: 'q', label: '질문 한 줄', ph: '예: 돌 아기 밤중 수유 언제 끊었어요?', req: true, bare: true },
+      { k: 'ctx', label: '상황', ph: '없어도 돼요', long: true }] },
+    { key: 'vent', e: '😮‍💨', name: '한 줄 하소연', cat: 'vent', title: x => x('what'), fields: [
+      { k: 'what', label: '오늘 무슨 일', ph: '예: 이유식 세 번 다 뱉음', req: true, bare: true },
+      { k: 'mood', label: '지금 상태', opts: ['버틸 만함', '한계', '웃프다', '전역하고 싶다'] }] }
+  ];
+  const POST_TPL = {}; POST_TPLS.forEach(t => { POST_TPL[t.key] = t; });
+  function tplCompose(t, vals) {
+    const x = k => { const v = vals[k]; return Array.isArray(v) ? v.join(', ') : String(v || '').trim(); };
+    const lines = t.fields.filter(f => !f.bare && f.k !== 'note' && x(f.k)).map(f => f.label + (/\?$/.test(f.label) ? ' ' : ': ') + x(f.k)).join('\n');
+    return { title: t.title(x).trim().slice(0, 60), body: [t.fields.filter(f => f.bare).map(f => x(f.k)).filter(Boolean).join('\n'), lines, x('note')].filter(Boolean).join('\n\n') };
+  }
+  function tplField(f, vals) {
+    const v = vals[f.k];
+    if (f.opts) return '<span class="lbl">' + esc(f.label) + (f.multi ? ' <small style="font-weight:600">(여러 개 골라도 돼요)</small>' : '') + '</span><div class="catpick" data-f="' + f.k + '">'
+      + f.opts.map(o => '<button type="button" class="chip' + ((f.multi ? (v || []).includes(o) : v === o) ? ' on' : '') + '" data-v="' + esc(o) + '">' + esc(o) + '</button>').join('') + '</div>';
+    const attrs = ' class="inp' + (f.long ? ' short' : '') + '" id="tf-' + f.k + '" data-f="' + f.k + '" maxlength="' + (f.long ? 500 : 60) + '" placeholder="' + esc(f.ph || '') + '" autocomplete="off"';
+    return '<label class="lbl" for="tf-' + f.k + '">' + esc(f.label) + (f.req ? '' : ' <small style="font-weight:600">(선택)</small>') + '</label>' + (f.long ? '<textarea' + attrs + '>' + esc(v || '') + '</textarea>' : '<input' + attrs + ' value="' + esc(v || '') + '">');
+  }
   function renderWrite() {
     setTab('community'); app.classList.add('notab');
     bar(backBtn('#/community') + '<div class="fill atitle">글쓰기</div><button class="abtn" id="submitTop" type="submit" form="wform">올리기</button>');
@@ -1352,28 +1414,87 @@
     view.innerHTML = '<section class="pad">'
       + (!canWrite() ? '<button type="button" class="notice vcta" id="vcta" style="margin-bottom:8px"><span class="e">✅</span><span>글은 ' + (kakaoOn() ? '가입한' : '인증한') + ' 아빠만 올릴 수 있어요. 써 둔 글은 이 기기에 남아요. <b>' + joinWord() + '</b></span></button>' : '')
       + '<form class="form" id="wform" novalidate>'
-      + '<span class="lbl">분류</span><div class="catpick" id="catpick">' + CATS.map(c => '<button type="button" class="chip' + (d.cat === c.key ? ' on' : '') + '" data-pick="' + c.key + '"><span class="e">' + c.e + '</span>' + esc(c.name) + '</button>').join('') + '</div>'
+      + '<div id="tplPick"><span class="lbl">무슨 글인가요?</span><p class="tplsub">고르면 빈칸만 채워도 글이 돼요.</p><div class="tplgrid">'
+      + POST_TPLS.map(t => '<button type="button" class="wtpl" data-tpl="' + t.key + '"><span class="e">' + t.e + '</span>' + esc(t.name) + '</button>').join('')
+      + '<button type="button" class="wtpl" data-tpl="free"><span class="e">✏️</span>직접 쓰기</button></div></div>'
+      + '<div id="wMain" hidden><div class="tplhead" id="tplHead"></div><div id="tplFields"></div>'
+      + '<div id="catWrap"><span class="lbl">분류</span><div class="catpick" id="catpick">' + CATS.map(c => '<button type="button" class="chip' + (d.cat === c.key ? ' on' : '') + '" data-pick="' + c.key + '"><span class="e">' + c.e + '</span>' + esc(c.name) + '</button>').join('') + '</div></div>'
       + '<span class="lbl">아이 나이 <small style="font-weight:600">(또래 아빠들이 찾기 쉬워요)</small></span><div class="catpick" id="agepick">' + AGES.map(x => '<button type="button" class="chip' + ((d.age || currentAge()) === x.key ? ' on' : '') + '" data-age="' + x.key + '">' + esc(x.name) + '</button>').join('') + '</div>'
+      + '<div class="tplprev" id="tplPrev" hidden></div>'
+      + '<details id="wText"><summary id="wTextSum">제목·내용 직접 고치기</summary>'
       + '<label class="lbl" for="wtitle">제목</label><input class="inp" id="wtitle" maxlength="60" placeholder="한 줄로 요약해 주세요" value="' + esc(d.title || '') + '" autocomplete="off">'
       + '<label class="lbl" for="wbody">내용</label><textarea class="inp" id="wbody" maxlength="3000" placeholder="묻고 싶은 것, 알려 주고 싶은 것을 편하게 적어 주세요. 링크도 붙일 수 있어요.">' + esc(d.body || '') + '</textarea>'
-      + '<div class="cnt"><span id="wcnt">' + len(d.body || '') + '</span>/3000</div>'
+      + '<div class="cnt"><span id="wcnt">' + len(d.body || '') + '</span>/3000</div></details>'
       + '<div class="notice"><span class="e">🔒</span><span>아이 이름·어린이집 이름은 적지 말아 주세요.</span></div>'
       + '<button class="btn primary" type="submit" style="margin-top:14px">올리기</button>'
-      + '</form></section>';
+      + '</div></form></section>';
     window.scrollTo(0, 0);
-    const form = $('#wform'), title = $('#wtitle'), body = $('#wbody');
+    const form = $('#wform'), title = $('#wtitle'), body = $('#wbody'), wText = $('#wText');
     let picked = d.cat && CAT[d.cat] ? d.cat : '', age = AGE[d.age || currentAge()] ? (d.age || currentAge()) : '';
+    // 양식: tpl = ''(고르는 중) · 'free'(직접 쓰기) · 양식 이름. 제목·내용을 손으로 고치면(touched) 그 뒤로는 빈칸이 덮어쓰지 않는다
+    let tpl = d.tpl === 'free' || POST_TPL[d.tpl] ? d.tpl : (d.title || d.body ? 'free' : ''), vals = d.vals || {}, touched = !!d.touched;
+    const saveDraft = () => { store.set('draft', { tpl, vals, touched, cat: picked, age, title: title.value, body: body.value }); $('#wcnt').textContent = len(body.value); };
+    const paintPrev = () => {
+      const box = $('#tplPrev'), show = !!POST_TPL[tpl] && !wText.open && !!(body.value || title.value);
+      box.hidden = !show;
+      box.innerHTML = show ? '<small>이렇게 올라가요</small><b>' + esc(title.value) + '</b>' + (body.value ? '<p>' + esc(body.value) + '</p>' : '') : '';
+    };
+    const applyTpl = () => {
+      const t = POST_TPL[tpl];
+      if (t && !touched) { const c = tplCompose(t, vals); title.value = c.title; body.value = c.body; }
+      paintPrev(); saveDraft();
+    };
+    const paintTpl = () => {
+      $('#tplPick').hidden = !!tpl; $('#wMain').hidden = !tpl; $('#submitTop').hidden = !tpl;
+      if (!tpl) return;
+      const t = POST_TPL[tpl];
+      $('#tplHead').innerHTML = '<span class="e">' + (t ? t.e : '✏️') + '</span><b>' + esc(t ? t.name : '직접 쓰기') + '</b><button type="button" class="edit" id="tplChange">다른 양식</button>';
+      $('#tplFields').innerHTML = t ? t.fields.map(f => tplField(f, vals)).join('') : '';
+      $('#catWrap').hidden = !!t;
+      $('#wTextSum').hidden = !t;
+      wText.open = !t || touched;
+      $$('#catpick .chip').forEach(x => x.classList.toggle('on', x.dataset.pick === picked));
+      paintPrev();
+    };
+    $('#tplPick').addEventListener('click', ev => {
+      const b = ev.target.closest('[data-tpl]'); if (!b) return;
+      tpl = b.dataset.tpl; vals = {}; touched = false; title.value = ''; body.value = '';
+      picked = POST_TPL[tpl] ? POST_TPL[tpl].cat : '';
+      paintTpl(); applyTpl(); window.scrollTo(0, 0);
+    });
+    $('#tplHead').addEventListener('click', ev => {
+      if (!ev.target.closest('#tplChange')) return;
+      const typed = touched || (tpl === 'free' ? !!(title.value.trim() || body.value.trim()) : Object.keys(vals).some(k => vals[k] && vals[k].length));
+      if (typed && !confirm('쓰던 내용을 지우고 다른 양식으로 바꿀까요?')) return;
+      tpl = ''; vals = {}; touched = false; title.value = ''; body.value = ''; picked = '';
+      paintTpl(); saveDraft(); window.scrollTo(0, 0);
+    });
+    const tf = $('#tplFields');
+    tf.addEventListener('input', ev => { const el = ev.target.closest('[data-f]'); if (!el) return; vals[el.dataset.f] = el.value; applyTpl(); });
+    tf.addEventListener('keydown', ev => { if (ev.key === 'Enter' && ev.target.tagName === 'INPUT') ev.preventDefault(); });
+    tf.addEventListener('click', ev => {
+      const b = ev.target.closest('[data-v]'); if (!b) return;
+      const box = b.closest('[data-f]'), k = box.dataset.f, f = POST_TPL[tpl].fields.find(x => x.k === k), o = b.dataset.v;
+      if (f.multi) { const cur = vals[k] || []; vals[k] = cur.includes(o) ? cur.filter(x => x !== o) : cur.concat(o); }
+      else vals[k] = vals[k] === o ? '' : o;
+      $$('.chip', box).forEach(x => x.classList.toggle('on', f.multi ? vals[k].includes(x.dataset.v) : vals[k] === x.dataset.v));
+      applyTpl();
+    });
+    wText.addEventListener('toggle', paintPrev);
     $('#catpick').addEventListener('click', ev => { const b = ev.target.closest('[data-pick]'); if (!b) return; picked = b.dataset.pick; $$('#catpick .chip').forEach(x => x.classList.toggle('on', x === b)); saveDraft(); });
     $('#agepick').addEventListener('click', ev => { const b = ev.target.closest('[data-age]'); if (!b) return; age = age === b.dataset.age ? '' : b.dataset.age; $$('#agepick .chip').forEach(x => x.classList.toggle('on', x.dataset.age === age)); saveDraft(); });
-    const saveDraft = () => { store.set('draft', { cat: picked, age, title: title.value, body: body.value }); $('#wcnt').textContent = len(body.value); };
-    title.addEventListener('input', saveDraft); body.addEventListener('input', saveDraft);
+    const onText = () => { if (POST_TPL[tpl]) touched = true; saveDraft(); };
+    title.addEventListener('input', onText); body.addEventListener('input', onText);
     title.addEventListener('keydown', ev => { if (ev.key === 'Enter') { ev.preventDefault(); body.focus(); } });
+    paintTpl();
     const v = $('#vcta');
     if (v) v.addEventListener('click', () => { const after = () => render(); if (!me) openSheet(after); else openVerify(after); });
     const submit = async () => {
+      const miss = POST_TPL[tpl] && !touched && POST_TPL[tpl].fields.find(f => f.req && !String(vals[f.k] || '').trim());
+      if (miss) { toast("'" + miss.label + "' 칸을 채워 주세요", 'err'); const el = $('#tf-' + miss.k); el.scrollIntoView({ block: 'center' }); el.focus(); return; }
       const p = { cat: picked, age, title: clean(title.value, 200), body: clean(body.value, 5000) };
       const bad = checkPost(p);
-      if (bad) { toast(MSG[bad], 'err'); (bad === 'cat' ? $('#catpick') : bad === 'title_len' ? title : body).scrollIntoView({ block: 'center' }); if (bad !== 'cat') (bad === 'title_len' ? title : body).focus(); return; }
+      if (bad) { toast(MSG[bad], 'err'); if (bad !== 'cat') wText.open = true; (bad === 'cat' ? $('#catpick') : bad === 'title_len' ? title : body).scrollIntoView({ block: 'center' }); if (bad !== 'cat') (bad === 'title_len' ? title : body).focus(); return; }
       if (!me) { openSheet(submit); return; }
       if (!canWrite()) { openVerify(submit); return; }
       const btns = $$('#submitTop, #wform .btn'); btns.forEach(b => { b.disabled = true; });
@@ -1414,12 +1535,13 @@
   }
   function bindInstall() { const b = $('#installBtn'); if (!b) return; b.addEventListener('click', async () => { if (deferredPrompt) { deferredPrompt.prompt(); try { await deferredPrompt.userChoice; } catch (e) { /* 무시 */ } deferredPrompt = null; } else toast('브라우저 메뉴에서 "홈 화면에 추가"를 눌러 주세요'); }); }
   const inviteLink = code => location.origin + location.pathname + '#/join/' + encodeURIComponent(code);
-  async function shareInvite(code) {
-    const url = inviteLink(code), text = '육아맨에 초대해요. 초대 코드: ' + code;
-    if (navigator.share) { try { await navigator.share({ title: '육아맨 초대', text, url }); return; } catch (e) { if (e && e.name === 'AbortError') return; } }
-    try { await navigator.clipboard.writeText(text + '\n' + url); toast('초대 코드와 주소를 복사했어요'); }
+  async function shareLink(title, text, url, copied) {
+    if (navigator.share) { try { await navigator.share({ title, text, url }); return; } catch (e) { if (e && e.name === 'AbortError') return; } }
+    try { await navigator.clipboard.writeText(text + '\n' + url); toast(copied); }
     catch (e) { window.prompt('이 글을 복사해 보내 주세요', text + ' ' + url); }
   }
+  const shareInvite = code => shareLink('육아맨 초대', '육아맨에 초대해요. 초대 코드: ' + code, inviteLink(code), '초대 코드와 주소를 복사했어요');
+  const shareRef = code => shareLink('육아맨', '충성! 육아맨 입대를 권합니다. 육아휴직 계산기부터 아빠들 이야기까지 여기 다 있어요.', inviteLink(code), '초대 글과 주소를 복사했어요');
   function inviteBox(r) {
     const used = r.invites || [], max = r.invite_max;
     return '<div class="about" id="inviteBox"><b>아빠 초대하기</b><p class="sm">아는 아빠에게 코드를 보내면 바로 인증돼요.' + (max ? ' 한 사람당 ' + max + '개까지예요.' : '') + '</p>'
@@ -1437,15 +1559,17 @@
   }
   // 내 계급과 전체 계급표(11-05 휴먼쌤 "현재 나는 전체 계급중에 어디에 해당하는지"). 점수 얻는 법은 접어 둔다. r.rank === null이면 운영 계정
   function rankBox(r) {
-    const lv = r.rank, cur = RANKS[lv], next = cur && RANKS[lv + 1], pts = r.points || 0;
+    const lv = r.rank, cur = RANKS[lv], next = cur && RANKS[lv + 1], pts = r.points || 0, days = r.days || 0, ref = r.ref;
+    const req = (label, have, need, unit) => '<div class="rkreq"><span>' + label + '</span><div class="rkbar"><i style="width:' + Math.min(100, Math.round(have / need * 100)) + '%"></i></div><b>' + (have >= need ? '충족' : have + ' / ' + need + unit) + '</b></div>';
     const head = cur
-      ? '<div class="rkhead">' + rankMark(lv) + '<div class="tx"><b>' + cur.name + '</b><small>' + cur.line + '</small></div><span class="rkpt">' + pts + '점</span></div>'
-        + (next ? '<div class="rkbar"><i style="width:' + Math.round((pts - cur.at) / (next.at - cur.at) * 100) + '%"></i></div><p class="rknext">' + next.name + ' 진급까지 <b>' + (next.at - pts) + '점</b></p>' : '<p class="rknext">최고 계급입니다.</p>')
+      ? '<div class="rkhead">' + rankMark(lv) + '<div class="tx"><b>' + cur.name + '</b><small>' + cur.line + '</small></div><span class="rkpt">' + pts + '점<small>복무 ' + days + '일</small></span></div>'
+        + (next ? '<p class="rknext rkgoal">' + next.name + ' 진급 조건</p>' + req('점수', pts, next.at, '점') + req('복무', days, next.days, '일') : '<p class="rknext">최고 계급입니다.</p>')
       : '<p class="rknext" style="margin-top:0">운영 계정은 계급 없이 표시돼요.</p>';
     return '<section class="rkbox" id="rankBox">' + head
-      + '<ol class="rkladder">' + RANKS.map((x, i) => '<li class="' + (i === lv ? 'me' : cur && i < lv ? 'done' : 'todo') + '"' + (i === lv ? ' aria-current="true"' : '') + '>' + (i === lv ? '<em>나</em>' : '') + rankMark(i) + '<b>' + x.name + '</b><small>' + x.at + '점</small></li>').join('') + '</ol>'
+      + '<ol class="rkladder">' + RANKS.map((x, i) => '<li class="' + (i === lv ? 'me' : cur && i < lv ? 'done' : 'todo') + '"' + (i === lv ? ' aria-current="true"' : '') + '>' + (i === lv ? '<em>나</em>' : '') + rankMark(i) + '<b>' + x.name + '</b><small>' + x.at + '점</small><small>' + (x.days ? x.days + '일' : '입대') + '</small></li>').join('') + '</ol>'
+      + (ref ? '<div class="rkinv"><div class="tx"><b>후임 데려오기</b><small>초대한 아빠가 글이나 댓글을 쓰면 <b>' + INVITE_PTS + '점</b></small>' + (ref.joined ? '<small>들어온 후임 ' + ref.joined + '명 · 점수 인정 ' + Math.min(ref.counted, INVITE_PTS_MAX) + '명</small>' : '') + '</div><button type="button" class="btn primary small" id="refBtn" data-code="' + esc(ref.code) + '">초대하기</button></div>' : '')
       + (cur && cur.pass ? '<button type="button" class="btn line passbtn" id="passBtn">아내에게 보낼 외출증 받기 (' + cur.pass + ')</button>' : cur ? '<p class="rknext" style="margin-top:12px">일병이 되면 아내에게 보낼 외출증이 나와요</p>' : '<button type="button" class="btn line passbtn" id="passBtn">외출증 미리 보기 (상병 예시)</button>')
-      + '<details class="rkhow"><summary>점수 얻는 법</summary><ul><li>다른 아빠 글에 댓글 <b>2점</b> (글마다 1번)</li><li>글쓰기 <b>3점</b> (하루 2개까지)</li><li>내 글에 다른 아빠 댓글 <b>1점</b> (글마다 사람당 1번)</li><li>지운 글·댓글은 빠져요</li><li>외출증: 일병 <b>30분</b> · 상병 <b>1시간</b> · 병장 <b>2시간</b> · 예비군 <b>반나절</b> · 민방위 <b>하루</b></li></ul></details></section>';
+      + '<details class="rkhow"><summary>진급 규칙과 점수 얻는 법</summary><ul><li>진급은 점수와 복무 기간을 <b>둘 다</b> 채워야 해요</li><li>아빠 초대 <b>' + INVITE_PTS + '점</b> (그 아빠가 글이나 댓글을 쓰면, ' + INVITE_PTS_MAX + '명까지)</li><li>글쓰기 <b>3점</b> (하루 2개까지)</li><li>다른 아빠 글에 댓글 <b>2점</b> (글마다 1번, 하루 5개까지)</li><li>내 글에 다른 아빠 댓글 <b>1점</b> (글마다 사람당 1번)</li><li>지운 글·댓글은 빠져요</li><li>외출증: 일병 <b>30분</b> · 상병 <b>1시간</b> · 병장 <b>2시간</b> · 예비군 <b>반나절</b> · 민방위 <b>하루</b></li></ul></details></section>';
   }
   // 외출증 카드(11-05 휴먼쌤 "아내한테 보내는 장난카드 컨셉 좋은거 같아"). 장난이라 권한과 상관없다. 닉네임의 거주지·아이 출생연도는 넣지 않고 별명만 쓴다. 그림 파일은 이 기기에서 만들고 서버로 보내지 않는다
   function drawRank(c, i, x, y, s) {
@@ -1519,7 +1643,7 @@
     if (!me) {
       view.innerHTML = '<section class="pad">' + pageHead('😊', 'MY')
         + '<div class="profile" style="margin-top:12px"><span class="big">👋</span><div class="tx"><b>' + (kakaoOn() ? '아직 가입 전이에요' : '아직 닉네임이 없어요') + '</b>' + (kakaoOn() ? '' : '<small>이메일·서류는 받지 않아요.</small>') + '</div></div>'
-        + (pendingInvite ? '<div class="notice vcta" style="margin-top:12px"><span class="e">🎟️</span><span>받은 초대 코드 <b>' + esc(pendingInvite) + '</b>가 있어요. 시작하기를 누르면 바로 인증돼요.</span></div>' : '')
+        + (pendingInvite ? '<div class="notice vcta" style="margin-top:12px"><span class="e">🎟️</span><span>' + (kakaoOn() ? '<b>초대받아 오셨군요.</b> 카카오로 시작하면 바로 커뮤니티를 쓸 수 있어요.' : '받은 초대 코드 <b>' + esc(pendingInvite) + '</b>가 있어요. 시작하기를 누르면 바로 인증돼요.') + '</span></div>' : '')
         + (kakaoOn() ? '<div style="margin-top:12px">' + kakaoBtn('startBtn', '카카오로 시작하기') + '</div>' : '<button type="button" class="btn primary" id="startBtn" style="margin-top:12px">시작하기</button>')
         + '<button type="button" class="btn ghost" id="recoverBtn">' + (kakaoOn() ? '복구 코드가 있어요' : '다른 폰에서 쓰던 닉네임이 있어요 (복구 코드)') + '</button>' + themeBox() + installBox() + aboutBox()
         + (mode === 'server' ? '<p class="foot-note"><button type="button" class="textlink" id="reviewBtn">앱 심사용 입구</button></p>' : '') + '</section>';
@@ -1558,6 +1682,7 @@
     bindTheme();
     $('#editNick').addEventListener('click', () => openSheet(() => render(), 'rename'));
     const dv = $('#doVerify'); if (dv) dv.addEventListener('click', () => openVerify(() => render()));
+    const rb = $('#refBtn'); if (rb) rb.addEventListener('click', () => shareRef(rb.dataset.code));
     const ni = $('#newInvite');
     if (ni) ni.addEventListener('click', async () => { ni.disabled = true; try { await api('createInvite'); render(); } catch (e) { ni.disabled = false; fail(e); } });
     const ib = $('#inviteBox');
@@ -1816,7 +1941,7 @@
       + '<label>거주지(시/군)<input class="inp" id="nPlace" maxlength="6" placeholder="청주" autocomplete="off" enterkeyhint="next" value="' + esc(P.place) + '"></label>'
       + '<label>자녀 출생연도 <span class="nw">(막내 기준)</span><input class="inp" id="nYear" maxlength="2" inputmode="numeric" placeholder="24" autocomplete="off" enterkeyhint="done" value="' + esc(P.year) + '"></label></div>'
       + '<div class="nickshow" id="nickShow"></div>'
-      + (rename ? '' : (fromKakao && !pendingInvite ? '' : '<label class="lbl" for="invite">초대 코드 (있으면)</label><input class="inp code" id="invite" maxlength="12" placeholder="없으면 비워 두세요" autocomplete="off" autocapitalize="characters" value="' + esc(pendingInvite) + '">')
+      + (rename ? '' : (fromKakao ? (pendingInvite ? '<input type="hidden" id="invite" value="' + esc(pendingInvite) + '">' : '') : '<label class="lbl" for="invite">초대 코드 (있으면)</label><input class="inp code" id="invite" maxlength="12" placeholder="없으면 비워 두세요" autocomplete="off" autocapitalize="characters" value="' + esc(pendingInvite) + '">')
         + '<label class="chk"><input type="checkbox" id="agree"> <span>' + TERMS_LINE + '</span></label>')
       + '<div class="err" id="nickErr" hidden></div>'
       + '<button type="button" class="btn primary" id="joinBtn">' + (rename ? '바꾸기' : '다음') + '</button>'
@@ -1850,7 +1975,7 @@
       const f = sheetAfter;
       if (rename) { toast('닉네임을 바꿨어요'); closeSheet(); if (f) f(); else render(); return; }
       if (r.recovery) store.set('recovery', r.recovery);
-      if (r.invite_error === 'code_bad' || r.invite_error === 'code_used') clearInvite();
+      if (!r.existing && r.invite_error !== 'limit') clearInvite();     // 썼거나 못 쓰는 코드. 횟수 제한에 걸렸을 때만 남겨 둔다
       const next = () => {
         if (r.user.verified) { clearInvite(); if (!r.existing) store.set('rank', 0); toast(r.existing ? '반가워요, ' + r.user.nick + '님!' : '입대를 환영합니다, ' + r.user.nick + '님!'); if (f) f(); else render(); return; }
         if (r.invite_error) toast(MSG[r.invite_error] || MSG.code_bad, 'err');

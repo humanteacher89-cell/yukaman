@@ -9,7 +9,7 @@
 //  POST   /api/recover {code}                  복구 코드로 이 기기(새 토큰)를 그 계정에 붙인다. 이전 기기의 토큰은 그 자리에서 끊기고, 새 복구 코드를 돌려준다(한 번 쓰면 바뀜)
 //  POST   /api/recovery/new                    복구 코드 새로 만들기(이전 코드는 무효)
 //  POST   /api/logout                          이 기기의 토큰 끊기(계정은 남고, 복구 코드로만 돌아온다)
-//  GET    /api/me                              내 정보(인증 상태·신청 상태·초대 코드·복구 코드 있는지·계급과 점수) + 내 글 + 내 댓글
+//  GET    /api/me                              내 정보(인증 상태·신청 상태·초대 코드·복구 코드 있는지·계급과 점수·복무일·아빠 초대 링크) + 내 글 + 내 댓글
 //  PATCH  /api/me {nick}                       닉네임 바꾸기(7일에 1번)
 //  DELETE /api/me {confirm:true}               탈퇴: 내 글·댓글 내용을 비우고 계정 줄을 지운다(관리자·자료실 계정은 안 됨)
 //  POST   /api/verify/code {code}              초대 코드로 인증
@@ -192,18 +192,25 @@ const rowPost = r => ({ id: r.id, cat: r.cat, age: r.age || '', title: r.title, 
 const pubUser = u => ({ id: u.id, nick: u.nick, created: u.created, verified: u.verified === 1 && !u.blocked, role: u.role, how: u.verified_how || '', blocked: !!u.blocked, kakao: !!u.kakao_hash, terms: !!u.terms_at });
 
 // ----- 계급(11-05 휴먼쌤 "1안 좋아 … 짝대기부터해서"): 이병·일병·상병·병장·예비군·민방위. 재미로만 쓰고 권한 차이는 없다 -----
-// public/app.js RANKS의 at과 같게. 자료실·운영 계정은 계급이 없다(rank = null). 남에게는 계급만, 점수는 /api/me로 본인에게만 준다
-const RANK_AT = [0, 10, 30, 80, 200, 500];
-const rankOf = pts => { let i = 0; while (i + 1 < RANK_AT.length && pts >= RANK_AT[i + 1]) i++; return i; };
-// 점수는 글·댓글에서 그때그때 센다(칸이 어긋날 일이 없고 지운 것은 저절로 빠진다). 글 3점(하루 2개까지) · 남의 글 댓글 2점(글마다 1번) · 내 글에 남이 단 댓글 1점(글마다 사람당 1번)
+// public/app.js RANKS의 at·days와 같게. 자료실·운영 계정은 계급이 없다(rank = null). 남에게는 계급만, 점수는 /api/me로 본인에게만 준다
+// 진급은 점수와 복무일(가입한 날부터)을 둘 다 채워야 한다(11-05 휴먼쌤 "진급 조건을 조금 까다롭게 해서 모두가 너무 빨리 진급하지 않도록")
+const RANK_AT = [0, 20, 60, 150, 400, 1000];
+const RANK_DAYS = [0, 7, 30, 90, 180, 365];
+const INVITE_PTS = 10, INVITE_PTS_MAX = 10;           // 아빠 초대: 1명 10점, 10명까지(11-05 휴먼쌤 "다른 아빠들을 초대하면 진급 포인트가 올라가는 제도")
+const rankOf = (pts, days) => { let i = 0; while (i + 1 < RANK_AT.length && pts >= RANK_AT[i + 1] && days >= RANK_DAYS[i + 1]) i++; return i; };
+const serviceDays = created => Math.max(0, Math.floor((Date.now() - Date.parse(created)) / 86400000)) || 0;
+// 초대 점수를 주는 후임: 인증됐고, 막히지 않았고, 글이나 댓글이 하나라도 남아 있는 사람. 가입만 하고 아무것도 안 쓴 계정으로 점수를 벌지 못하게 한다
+const INVITE_ACTIVE = "f.verified = 1 AND f.blocked = 0 AND f.role = 'user' AND (EXISTS (SELECT 1 FROM posts p WHERE p.user_id = f.id AND p.deleted IS NULL) OR EXISTS (SELECT 1 FROM comments c WHERE c.user_id = f.id AND c.deleted IS NULL))";
+// 점수는 글·댓글·후임에서 그때그때 센다(칸이 어긋날 일이 없고 지운 것은 저절로 빠진다). 글 3점(하루 2개까지) · 남의 글 댓글 2점(글마다 1번, 하루 5개 글까지) · 내 글에 남이 단 댓글 1점(글마다 사람당 1번) · 후임 10점(10명까지)
 const POINTS = "3 * COALESCE((SELECT SUM(MIN(n, 2)) FROM (SELECT COUNT(*) AS n FROM posts WHERE user_id = u.id AND deleted IS NULL GROUP BY date(created, '+9 hours'))), 0)"
-  + ' + 2 * (SELECT COUNT(DISTINCT c.post_id) FROM comments c JOIN posts p ON p.id = c.post_id WHERE c.user_id = u.id AND p.user_id != u.id AND c.deleted IS NULL AND p.deleted IS NULL)'
-  + ' + (SELECT COUNT(*) FROM (SELECT DISTINCT c.post_id, c.user_id FROM comments c JOIN posts p ON p.id = c.post_id WHERE p.user_id = u.id AND c.user_id != u.id AND c.deleted IS NULL AND p.deleted IS NULL))';
+  + " + 2 * COALESCE((SELECT SUM(MIN(n, 5)) FROM (SELECT COUNT(*) AS n FROM (SELECT MIN(c.created) AS first FROM comments c JOIN posts p ON p.id = c.post_id WHERE c.user_id = u.id AND p.user_id != u.id AND c.deleted IS NULL AND p.deleted IS NULL GROUP BY c.post_id) GROUP BY date(first, '+9 hours'))), 0)"
+  + ' + (SELECT COUNT(*) FROM (SELECT DISTINCT c.post_id, c.user_id FROM comments c JOIN posts p ON p.id = c.post_id WHERE p.user_id = u.id AND c.user_id != u.id AND c.deleted IS NULL AND p.deleted IS NULL))'
+  + ' + ' + INVITE_PTS + ' * MIN(' + INVITE_PTS_MAX + ', (SELECT COUNT(*) FROM users f WHERE f.invited_by = u.id AND ' + INVITE_ACTIVE + '))';
 async function ranksOf(db, uids) {
   const ids = Array.from(new Set(uids));
   if (!ids.length) return new Map();
-  const rs = await db.prepare('SELECT u.id, u.role, ' + POINTS + ' AS points FROM users u WHERE u.id IN (SELECT value FROM json_each(?1))').bind(JSON.stringify(ids)).all();
-  return new Map((rs.results || []).map(x => [x.id, { rank: x.role === 'user' ? rankOf(x.points) : null, points: x.points }]));
+  const rs = await db.prepare('SELECT u.id, u.role, u.created, ' + POINTS + ' AS points FROM users u WHERE u.id IN (SELECT value FROM json_each(?1))').bind(JSON.stringify(ids)).all();
+  return new Map((rs.results || []).map(x => { const days = serviceDays(x.created); return [x.id, { rank: x.role === 'user' ? rankOf(x.points, days) : null, points: x.points, days }]; }));
 }
 const rankIn = (ranks, uid) => { const x = ranks.get(uid); return x ? x.rank : null; };
 
@@ -453,11 +460,17 @@ async function deleteComment(request, env, id) {
 
 // ----- 아빠 인증 -----
 // 코드 쓰기: 조건부 UPDATE로 한 번만 쓰이게 한다(동시에 눌러도 한 사람만). 성공하면 {ok:true, role}, 아니면 {error}
-async function useInvite(db, user, codeRaw) {
+// 아빠 초대 링크(kind = ref)는 여러 사람이 쓰고, 막 가입한 사람에게만 초대한 사람을 적는다. 인증은 하지 않는다(인증은 카카오가 한다)
+async function useInvite(db, user, codeRaw, isNew) {
   const code = normCode(codeRaw);
   if (code.length < 4) return { error: 'code_bad' };
   const inv = await db.prepare('SELECT code, owner_id, kind, used_by, revoked FROM invites WHERE code = ?1').bind(code).first();
   if (!inv || inv.revoked) return { error: 'code_bad' };
+  if (inv.kind === 'ref') {
+    if (!isNew) return { error: 'code_bad' };
+    await db.prepare('UPDATE users SET invited_by = ?1 WHERE id = ?2').bind(inv.owner_id, user.id).run();
+    return { ok: true, role: user.role || 'user' };
+  }
   if (inv.used_by != null) return { error: 'code_used' };
   const at = nowIso();
   const r = await db.prepare('UPDATE invites SET used_by = ?1, used_at = ?2 WHERE code = ?3 AND used_by IS NULL AND revoked = 0').bind(user.id, at, code).run();
@@ -657,7 +670,7 @@ async function createInvite(request, env) {
   if (a.err) return a.err;
   if (!canWrite(a.user)) return no(a.user.blocked ? 'blocked' : 'verify', 403);
   if (!isAdmin(a.user)) {
-    const c = await env.DB.prepare('SELECT COUNT(*) AS n FROM invites WHERE owner_id = ?1 AND revoked = 0').bind(a.user.id).first();
+    const c = await env.DB.prepare("SELECT COUNT(*) AS n FROM invites WHERE owner_id = ?1 AND revoked = 0 AND kind != 'ref'").bind(a.user.id).first();
     if (c && c.n >= INVITE_MAX) return no('invite_max');
     if (!(await allow(env.DB, 'u:' + a.user.id, 'invite'))) return no('limit', 429);
   }
@@ -667,8 +680,16 @@ async function createInvite(request, env) {
 
 async function myInvites(db, uid) {
   const r = await db.prepare('SELECT i.code, i.used_by, i.created, u.nick AS used_nick FROM invites i LEFT JOIN users u ON u.id = i.used_by '
-    + 'WHERE i.owner_id = ?1 AND i.revoked = 0 ORDER BY i.created').bind(uid).all();
+    + "WHERE i.owner_id = ?1 AND i.revoked = 0 AND i.kind != 'ref' ORDER BY i.created").bind(uid).all();
   return (r.results || []).map(x => ({ code: showCode(x.code), used: x.used_by != null, nick: x.used_nick || '' }));
+}
+
+// 아빠 초대 링크: 한 사람당 코드 하나. MY를 처음 열 때 만든다. 몇 명이 들어왔고 몇 명이 점수로 인정됐는지 수만 준다(누구인지는 안 보여 준다)
+async function myRef(db, uid) {
+  const have = await db.prepare("SELECT code FROM invites WHERE owner_id = ?1 AND kind = 'ref' AND revoked = 0 LIMIT 1").bind(uid).first();
+  const code = have ? have.code : await insertInvite(db, uid, 'ref', '');
+  const n = await db.prepare('SELECT COUNT(*) AS joined, COALESCE(SUM(CASE WHEN ' + INVITE_ACTIVE + ' THEN 1 ELSE 0 END), 0) AS counted FROM users f WHERE f.invited_by = ?1 AND f.blocked = 0').bind(uid).first();
+  return { code: showCode(code), joined: n.joined, counted: n.counted };
 }
 
 // ----- 사용자 -----
@@ -721,7 +742,7 @@ async function join(request, env) {
   let inviteError = '';
   if (b && b.invite) {
     if (await allow(db, ip, 'code')) {
-      const res = await useInvite(db, { id: uid, role: 'user' }, b.invite);
+      const res = await useInvite(db, { id: uid, role: 'user' }, b.invite, true);
       inviteError = res.error || '';
     } else inviteError = 'limit';
   }
@@ -836,7 +857,8 @@ async function me(request, env) {
   const recent = newN ? await db.prepare('SELECT c.id, c.body, c.created, c.post_id, p.title AS post_title, u.nick FROM comments c JOIN posts p ON p.id = c.post_id JOIN users u ON u.id = c.user_id '
     + 'WHERE p.user_id = ?1 AND c.user_id != ?1 AND c.deleted IS NULL AND p.deleted IS NULL AND c.created > ?2' + NOT_BLOCKED + ' ORDER BY c.id DESC LIMIT 20').bind(uid, a.user.comments_seen || '').all() : { results: [] };
   const mine = (await ranksOf(db, [uid])).get(uid);
-  return json({ ok: true, user: pubUser(a.user), rank: mine.rank, points: mine.points, application: (ap.results || [])[0] || null, blocks: bl.results || [], invites, invite_max: isAdmin(a.user) ? null : INVITE_MAX, has_recovery: !!a.user.recovery_hash,
+  const ref = mine.rank != null && canWrite(a.user) ? await myRef(db, uid) : null;
+  return json({ ok: true, user: pubUser(a.user), rank: mine.rank, points: mine.points, days: mine.days, ref, application: (ap.results || [])[0] || null, blocks: bl.results || [], invites, invite_max: isAdmin(a.user) ? null : INVITE_MAX, has_recovery: !!a.user.recovery_hash,
     new_comments: newN, new_list: (recent.results || []).map(c => ({ id: c.id, body: c.body, created: c.created, post_id: c.post_id, post_title: c.post_title, nick: c.nick })),
     posts: (ps.results || []).map(r => rowPost({ ...r, nick: a.user.nick, uid, badge, rank: mine.rank })),
     comments: (cs.results || []).map(c => ({ id: c.id, body: c.body, created: c.created, post_id: c.post_id, post_title: c.post_title })) });
@@ -873,7 +895,7 @@ async function admin(request, env, what, method) {
       db.prepare("SELECT ap.id, ap.user_id, ap.stage, ap.answer, ap.created, u.nick FROM applications ap JOIN users u ON u.id = ap.user_id WHERE ap.status = 'pending' ORDER BY ap.id"),
       db.prepare("SELECT u.id, u.nick, u.created, u.verified, u.verified_how, u.blocked, u.role, i.nick AS inviter, (SELECT COUNT(*) FROM posts p WHERE p.user_id = u.id AND p.deleted IS NULL) AS posts "
         + "FROM users u LEFT JOIN users i ON i.id = u.invited_by WHERE u.role != 'official' ORDER BY u.id DESC LIMIT 200"),
-      db.prepare("SELECT code, note, used_by, created FROM invites WHERE owner_id IS NULL OR owner_id = ?1 ORDER BY created DESC LIMIT 50").bind(a.user.id),
+      db.prepare("SELECT code, note, used_by, created FROM invites WHERE (owner_id IS NULL OR owner_id = ?1) AND kind != 'ref' ORDER BY created DESC LIMIT 50").bind(a.user.id),
       // 신고함: 대기 중인 신고를 대상별로 묶어 신고 수와 대상의 앞부분을 함께
       db.prepare("SELECT r.kind, r.target_id, COUNT(*) AS n, MIN(r.created) AS first_at, GROUP_CONCAT(r.reason, ' / ') AS reasons, "
         + "CASE WHEN r.kind = 'post' THEN (SELECT p.title FROM posts p WHERE p.id = r.target_id) ELSE '' END AS title, "
