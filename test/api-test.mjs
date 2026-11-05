@@ -383,6 +383,52 @@ await call('DELETE', `/posts/${hid}`, ADMIN);
 r = await call('GET', '/posts/hot', H1);
 ok(!r.data.posts.find(p => p.id === hid), '지운 글은 안 뜸');
 
+// 계급: 글 3점(하루 2개까지) · 남의 글 댓글 2점(글마다 1번) · 내 글에 남이 단 댓글 1점(글마다 사람당 1번). 지운 것은 빠진다
+const R1 = rnd(), R2 = rnd(), R3 = rnd();
+const rids = {};
+for (const [t, nm] of [[R1, '계급하'], [R2, '계급둘'], [R3, '계급셋']]) {
+  r = await call('POST', '/join', t, { nick: N(nm + stamp) });
+  rids[t] = r.data.user.id;
+  await call('POST', '/admin/user', ADMIN, { user_id: r.data.user.id, action: 'verify' });
+}
+const pts = async t => { const x = await call('GET', '/me', t); return [x.data.points, x.data.rank]; };
+assert.deepStrictEqual(await pts(R1), [0, 0]); n++;      // 입대: 이병 0점
+r = await call('POST', '/posts', R1, { cat: 'tip', title: '계급 글 하나', body: '내용입니다' });
+const rp1 = r.data.id;
+ok(r.data.post.rank === 0, '글 하나로는 아직 이병');
+assert.deepStrictEqual(await pts(R1), [3, 0]); n++;
+const rp2 = (await call('POST', '/posts', R1, { cat: 'tip', title: '계급 글 둘', body: '내용입니다' })).data.id;
+await call('POST', '/posts', R1, { cat: 'tip', title: '계급 글 셋', body: '내용입니다' });
+assert.deepStrictEqual(await pts(R1), [6, 0], '글은 하루 2개까지'); n++;
+await call('POST', `/posts/${rp1}/comments`, R1, { body: '내 글에 내 댓글' });
+assert.deepStrictEqual(await pts(R1), [6, 0], '내 글에 내 댓글은 0점'); n++;
+r = await call('POST', `/posts/${rp1}/comments`, R2, { body: '첫 댓글' });
+const rc1 = r.data.comment.id;
+ok(r.data.comment.rank === 0, '댓글 응답에 계급');
+await call('POST', `/posts/${rp1}/comments`, R2, { body: '같은 글 또' });
+assert.deepStrictEqual(await pts(R2), [2, 0], '같은 글 댓글은 2점 한 번'); n++;
+assert.deepStrictEqual(await pts(R1), [7, 0], '내 글에 남의 댓글 1점, 같은 사람은 한 번'); n++;
+await call('POST', `/posts/${rp2}/comments`, R2, { body: '다른 글' });
+await call('POST', `/posts/${rp1}/comments`, R3, { body: '다른 사람' });
+await call('POST', `/posts/${rp2}/comments`, R3, { body: '다른 사람' });
+assert.deepStrictEqual(await pts(R1), [10, 1], '10점이면 일병'); n++;
+assert.deepStrictEqual(await pts(R2), [4, 0]); n++;
+r = await call('GET', '/posts?limit=5', R1);
+const rrow = r.data.posts.find(p => p.id === rp1);
+ok(rrow && rrow.rank === 1 && rrow.points === undefined, '목록에 계급만, 점수는 안 보임');
+r = await call('GET', `/posts/${rp1}`, R3);
+ok(r.data.post.rank === 1 && r.data.comments.every(c => c.points === undefined && c.rank === (c.uid === rids[R1] ? 1 : 0)), '글·댓글에 계급만');
+await call('DELETE', `/comments/${rc1}`, R2);
+assert.deepStrictEqual(await pts(R2), [4, 0], '같은 글에 댓글이 남아 있으면 그대로'); n++;
+await call('DELETE', `/posts/${rp2}`, R1);
+assert.deepStrictEqual(await pts(R1), [8, 0], '지운 글과 거기 달린 댓글 점수 빠지고, 내려가면 계급도'); n++;
+assert.deepStrictEqual(await pts(R2), [2, 0], '지운 글에 단 댓글 점수도 빠짐'); n++;
+r = await call('GET', '/me', ADMIN);
+ok(r.data.rank === null, '운영 계정은 계급 없음');
+r = await call('POST', '/posts', ADMIN, { cat: 'tip', title: '운영 글 계급', body: '내용입니다' });
+ok(r.data.post.rank === null, '운영 글에 계급 없음');
+await call('DELETE', `/posts/${r.data.id}`, ADMIN);
+
 // 본인인증: 가짜 포트원(.dev.vars PORTONE_API_BASE)에 물어본다. 내 컴퓨터에서만
 const K = { male: { status: 'VERIFIED', verifiedCustomer: { name: '시험', gender: 'MALE', birthDate: '1985-03-01', di: 'di-male-' + stamp } },
   dup: { status: 'VERIFIED', verifiedCustomer: { name: '시험', gender: 'MALE', birthDate: '1985-03-01', di: 'di-male-' + stamp } },

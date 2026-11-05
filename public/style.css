@@ -85,6 +85,38 @@ svg { display: block; }
 .pcard .foot .cmt svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2; }
 .nick { display: inline-flex; align-items: center; gap: 5px; }
 .avatar { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--pri-l); color: var(--pri); font-size: 11px; font-weight: 900; }
+/* 계급(11-05 휴먼쌤 "짝대기부터"). 닉네임이 길면 한 줄 안에서 줄임표로 */
+.nick { min-width: 0; }
+.nick .avatar, .nick .vb { flex: none; }
+.nick .nn { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rk { flex: none; display: block; width: 20px; height: 20px; }
+.rkn { flex: none; color: var(--ink); font-weight: 800; }
+.pcard .foot .cmt, .byline > span:last-child, .cmt-item .top .right { flex: none; }
+.pcard .foot { gap: 8px; }
+.rkbox { margin-top: 10px; padding: 14px 14px 10px; background: var(--card); border-radius: var(--r); box-shadow: var(--shadow); }
+.rkhead { display: flex; align-items: center; gap: 12px; }
+.rkhead .rk { width: 46px; height: 46px; }
+.rkhead .tx { flex: 1; min-width: 0; }
+.rkhead b { display: block; font-size: 20px; line-height: 1.25; font-weight: 900; letter-spacing: -.02em; }
+.rkhead small { display: block; margin-top: 1px; font-size: 13px; color: var(--sub); font-weight: 600; }
+.rkpt { flex: none; font-size: 15px; font-weight: 800; color: var(--ink); }
+.rkbar { height: 8px; margin-top: 12px; border-radius: 4px; background: var(--gy-l); overflow: hidden; }
+.rkbar i { display: block; height: 100%; border-radius: 4px; background: var(--pri); }
+.rknext { margin: 6px 0 0; font-size: 13.5px; color: var(--sub); font-weight: 700; }
+.rknext b { color: var(--ink); }
+.rkladder { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 3px; margin: 18px 0 0; padding: 0; list-style: none; }
+.rkladder li { position: relative; display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 9px 0 6px; border-radius: 10px; }
+.rkladder .rk { width: 26px; height: 26px; }
+.rkladder b { font-size: 12.5px; font-weight: 800; color: var(--ink); letter-spacing: -.03em; white-space: nowrap; }
+.rkladder small { font-size: 11.5px; font-weight: 600; color: var(--mute); white-space: nowrap; }
+.rkladder li.todo .rk { opacity: .45; }
+.rkladder li.todo b { color: var(--mute); }
+.rkladder li.me { background: var(--but-l); box-shadow: inset 0 0 0 2px var(--but); }
+.rkladder em { position: absolute; top: -9px; left: 50%; transform: translateX(-50%); padding: 0 7px; border-radius: 999px; background: var(--ink); color: var(--card); font-size: 11px; line-height: 18px; font-style: normal; font-weight: 800; white-space: nowrap; }
+.rkhow { margin-top: 8px; font-size: 13.5px; color: var(--sub); }
+.rkhow summary { padding: 6px 0; font-weight: 800; cursor: pointer; }
+.rkhow ul { margin: 2px 0 6px; padding-left: 18px; line-height: 1.7; font-weight: 600; }
+.rkhow b { color: var(--ink); }
 .more { display: block; width: 100%; margin: 12px 0 0; padding: 13px; border: 1.5px solid var(--line); border-radius: 14px; background: #fff; font-weight: 800; color: var(--sub); }
 .loading, .empty { padding: 40px 16px; text-align: center; color: var(--mute); font-weight: 700; font-size: 14.5px; line-height: 1.6; }
 .empty .big { font-size: 40px; line-height: 1; margin-bottom: 10px; }
@@ -186,7 +218,7 @@ textarea.inp { min-height: 180px; resize: none; line-height: 1.6; }
 
 /* 토스트 */
 .toast { position: fixed; left: 50%; bottom: calc(var(--tabh) + 18px + env(safe-area-inset-bottom)); transform: translateX(-50%) translateY(10px); z-index: 60;
-         max-width: min(92vw, 440px); padding: 11px 16px; border-radius: 999px; background: rgba(28,35,51,.92); color: #fff; font-size: 14px; font-weight: 700;
+         width: max-content; max-width: min(92vw, 440px); padding: 11px 16px; border-radius: 24px; background: rgba(28,35,51,.92); color: #fff; font-size: 14px; font-weight: 700;
          opacity: 0; pointer-events: none; transition: opacity .18s, transform .18s; text-align: center; }
 .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 .toast.err { background: rgba(185,28,28,.95); }

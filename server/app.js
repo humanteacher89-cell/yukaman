@@ -9,7 +9,7 @@
 //  POST   /api/recover {code}                  복구 코드로 이 기기(새 토큰)를 그 계정에 붙인다. 이전 기기의 토큰은 그 자리에서 끊기고, 새 복구 코드를 돌려준다(한 번 쓰면 바뀜)
 //  POST   /api/recovery/new                    복구 코드 새로 만들기(이전 코드는 무효)
 //  POST   /api/logout                          이 기기의 토큰 끊기(계정은 남고, 복구 코드로만 돌아온다)
-//  GET    /api/me                              내 정보(인증 상태·신청 상태·초대 코드·복구 코드 있는지) + 내 글 + 내 댓글
+//  GET    /api/me                              내 정보(인증 상태·신청 상태·초대 코드·복구 코드 있는지·계급과 점수) + 내 글 + 내 댓글
 //  PATCH  /api/me {nick}                       닉네임 바꾸기(7일에 1번)
 //  DELETE /api/me {confirm:true}               탈퇴: 내 글·댓글 내용을 비우고 계정 줄을 지운다(관리자·자료실 계정은 안 됨)
 //  POST   /api/verify/code {code}              초대 코드로 인증
@@ -175,8 +175,24 @@ const ipKey = async request => 'ip:' + (await sha256('ip|' + (request.headers.ge
 
 const BADGE = "CASE WHEN u.role = 'official' THEN 'official' WHEN u.role = 'admin' THEN 'admin' WHEN u.verified = 1 THEN 'dad' ELSE '' END AS badge";
 const badgeOf = u => (u.role === 'official' ? 'official' : u.role === 'admin' ? 'admin' : u.verified === 1 ? 'dad' : '');
-const rowPost = r => ({ id: r.id, cat: r.cat, age: r.age || '', title: r.title, preview: r.preview, created: r.created, comments: r.comment_count, nick: r.nick, uid: r.uid, badge: r.badge || '' });
+const rowPost = r => ({ id: r.id, cat: r.cat, age: r.age || '', title: r.title, preview: r.preview, created: r.created, comments: r.comment_count, nick: r.nick, uid: r.uid, badge: r.badge || '', rank: r.rank == null ? null : r.rank });
 const pubUser = u => ({ id: u.id, nick: u.nick, created: u.created, verified: u.verified === 1 && !u.blocked, role: u.role, how: u.verified_how || '', blocked: !!u.blocked, kakao: !!u.kakao_hash });
+
+// ----- 계급(11-05 휴먼쌤 "1안 좋아 … 짝대기부터해서"): 이병·일병·상병·병장·예비군·민방위. 재미로만 쓰고 권한 차이는 없다 -----
+// public/app.js RANKS의 at과 같게. 자료실·운영 계정은 계급이 없다(rank = null). 남에게는 계급만, 점수는 /api/me로 본인에게만 준다
+const RANK_AT = [0, 10, 30, 80, 200, 500];
+const rankOf = pts => { let i = 0; while (i + 1 < RANK_AT.length && pts >= RANK_AT[i + 1]) i++; return i; };
+// 점수는 글·댓글에서 그때그때 센다(칸이 어긋날 일이 없고 지운 것은 저절로 빠진다). 글 3점(하루 2개까지) · 남의 글 댓글 2점(글마다 1번) · 내 글에 남이 단 댓글 1점(글마다 사람당 1번)
+const POINTS = "3 * COALESCE((SELECT SUM(MIN(n, 2)) FROM (SELECT COUNT(*) AS n FROM posts WHERE user_id = u.id AND deleted IS NULL GROUP BY date(created, '+9 hours'))), 0)"
+  + ' + 2 * (SELECT COUNT(DISTINCT c.post_id) FROM comments c JOIN posts p ON p.id = c.post_id WHERE c.user_id = u.id AND p.user_id != u.id AND c.deleted IS NULL AND p.deleted IS NULL)'
+  + ' + (SELECT COUNT(*) FROM (SELECT DISTINCT c.post_id, c.user_id FROM comments c JOIN posts p ON p.id = c.post_id WHERE p.user_id = u.id AND c.user_id != u.id AND c.deleted IS NULL AND p.deleted IS NULL))';
+async function ranksOf(db, uids) {
+  const ids = Array.from(new Set(uids));
+  if (!ids.length) return new Map();
+  const rs = await db.prepare('SELECT u.id, u.role, ' + POINTS + ' AS points FROM users u WHERE u.id IN (SELECT value FROM json_each(?1))').bind(JSON.stringify(ids)).all();
+  return new Map((rs.results || []).map(x => [x.id, { rank: x.role === 'user' ? rankOf(x.points) : null, points: x.points }]));
+}
+const rankIn = (ranks, uid) => { const x = ranks.get(uid); return x ? x.rank : null; };
 
 // ----- 글 -----
 async function listPosts(request, env, sp) {
@@ -214,7 +230,8 @@ async function listPosts(request, env, sp) {
   }
   const more = rows.length > limit;
   if (more) rows.pop();
-  return json({ ok: true, posts: rows.map(rowPost), next: more ? rows[rows.length - 1].id : null });
+  const ranks = await ranksOf(db, rows.map(x => x.uid));
+  return json({ ok: true, posts: rows.map(x => rowPost({ ...x, rank: rankIn(ranks, x.uid) })), next: more ? rows[rows.length - 1].id : null });
 }
 
 // 지금 뜨는 글(11-05 휴먼쌤 "핫한 글이 있으면 상위로"): 최근 7일 안에 글쓴이가 아닌 사람 2명 이상이 댓글을 단 글. 혼자 댓글을 달아 올릴 수 없게 사람 수로 센다
@@ -256,9 +273,11 @@ async function getPost(request, env, id) {
   if (!p) return no('not_found', 404);
   const cs = await db.prepare('SELECT c.id, c.body, c.created, u.nick, u.id AS uid, ' + BADGE + ' FROM comments c JOIN users u ON u.id = c.user_id '
     + 'WHERE c.post_id = ?1 AND c.deleted IS NULL ORDER BY c.id').bind(id).all();
+  const list = cs.results || [];
+  const ranks = await ranksOf(db, [p.uid].concat(list.map(c => c.uid)));
   return json({ ok: true,
-    post: { id: p.id, cat: p.cat, age: p.age || '', title: p.title, body: p.body, created: p.created, comments: p.comment_count, nick: p.nick, uid: p.uid, badge: p.badge || '' },
-    comments: (cs.results || []).map(c => ({ id: c.id, body: c.body, created: c.created, nick: c.nick, uid: c.uid, badge: c.badge || '' })) });
+    post: { id: p.id, cat: p.cat, age: p.age || '', title: p.title, body: p.body, created: p.created, comments: p.comment_count, nick: p.nick, uid: p.uid, badge: p.badge || '', rank: rankIn(ranks, p.uid) },
+    comments: list.map(c => ({ id: c.id, body: c.body, created: c.created, nick: c.nick, uid: c.uid, badge: c.badge || '', rank: rankIn(ranks, c.uid) })) });
 }
 
 async function createPost(request, env) {
@@ -277,7 +296,8 @@ async function createPost(request, env) {
   const r = await env.DB.prepare('INSERT INTO posts (user_id, cat, age, title, body, created) VALUES (?1, ?2, ?3, ?4, ?5, ?6)')
     .bind(a.user.id, cat, age, title, text, created).run();
   const id = r.meta && r.meta.last_row_id;
-  return json({ ok: true, id, post: { id, cat, age, title, body: text, created, comments: 0, nick: a.user.nick, uid: a.user.id, badge: badgeOf(a.user) } });
+  const ranks = await ranksOf(env.DB, [a.user.id]);
+  return json({ ok: true, id, post: { id, cat, age, title, body: text, created, comments: 0, nick: a.user.nick, uid: a.user.id, badge: badgeOf(a.user), rank: rankIn(ranks, a.user.id) } });
 }
 
 async function deletePost(request, env, id) {
@@ -313,7 +333,8 @@ async function addComment(request, env, postId) {
     env.DB.prepare('UPDATE posts SET comment_count = comment_count + 1 WHERE id = ?1').bind(postId)
   ]);
   const id = r.meta && r.meta.last_row_id;
-  return json({ ok: true, comment: { id, body: text, created, nick: a.user.nick, uid: a.user.id, badge: badgeOf(a.user) } });
+  const ranks = await ranksOf(env.DB, [a.user.id]);
+  return json({ ok: true, comment: { id, body: text, created, nick: a.user.nick, uid: a.user.id, badge: badgeOf(a.user), rank: rankIn(ranks, a.user.id) } });
 }
 
 // ----- 신고(검수 21) -----
@@ -734,9 +755,10 @@ async function me(request, env) {
   const newN = await newCommentCount(db, a.user);
   const recent = newN ? await db.prepare('SELECT c.id, c.body, c.created, c.post_id, p.title AS post_title, u.nick FROM comments c JOIN posts p ON p.id = c.post_id JOIN users u ON u.id = c.user_id '
     + 'WHERE p.user_id = ?1 AND c.user_id != ?1 AND c.deleted IS NULL AND p.deleted IS NULL AND c.created > ?2 ORDER BY c.id DESC LIMIT 20').bind(uid, a.user.comments_seen || '').all() : { results: [] };
-  return json({ ok: true, user: pubUser(a.user), application: (ap.results || [])[0] || null, invites, invite_max: isAdmin(a.user) ? null : INVITE_MAX, has_recovery: !!a.user.recovery_hash,
+  const mine = (await ranksOf(db, [uid])).get(uid);
+  return json({ ok: true, user: pubUser(a.user), rank: mine.rank, points: mine.points, application: (ap.results || [])[0] || null, invites, invite_max: isAdmin(a.user) ? null : INVITE_MAX, has_recovery: !!a.user.recovery_hash,
     new_comments: newN, new_list: (recent.results || []).map(c => ({ id: c.id, body: c.body, created: c.created, post_id: c.post_id, post_title: c.post_title, nick: c.nick })),
-    posts: (ps.results || []).map(r => rowPost({ ...r, nick: a.user.nick, uid, badge })),
+    posts: (ps.results || []).map(r => rowPost({ ...r, nick: a.user.nick, uid, badge, rank: mine.rank })),
     comments: (cs.results || []).map(c => ({ id: c.id, body: c.body, created: c.created, post_id: c.post_id, post_title: c.post_title })) });
 }
 

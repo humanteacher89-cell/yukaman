@@ -80,7 +80,26 @@
   const CHECK = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 8.5 6.7 11.5 12.5 5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
   const vbadge = b => (b === 'official' ? '<span class="vb of">자료</span>' : b === 'admin' ? '<span class="vb of">운영</span>' : b === 'dad' ? '<span class="vb" title="인증 아빠" aria-label="인증 아빠">' + CHECK + '</span>' : '');
   const avatar = nick => '<span class="avatar">' + esc(first(nick)) + '</span>';
-  const who = (nick, badge) => '<span class="nick">' + avatar(nick) + esc(nick) + vbadge(badge) + '</span>';
+  // 계급(11-05 휴먼쌤 "1안 좋아 대신 앞에 계급이모티콘도 붙여줘 있잖아 짝대기부터해서"). 재미로만 쓰고 권한 차이는 없다. at은 server/app.js RANK_AT과 같게
+  const RANKS = [
+    { name: '이병', at: 0, line: '신병 왔습니다. 일단 기저귀부터.' },
+    { name: '일병', at: 10, line: '분유 타는 손이 빨라졌습니다.' },
+    { name: '상병', at: 30, line: '오늘 밤 야간 근무도 이상 무.' },
+    { name: '병장', at: 80, line: '울음소리만 들어도 원인을 압니다.' },
+    { name: '예비군', at: 200, line: '전역했지만 부르면 옵니다.' },
+    { name: '민방위', at: 500, line: '후배 아빠들은 제가 챙깁니다.' }
+  ];
+  const rankLevel = pts => { let i = 0; while (RANKS[i + 1] && pts >= RANKS[i + 1].at) i++; return i; };
+  // 계급장 그림: 그런 이모지가 없어 직접 그렸다. 작대기 1~4개(이병~병장) · 얼룩무늬(예비군복) · 노란 바탕 삼각형(민방위)
+  function rankMark(i) {
+    let inner = '<rect width="20" height="20" rx="4" fill="#3F5232"/>';
+    if (i < 4) { const n = i + 1, top = (20 - (n * 2.4 + (n - 1) * 1.6)) / 2; for (let k = 0; k < n; k++) inner += '<rect x="4" y="' + (top + k * 4).toFixed(1) + '" width="12" height="2.4" rx=".6" fill="#FFF6D6"/>'; }
+    else if (i === 4) inner = '<rect width="20" height="20" rx="4" fill="#5F6F3E"/><path d="M2 5c2-2 5-2 6 0s-1 4-3 4-4-2-3-4z" fill="#2E3A22"/><path d="M11 3c2-1 5 0 6 2s-2 3-4 3-3-4-2-5z" fill="#B3A574"/><path d="M4 13c2-2 5-1 6 1s-1 4-3 4-4-3-3-5z" fill="#B3A574"/><path d="M12 11c2-1 5 0 6 2s-1 4-3 4-4-5-3-6z" fill="#2E3A22"/>';
+    else inner = '<rect width="20" height="20" rx="4" fill="#FFC914"/><path d="M10 4 16.500 15.500H3.500z" fill="#14213D"/>';
+    return '<svg class="rk" viewBox="0 0 20 20" aria-hidden="true">' + inner + '</svg>';
+  }
+  // 계급이 있으면 동그라미 글자와 초록 체크 대신 계급장을 쓴다(카카오 가입 뒤로는 글쓴이가 모두 인증이라 체크가 구분이 안 됨). 자료실·운영 계정은 예전 그대로
+  const who = (nick, badge, rank) => '<span class="nick">' + (RANKS[rank] ? rankMark(rank) + '<b class="rkn">' + RANKS[rank].name + '</b>' : avatar(nick)) + '<span class="nn">' + esc(nick) + '</span>' + (RANKS[rank] && badge === 'dad' ? '' : vbadge(badge)) + '</span>';
   const nickKey = s => String(s).replace(/\s+/g, '').toLowerCase();
   const clean = (s, n) => String(s == null ? '' : s).replace(/\r\n?/g, '\n').trim().slice(0, n);
   // 닉네임 = 별명/거주지/자녀 출생연도 끝 2자리(11-05 휴먼쌤). server/app.js NICK_RE와 같게
@@ -114,7 +133,7 @@
   function randomToken() { const a = new Uint8Array(24); crypto.getRandomValues(a); let s = ''; a.forEach(b => { s += String.fromCharCode(b); }); return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); }
   function token() { let t = store.get('token'); if (!t || !/^[A-Za-z0-9_-]{16,80}$/.test(t)) { t = randomToken(); store.set('token', t); } return t; }
   let me = store.get('me', null);
-  function setMe(u) { me = u ? { id: u.id, nick: u.nick, created: u.created, verified: !!u.verified, role: u.role || 'user', how: u.how || '', blocked: !!u.blocked, kakao: !!u.kakao } : null; if (me) store.set('me', me); else store.del('me'); }
+  function setMe(u) { me = u ? { id: u.id, nick: u.nick, created: u.created, verified: !!u.verified, role: u.role || 'user', how: u.how || '', blocked: !!u.blocked, kakao: !!u.kakao } : null; if (me) store.set('me', me); else { store.del('me'); store.del('rank'); } }
   const canWrite = () => me && !me.blocked && (me.verified || me.role === 'admin');
   const canRead = canWrite;   // 커뮤니티 읽기 자격은 쓰기와 같다
   const pub = u => ({ id: u.id, nick: u.nick, created: u.created, verified: !!u.verified, role: 'user', how: u.how || '', blocked: false });
@@ -198,7 +217,16 @@
     user() { return this.load().users.find(u => u.token && u.token === token()) || null; },
     need() { const u = this.user(); if (!u) throw new ApiError('login', 401); return u; },
     needDad() { const u = this.need(); if (!u.verified) throw new ApiError('verify', 403); return u; },
-    card(p) { const d = this.db; return { id: p.id, cat: p.cat, age: p.age || '', title: p.title, preview: p.body.slice(0, 140), created: p.created, comments: d.comments.filter(c => c.post_id === p.id && !c.deleted).length, nick: this.u(p.user_id).nick, uid: p.user_id, badge: this.badge(p.user_id) }; },
+    // 계급 점수: server/app.js POINTS와 같은 셈
+    points(uid) {
+      const d = this.db, live = d.posts.filter(p => !p.deleted), cs = d.comments.filter(c => !c.deleted && live.some(p => p.id === c.post_id)), owner = id => live.find(p => p.id === id).user_id, days = {};
+      live.filter(p => p.user_id === uid).forEach(p => { const k = new Date(new Date(p.created).getTime() + 9 * 3600e3).toISOString().slice(0, 10); days[k] = (days[k] || 0) + 1; });
+      return Object.keys(days).reduce((s, k) => s + 3 * Math.min(days[k], 2), 0)
+        + 2 * new Set(cs.filter(c => c.user_id === uid && owner(c.post_id) !== uid).map(c => c.post_id)).size
+        + new Set(cs.filter(c => c.user_id !== uid && owner(c.post_id) === uid).map(c => c.post_id + ':' + c.user_id)).size;
+    },
+    rank(uid) { return rankLevel(this.points(uid)); },
+    card(p) { const d = this.db; return { id: p.id, cat: p.cat, age: p.age || '', title: p.title, preview: p.body.slice(0, 140), created: p.created, comments: d.comments.filter(c => c.post_id === p.id && !c.deleted).length, nick: this.u(p.user_id).nick, uid: p.user_id, badge: this.badge(p.user_id), rank: this.rank(p.user_id) }; },
     async listPosts(p) {
       this.needDad();
       const d = this.load(), limit = p.limit || PAGE, words = String(p.q || '').toLowerCase().split(/\s+/).filter(Boolean);
@@ -210,7 +238,7 @@
       this.needDad();
       const d = this.load(); const p = d.posts.find(x => x.id === id && !x.deleted); if (!p) throw new ApiError('not_found', 404);
       const post = this.card(p); post.body = p.body;
-      return { ok: true, post, comments: d.comments.filter(c => c.post_id === id && !c.deleted).map(c => ({ id: c.id, body: c.body, created: c.created, nick: this.u(c.user_id).nick, uid: c.user_id, badge: this.badge(c.user_id) })) };
+      return { ok: true, post, comments: d.comments.filter(c => c.post_id === id && !c.deleted).map(c => ({ id: c.id, body: c.body, created: c.created, nick: this.u(c.user_id).nick, uid: c.user_id, badge: this.badge(c.user_id), rank: this.rank(c.user_id) })) };
     },
     async join(nick, invite) {
       const d = this.load(); const have = this.user(); if (have) return { ok: true, user: pub(have), existing: true };
@@ -237,7 +265,7 @@
     },
     async me() {
       const u = this.need(); const d = this.db;
-      return { ok: true, user: pub(u), application: null, invites: d.invites, invite_max: 3,
+      return { ok: true, user: pub(u), rank: this.rank(u.id), points: this.points(u.id), application: null, invites: d.invites, invite_max: 3,
         posts: d.posts.filter(p => p.user_id === u.id && !p.deleted).sort((a, b) => b.id - a.id).map(p => this.card(p)),
         comments: d.comments.filter(c => c.user_id === u.id && !c.deleted).sort((a, b) => b.id - a.id)
           .map(c => { const p = d.posts.find(x => x.id === c.post_id && !x.deleted); return p ? { id: c.id, body: c.body, created: c.created, post_id: c.post_id, post_title: p.title } : null; }).filter(Boolean) };
@@ -253,7 +281,7 @@
       const u = this.needDad(); body = clean(body, 2000); if (len(body) < 1 || len(body) > LIM.comment[1]) throw new ApiError('comment_len');
       const d = this.db; if (!d.posts.find(x => x.id === id && !x.deleted)) throw new ApiError('not_found', 404);
       const c = { id: d.seq.comment++, post_id: id, user_id: u.id, body, created: new Date().toISOString(), deleted: null }; d.comments.push(c); this.save();
-      return { ok: true, comment: { id: c.id, body, created: c.created, nick: u.nick, uid: u.id, badge: 'dad' } };
+      return { ok: true, comment: { id: c.id, body, created: c.created, nick: u.nick, uid: u.id, badge: 'dad', rank: this.rank(u.id) } };
     },
     async deleteComment(id) { const u = this.need(); const c = this.db.comments.find(x => x.id === id && !x.deleted); if (!c) throw new ApiError('not_found', 404); if (c.user_id !== u.id) throw new ApiError('forbidden', 403); c.deleted = new Date().toISOString(); this.save(); return { ok: true }; },
     async verifyCode(code) { const u = this.need(); if (String(code || '').replace(/[^A-Za-z0-9]/g, '').length < 4) throw new ApiError('code_bad'); u.verified = true; u.how = 'invite'; this.save(); return { ok: true, user: pub(u) }; },
@@ -301,6 +329,15 @@
   // ----- 알림 -----
   let toastTimer = 0;
   function toast(msg, kind) { const t = $('#toast'); t.textContent = msg; t.className = 'toast show' + (kind ? ' ' + kind : ''); clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.className = 'toast'; }, 2600); }
+  // 진급 알림: 이 기기에서 마지막으로 본 계급보다 오르면 한 번. 알렸으면 true. 처음 보는 기기는 조용히 적어만 둔다
+  function noteRank(level) {
+    if (!RANKS[level]) return false;
+    const seen = store.get('rank', null);
+    store.set('rank', level);
+    if (seen === null || level <= seen) return false;
+    toast(RANKS[level].name + ' 진급을 축하합니다. ' + RANKS[level].line);
+    return true;
+  }
   function fail(e, after) {
     let code = 'server';
     if (e && e.name === 'ApiError') code = e.code; else if (e && (e.name === 'AbortError' || e.name === 'TypeError')) code = 'network';
@@ -1053,7 +1090,7 @@
     const c = CAT[p.cat] || { name: p.cat, e: '' };
     return '<a class="pcard" href="#/p/' + p.id + '" data-keep="1"><div class="meta"><span class="badges"><span class="badge c-' + (CAT[p.cat] ? esc(p.cat) : 'etc') + '">' + c.e + ' ' + esc(c.name) + '</span>' + (AGE[p.age] ? '<span class="agetag">' + esc(AGE[p.age].name) + '</span>' : '') + '</span><span class="time">' + ago(p.created) + '</span></div>'
       + '<h3>' + esc(p.title) + '</h3><p>' + esc(p.preview || '') + '</p>'
-      + '<div class="foot">' + who(p.nick, p.badge) + '<span class="cmt">' + ICON.chat + ' ' + (p.comments || 0) + '</span></div></a>';
+      + '<div class="foot">' + who(p.nick, p.badge, p.rank) + '<span class="cmt">' + ICON.chat + ' ' + (p.comments || 0) + '</span></div></a>';
   }
   // 커뮤니티 잠금: 인증 전에는 목록·글·검색을 열지 않고, 왜 닫혀 있는지와 인증하는 길을 보여 준다
   function renderLock() {
@@ -1164,7 +1201,7 @@
   const cmtDrafts = {};
   function cmtItem(c) {
     const mine = me && (c.uid === me.id || me.role === 'admin');
-    return '<div class="cmt-item" id="c' + c.id + '"><div class="top">' + who(c.nick, c.badge) + '<span class="right"><span class="time">' + ago(c.created) + '</span>'
+    return '<div class="cmt-item" id="c' + c.id + '"><div class="top">' + who(c.nick, c.badge, c.rank) + '<span class="right"><span class="time">' + ago(c.created) + '</span>'
       + (mine ? '<button type="button" class="del" data-del-cmt="' + c.id + '">삭제</button>' : '')
       + (me && c.uid !== me.id && canWrite() ? '<button type="button" class="del" data-report="comment" data-rid="' + c.id + '">신고</button>' : '') + '</span></div><div class="txt">' + rich(c.body) + '</div></div>';
   }
@@ -1186,7 +1223,7 @@
     const ph = !me ? '닉네임을 정하면 댓글을 쓸 수 있어요' : canWrite() ? '댓글을 남겨 보세요' : '아빠 인증을 하면 댓글을 쓸 수 있어요';
     view.innerHTML = '<section class="pad">'
       + '<article class="post"><div class="meta"><span class="badges"><span class="badge c-' + (CAT[p.cat] ? esc(p.cat) : 'etc') + '">' + c.e + ' ' + esc(c.name) + '</span>' + (AGE[p.age] ? '<span class="agetag">' + esc(AGE[p.age].name) + '</span>' : '') + '</span><span class="time">' + ago(p.created) + '</span></div>'
-      + '<h1>' + esc(p.title) + '</h1><div class="byline">' + who(p.nick, p.badge) + '<span>' + ymd(p.created) + '</span></div>'
+      + '<h1>' + esc(p.title) + '</h1><div class="byline">' + who(p.nick, p.badge, p.rank) + '<span>' + ymd(p.created) + '</span></div>'
       + '<div class="body">' + rich(p.body) + '</div></article>'
       + '<div class="sec"><h2>댓글 <span id="cmtN">' + r.comments.length + '</span></h2></div>'
       + '<div class="cmts" id="cmts">' + (r.comments.length ? r.comments.map(cmtItem).join('') : empty('첫 댓글을 남겨 보세요', '')) + '</div>'
@@ -1207,7 +1244,7 @@
         ta.value = ''; delete cmtDrafts[id]; autosize(ta);
         const box = $('#cmts'); if (box.querySelector('.empty')) box.innerHTML = '';
         box.insertAdjacentHTML('beforeend', cmtItem(rr.comment)); $('#cmtN').textContent = box.querySelectorAll('.cmt-item').length;
-        listState.posts = []; toast('댓글을 남겼어요');
+        listState.posts = []; if (!noteRank(rr.comment.rank)) toast('댓글을 남겼어요');
         $('#c' + rr.comment.id).scrollIntoView({ block: 'nearest' });
       } catch (e) { fail(e, submit); }
       finally { btn.disabled = false; }
@@ -1264,7 +1301,7 @@
       if (!me) { openSheet(submit); return; }
       if (!canWrite()) { openVerify(submit); return; }
       const btns = $$('#submitTop, #wform .btn'); btns.forEach(b => { b.disabled = true; });
-      try { const r = await api('createPost', p); store.del('draft'); listState.posts = []; toast('글을 올렸어요'); go('#/p/' + r.id, true); }
+      try { const r = await api('createPost', p); store.del('draft'); listState.posts = []; if (!noteRank(r.post && r.post.rank)) toast('글을 올렸어요'); go('#/p/' + r.id, true); }
       catch (e) { fail(e, submit); }
       finally { btns.forEach(b => { b.disabled = false; }); }
     };
@@ -1322,6 +1359,17 @@
     if (ap && ap.status === 'pending') return '<div class="vstate wait"><span><b>인증 신청을 확인하고 있어요.</b><br>승인되면 여기에 바로 표시돼요. 초대 코드가 생기면 먼저 쓸 수도 있어요.</span><button type="button" class="edit" id="doVerify">코드 넣기</button></div>';
     return '<div class="vstate"><span><b>아직 인증 전이에요.</b><br>커뮤니티는 인증한 아빠만 읽고 쓸 수 있어요.' + (ap && ap.status === 'rejected' ? ' 지난 신청은 승인되지 않았어요. 다시 신청할 수 있어요.' : '') + '</span><button type="button" class="edit" id="doVerify">인증하기</button></div>';
   }
+  // 내 계급과 전체 계급표(11-05 휴먼쌤 "현재 나는 전체 계급중에 어디에 해당하는지"). 점수 얻는 법은 접어 둔다. r.rank === null이면 운영 계정
+  function rankBox(r) {
+    const lv = r.rank, cur = RANKS[lv], next = cur && RANKS[lv + 1], pts = r.points || 0;
+    const head = cur
+      ? '<div class="rkhead">' + rankMark(lv) + '<div class="tx"><b>' + cur.name + '</b><small>' + cur.line + '</small></div><span class="rkpt">' + pts + '점</span></div>'
+        + (next ? '<div class="rkbar"><i style="width:' + Math.round((pts - cur.at) / (next.at - cur.at) * 100) + '%"></i></div><p class="rknext">' + next.name + ' 진급까지 <b>' + (next.at - pts) + '점</b></p>' : '<p class="rknext">최고 계급입니다.</p>')
+      : '<p class="rknext" style="margin-top:0">운영 계정은 계급 없이 표시돼요.</p>';
+    return '<section class="rkbox" id="rankBox">' + head
+      + '<ol class="rkladder">' + RANKS.map((x, i) => '<li class="' + (i === lv ? 'me' : cur && i < lv ? 'done' : 'todo') + '"' + (i === lv ? ' aria-current="true"' : '') + '>' + (i === lv ? '<em>나</em>' : '') + rankMark(i) + '<b>' + x.name + '</b><small>' + x.at + '점</small></li>').join('') + '</ol>'
+      + '<details class="rkhow"><summary>점수 얻는 법</summary><ul><li>다른 아빠 글에 댓글 <b>2점</b> (글마다 1번)</li><li>글쓰기 <b>3점</b> (하루 2개까지)</li><li>내 글에 다른 아빠 댓글 <b>1점</b> (글마다 사람당 1번)</li><li>지운 글·댓글은 빠져요</li></ul></details></section>';
+  }
   async function renderMe() {
     setTab('me');
     bar(brandBar());
@@ -1349,6 +1397,7 @@
     view.innerHTML = '<section class="pad">' + pageHead('😊', 'MY')
       + '<div class="profile" style="margin-top:12px"><span class="big">' + esc(first(r.user.nick)) + '</span><div class="tx"><b>' + esc(r.user.nick) + '</b><small>' + ymd(r.user.created) + '부터 육아맨 · 글 ' + r.posts.length + ' · 댓글 ' + r.comments.length + '</small></div><button type="button" class="edit" id="editNick">닉네임 바꾸기</button></div>'
       + statusBox(r)
+      + (canWrite() ? rankBox(r) : '')
       + (r.user.role === 'admin' ? '<a class="glink" href="#/admin"><span>🛠️ 관리자 화면: 인증 신청 · 초대 코드 · 회원</span><span>→</span></a>' : '')
       + (canWrite() && !(kakaoOn() && r.user.role !== 'admin') ? inviteBox(r) : '')
       + newCommentsBox(r)
@@ -1370,6 +1419,7 @@
     if (ib) ib.addEventListener('click', ev => { const b = ev.target.closest('[data-share]'); if (b) shareInvite(b.dataset.share); });
     bindAccount();
     bindInstall(); window.scrollTo(0, 0);
+    noteRank(r.rank);
     if (pendingInvite && canWrite()) {        // 이미 인증했어도 관리자 코드는 쓸 수 있다(서버가 아빠 코드는 쓰지 않고 넘긴다)
       const c = pendingInvite; clearInvite();
       api('verifyCode', c).then(x => { if (x.user && x.user.role === 'admin' && me.role !== 'admin') { setMe(x.user); toast('관리자로 바뀌었어요'); render(); } }).catch(() => {});
@@ -1547,7 +1597,7 @@
       + '<div class="err" id="nickErr" hidden></div>'
       + '<button type="button" class="btn primary" id="joinBtn">' + (rename ? '바꾸기' : '다음') + '</button>'
       + '<button type="button" class="btn ghost" id="laterBtn">' + (rename ? '취소' : '둘러보기만 할래요') + '</button></div>', after);
-    const show = () => { $('#nickShow').textContent = '글에 이렇게 보여요: ' + nickNow(); };
+    const show = () => { $('#nickShow').textContent = '글에 이렇게 보여요: ' + (!me || me.role === 'user' ? RANKS[store.get('rank', 0)].name + ' ' : '') + nickNow(); };
     show();
     $('#laterBtn').addEventListener('click', () => { invitePrompted = true; closeSheet(); });
     $('#joinBtn').addEventListener('click', () => doJoin(rename));
@@ -1578,7 +1628,7 @@
       if (r.recovery) store.set('recovery', r.recovery);
       if (r.invite_error === 'code_bad' || r.invite_error === 'code_used') clearInvite();
       const next = () => {
-        if (r.user.verified) { clearInvite(); toast('반가워요, ' + r.user.nick + '님! 인증됐어요'); if (f) f(); else render(); return; }
+        if (r.user.verified) { clearInvite(); if (!r.existing) store.set('rank', 0); toast(r.existing ? '반가워요, ' + r.user.nick + '님!' : '입대를 환영합니다, ' + r.user.nick + '님!'); if (f) f(); else render(); return; }
         if (r.invite_error) toast(MSG[r.invite_error] || MSG.code_bad, 'err');
         openVerify(f);
       };
