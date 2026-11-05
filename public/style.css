@@ -559,6 +559,14 @@ html[data-theme=dark] { background: #0D1119; }
 .brand .tagline { padding-left: 9px; border-left: 2px solid var(--but); font-size: 13.5px; line-height: 1.25; font-weight: 800; letter-spacing: -.02em; color: var(--ink); white-space: nowrap; }
 
 /* 홈 아이 나이 길(UI 3안, 11-04 휴먼쌤 선택): 나이 칸 → 우리 아이 → 지금 챙길 것(시간순, D-데이) */
+/* 아이가 둘 이상일 때(11-05): 나이 칩과 헷갈리지 않게 칸 모양으로 고른다 */
+.kidrow { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
+.kidrow.one { justify-content: flex-end; }
+.kidrow .seg { flex: 1; min-width: 0; margin: 0; }
+.seg.kidseg { margin: 0 0 8px; padding: 3px; }
+.kidrow .seg.kidseg { margin: 0; }
+.seg.kidseg button { min-width: 0; padding: 8px 2px; font-size: 14px; white-space: nowrap; }
+.kidadd { flex: none; border: 1.5px solid var(--line-s); background: var(--card); color: var(--ink); border-radius: 12px; padding: 9px 12px; font-size: 13.5px; font-weight: 800; white-space: nowrap; }
 .ages { display: flex; gap: 6px; margin: 10px -16px 0; padding: 2px 16px 6px; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
 .ages::-webkit-scrollbar { display: none; }
 .ages .chip { border-radius: 12px; padding: 9px 13px; font-size: 13.5px; }

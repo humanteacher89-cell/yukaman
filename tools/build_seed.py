@@ -31,7 +31,7 @@ INFO = {
     '복직 전에 챙길 것: 먼저 복직한 아빠들의 체크리스트': ('✅', '휴직 전 · 휴직 중 · 복직 전 체크리스트'),
     '아빠 모임 어디 있나요: 100인의 아빠단과 서울 200인의 아빠단': ('👥', '100인의 아빠단 · 서울 200인의 아빠단'),
 }
-HOSTS = {'law.go.kr': '국가법령정보센터', 'moel.go.kr': '고용노동부', 'work24.go.kr': '고용24', 'korea.kr': '정책브리핑', 'mohw.go.kr': '보건복지부',
+HOSTS = {'law.go.kr': '국가법령정보센터', 'moel.go.kr': '고용노동부', 'ei.go.kr': '고용보험', 'work24.go.kr': '고용24', 'korea.kr': '정책브리핑', 'mohw.go.kr': '보건복지부',
          'mpm.go.kr': '인사혁신처', 'mediahub.seoul.go.kr': '서울시 미디어허브', 'gangnam.go.kr': '강남구', 'sejong.go.kr': '세종특별자치시',
          'mt.co.kr': '머니투데이', 'khan.co.kr': '경향신문', 'segye.com': '세계일보', 'newsis.com': '뉴시스', 'bokjiro.go.kr': '복지로', 'gov.kr': '정부24',
          'nlrc.go.kr': '중앙노동위원회', 'nabo.go.kr': '국회예산정책처', 'mods.go.kr': '국가데이터처', 'asan.go.kr': '아산시', 'gworkingmom.net': '서남권직장맘지원센터',
@@ -78,7 +78,7 @@ def to_item(i, p):
     first = next((b['p'] for b in body if 'p' in b), p['title'])
     first = re.sub(r'^A\. ', '', first)
     sub = first if len(first) <= 44 else first[:43] + '…'
-    item = {'id': 'o%d' % i, 'cat': 'info', 'e': EMOJI[p['cat']], 'community': p['cat'], 'status': '자료 정리', 'updated': UPDATED,
+    item = {'id': 'o%d' % i, 'cat': 'info', 'e': EMOJI[p['cat']], 'community': p['cat'], 'status': '자료 정리', 'updated': p.get('updated', UPDATED),
             'title': p['title'], 'sub': sub, 'body': body, 'sources': sources}
     if p['title'].startswith('Q. '):
         item.update({'cat': 'faq', 'q': p['title'][3:], 'a': first})
