@@ -281,6 +281,19 @@ button.notice.vcta { display: flex; width: 100%; text-align: left; font: inherit
 .sheet { max-height: 92dvh; overflow-y: auto; }
 .appl { background: var(--card); border-radius: 14px; padding: 12px 14px; box-shadow: var(--shadow); margin-top: 8px; }
 .appl small { display: block; margin-top: 2px; font-size: 12.5px; color: var(--sub); font-weight: 700; }
+/* 관리자 화면: 항목별로 접기(11-05) */
+.adm { margin-top: 10px; border-radius: 16px; background: var(--card); box-shadow: var(--shadow); }
+.adm:first-child { margin-top: 4px; }
+.adm > summary { display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 12px 14px; list-style: none; cursor: pointer; }
+.adm > summary::-webkit-details-marker { display: none; }
+.adm > summary b { flex: 1; min-width: 0; font-size: 16px; font-weight: 800; letter-spacing: -.02em; }
+.adm > summary:after { content: "›"; flex: none; font-size: 20px; line-height: 1.1; font-weight: 700; color: var(--mute); transform: rotate(90deg); }
+.adm[open] > summary:after { transform: rotate(-90deg); }
+.admn { flex: none; font-size: 13.5px; font-weight: 800; color: var(--mute); }
+.admn.due { padding: 2px 9px; border-radius: 999px; background: var(--but); color: #1B1F2A; }
+.admb { padding: 0 10px 12px; }
+.admb .appl, .admb .about, .admb .urow { box-shadow: none; border: 1.5px solid var(--line); }
+.admb > :first-child { margin-top: 0; }
 .appl p { margin: 8px 0 0; font-size: 14.5px; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }
 .urow { display: flex; align-items: center; gap: 8px; justify-content: space-between; background: var(--card); border-radius: 12px; padding: 10px 12px; box-shadow: var(--shadow); margin-top: 6px; }
 .urow .tx { min-width: 0; }
