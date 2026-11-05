@@ -29,7 +29,8 @@
   const foldNick = s => s.replace(/[\s_.\-]+/g, '').toLowerCase().replace(/0/g, 'o').replace(/1/g, 'i').replace(/3/g, 'e').replace(/5/g, 's');
   const MSG = {
     login: '닉네임을 먼저 정해 주세요', unknown_user: '이 기기의 닉네임 기록이 없어요. 다시 정해 주세요',
-    nick_taken: '이미 쓰는 닉네임이에요. 별명을 바꿔 보세요', nick_form: '별명/거주지/자녀 출생연도 끝 2자리로 적어 주세요', nick_reserved: '운영 계정과 헷갈리는 이름은 쓸 수 없어요',
+    nick_taken: '이미 쓰는 닉네임이에요. 별명을 바꿔 보세요', nick_form: '별명/거주지/자녀 출생연도 끝 2자리로 적어 주세요', nick_reserved: '운영 계정과 헷갈리는 이름은 쓸 수 없어요', nick_bad: '욕설이나 비속어는 닉네임에 쓸 수 없어요',
+    bad_word: '욕설이나 비속어는 쓸 수 없어요. 고쳐서 올려 주세요',
     limit: '너무 자주 했어요. 잠시 뒤에 다시 해 주세요', title_len: '제목은 2~60자로 해 주세요', body_len: '내용을 적어 주세요(3000자까지)',
     comment_len: '댓글은 1~1000자로 해 주세요', cat: '분류를 골라 주세요', not_found: '글을 찾을 수 없어요(지워졌을 수 있어요)',
     forbidden: '내가 쓴 것만 지울 수 있어요', bad_json: '보낼 내용이 잘못됐어요', server: '서버에 문제가 있어요. 잠시 뒤 다시 해 주세요', network: '인터넷 연결을 확인해 주세요',
@@ -84,19 +85,21 @@
   // 계급(11-05 휴먼쌤 "1안 좋아 대신 앞에 계급이모티콘도 붙여줘 있잖아 짝대기부터해서"). 재미로만 쓰고 권한 차이는 없다. at은 server/app.js RANK_AT과 같게
   const RANKS = [
     { name: '이병', at: 0, line: '신병 왔습니다. 일단 기저귀부터.' },
-    { name: '일병', at: 10, line: '분유 타는 손이 빨라졌습니다.' },
-    { name: '상병', at: 30, line: '오늘 밤 야간 근무도 이상 무.' },
-    { name: '병장', at: 80, line: '울음소리만 들어도 원인을 압니다.' },
-    { name: '예비군', at: 200, line: '전역했지만 부르면 옵니다.' },
-    { name: '민방위', at: 500, line: '후배 아빠들은 제가 챙깁니다.' }
+    { name: '일병', at: 10, line: '분유 타는 손이 빨라졌습니다.', pass: '30분' },
+    { name: '상병', at: 30, line: '오늘 밤 야간 근무도 이상 무.', pass: '1시간' },
+    { name: '병장', at: 80, line: '울음소리만 들어도 원인을 압니다.', pass: '2시간' },
+    { name: '예비군', at: 200, line: '전역했지만 부르면 옵니다.', pass: '반나절' },
+    { name: '민방위', at: 500, line: '후배 아빠들은 제가 챙깁니다.', pass: '하루' }
   ];
   const rankLevel = pts => { let i = 0; while (RANKS[i + 1] && pts >= RANKS[i + 1].at) i++; return i; };
   // 계급장 그림: 그런 이모지가 없어 직접 그렸다. 작대기 1~4개(이병~병장) · 얼룩무늬(예비군복) · 노란 바탕 삼각형(민방위)
+  const RANK_CAMO = [['M2 5c2-2 5-2 6 0s-1 4-3 4-4-2-3-4z', '#2E3A22'], ['M11 3c2-1 5 0 6 2s-2 3-4 3-3-4-2-5z', '#B3A574'], ['M4 13c2-2 5-1 6 1s-1 4-3 4-4-3-3-5z', '#B3A574'], ['M12 11c2-1 5 0 6 2s-1 4-3 4-4-5-3-6z', '#2E3A22']];
+  const RANK_TRI = 'M10 4 16.500 15.500H3.500z';
   function rankMark(i) {
     let inner = '<rect width="20" height="20" rx="4" fill="#3F5232"/>';
     if (i < 4) { const n = i + 1, top = (20 - (n * 2.4 + (n - 1) * 1.6)) / 2; for (let k = 0; k < n; k++) inner += '<rect x="4" y="' + (top + k * 4).toFixed(1) + '" width="12" height="2.4" rx=".6" fill="#FFF6D6"/>'; }
-    else if (i === 4) inner = '<rect width="20" height="20" rx="4" fill="#5F6F3E"/><path d="M2 5c2-2 5-2 6 0s-1 4-3 4-4-2-3-4z" fill="#2E3A22"/><path d="M11 3c2-1 5 0 6 2s-2 3-4 3-3-4-2-5z" fill="#B3A574"/><path d="M4 13c2-2 5-1 6 1s-1 4-3 4-4-3-3-5z" fill="#B3A574"/><path d="M12 11c2-1 5 0 6 2s-1 4-3 4-4-5-3-6z" fill="#2E3A22"/>';
-    else inner = '<rect width="20" height="20" rx="4" fill="#FFC914"/><path d="M10 4 16.500 15.500H3.500z" fill="#14213D"/>';
+    else if (i === 4) inner = '<rect width="20" height="20" rx="4" fill="#5F6F3E"/>' + RANK_CAMO.map(p => '<path d="' + p[0] + '" fill="' + p[1] + '"/>').join('');
+    else inner = '<rect width="20" height="20" rx="4" fill="#FFC914"/><path d="' + RANK_TRI + '" fill="#14213D"/>';
     return '<svg class="rk" viewBox="0 0 20 20" aria-hidden="true">' + inner + '</svg>';
   }
   // 계급이 있으면 동그라미 글자와 초록 체크 대신 계급장을 쓴다(카카오 가입 뒤로는 글쓴이가 모두 인증이라 체크가 구분이 안 됨). 자료실·운영 계정은 예전 그대로
@@ -165,7 +168,7 @@
       const ct = res.headers.get('Content-Type') || '';
       if (ct.indexOf('application/json') < 0) throw new ApiError('no_api', res.status);
       const data = await res.json();
-      if (!data || !data.ok) throw new ApiError((data && data.error) || 'server', res.status);
+      if (!data || !data.ok) { const er = new ApiError((data && data.error) || 'server', res.status); if (data && data.word) er.word = data.word; throw er; }
       return data;
     },
     listPosts: p => remote.call('GET', '/posts' + qs(p)),
@@ -349,7 +352,7 @@
     const seen = store.get('rank', null);
     store.set('rank', level);
     if (seen === null || level <= seen) return false;
-    toast(RANKS[level].name + ' 진급을 축하합니다. ' + RANKS[level].line);
+    toast(RANKS[level].name + ' 진급! ' + RANKS[level].line + ' MY에 외출증이 나왔어요.');
     return true;
   }
   function fail(e, after) {
@@ -359,7 +362,7 @@
     if (code === 'login') { openSheet(after); return; }
     if (code === 'verify') { if (me) { me.verified = false; store.set('me', me); } openVerify(after); return; }
     if (code === 'terms') { openTerms(after); return; }
-    toast(MSG[code] || MSG.server, 'err');
+    toast(code === 'bad_word' && e.word ? '"' + e.word + '" 같은 말은 쓸 수 없어요. 고쳐서 올려 주세요' : MSG[code] || MSG.server, 'err');
     if (window.console && (code === 'server' || code === 'no_api')) console.warn('yukaman', e);
   }
   // 서버가 커뮤니티 읽기를 막았을 때(인증 해제·막힘·모르는 기기): 내 정보를 맞추고 true를 돌려준다. 화면은 잠금으로 바꾼다.
@@ -538,12 +541,12 @@
   // ----- 홈 -----
   // 내 아이 나이로 보기(검수 11). 고른 값은 이 기기에만. ids = 지금 쓸 수 있는 글
   const AGES = [
-    { key: 'expect', name: '곧 태어나요', ids: ['policy-pregnancy', 'policy-paternity', 'leave-66', 'leave-apply', 'ivf-leave'] },
-    { key: 'baby', name: '0~18개월', ids: ['birth-2weeks', 'policy-paternity', 'leave-66', 'leave-apply', 'policy-shorter-hours', 'baby-care', 'mind-dad-blues', 'play-0-12'] },
-    { key: 'kid', name: '미취학', ids: ['leave-apply', 'leave-short', 'policy-shorter-hours', 'family-care', 'play-weekend', 'mind-anger'] },
-    { key: 'low', name: '초1~2', ids: ['leave-apply', 'leave-short', 'policy-shorter-hours', 'family-care', 'play-school'] },
-    { key: 'high', name: '초3~6', ids: ['policy-shorter-hours', 'family-care', 'play-school', 'mind-anger', 'leave-rights'] },
-    { key: 'teen', name: '중학생~', ids: ['family-care', 'policy-shorter-hours', 'mind-couple'] }
+    { key: 'expect', name: '곧 태어나요', ids: ['policy-pregnancy', 'policy-paternity', 'leave-66', 'leave-apply', 'ivf-leave', 'mind-sibling'] },
+    { key: 'baby', name: '0~18개월', ids: ['birth-2weeks', 'policy-paternity', 'leave-66', 'leave-apply', 'policy-shorter-hours', 'baby-care', 'mind-dad-blues', 'play-0-12', 'mind-sleep', 'mind-leave-self', 'mind-mom-only'] },
+    { key: 'kid', name: '미취학', ids: ['leave-apply', 'leave-short', 'policy-shorter-hours', 'family-care', 'play-weekend', 'mind-anger', 'mind-mom-only', 'mind-sibling', 'mind-return'] },
+    { key: 'low', name: '초1~2', ids: ['leave-apply', 'leave-short', 'policy-shorter-hours', 'family-care', 'play-school', 'mind-compare'] },
+    { key: 'high', name: '초3~6', ids: ['policy-shorter-hours', 'family-care', 'play-school', 'mind-anger', 'leave-rights', 'mind-teen'] },
+    { key: 'teen', name: '중학생~', ids: ['family-care', 'policy-shorter-hours', 'mind-couple', 'mind-teen'] }
   ];
   const AGE = {}; AGES.forEach(a => { AGE[a.key] = a; });
   // 홈 '아이 나이 길'(UI 3안, 11-04 휴먼쌤 선택): 계산기 '내 아이 날짜'에 넣은 생일·예정일(이 기기에만)로 나이 칸을 맞추고, 직접 고른 값이 있으면 그것을 쓴다
@@ -576,8 +579,12 @@
   const KID_NAMES = ['첫째', '둘째', '셋째', '넷째', '다섯째', '여섯째'];
   // 아이 고르기. 계산기의 날짜 칸 위에는 둘 이상일 때만, 홈에는 늘 둔다(always)
   const kidSeg = always => (always || calcS.kids.length > 1 ? '<div class="seg kidseg" role="group" aria-label="아이 고르기">' + calcS.kids.map((_, i) => '<button type="button" class="' + (i === calcS.kid ? 'on' : '') + '" data-kid="' + i + '" aria-pressed="' + (i === calcS.kid) + '">' + KID_NAMES[i] + '</button>').join('') + '</div>' : '');
-  // 홈: 기본은 '첫째' 칸 하나, 둘째부터는 '아이 추가'로(11-05 휴먼쌤 "기본적으로 '첫째'만 ㅎ해두고, 둘째부터는 아이추가로")
-  const kidsRow = () => '<div class="kidrow">' + kidSeg(true) + (calcS.kids.length < KID_NAMES.length ? '<button type="button" class="kidadd" id="kidAdd">+ 아이 추가</button>' : '') + '</div>';
+  // 홈: 날짜를 넣으면 그 아래에 '첫째' 칸과 '아이 추가'가 뜬다(11-05 휴먼쌤 "'우리아이'에 날짜를 넣으면 그 아래 '아이추가'가 뜨도록"). 둘째부터는 추가로
+  function kidsRow() {
+    const k = kidDates();
+    if (calcS.kids.length < 2 && !k.birth && !k.due) return '';
+    return '<div class="kidrow">' + kidSeg(true) + (calcS.kids.length < KID_NAMES.length ? '<button type="button" class="kidadd" id="kidAdd">+ 아이 추가</button>' : '') + '</div>';
+  }
   function pickKid(i) {
     if (!calcS.kids[i] || i === calcS.kid) return;
     const y = window.scrollY;
@@ -674,12 +681,7 @@
   }
   function bindHomeAge() {
     const e = $('#kidEdit'); if (e) e.addEventListener('click', () => openKidDates());
-    const ka = $('#kidAdd');
-    if (ka) ka.addEventListener('click', () => {
-      const k = kidDates();
-      if (calcS.kids.length > 1 || k.birth || k.due) { openKidDates(true); return; }
-      openKidDates(); const err = $('#kErr'); err.hidden = false; err.textContent = '첫째 날짜를 먼저 넣어 주세요';      // 빈 첫째가 남아 순서가 꼬이지 않게
-    });
+    const ka = $('#kidAdd'); if (ka) ka.addEventListener('click', () => openKidDates(true));
     const m = $('#tlMore'); if (m) m.addEventListener('click', () => { $$('.tli[hidden]').forEach(x => { x.hidden = false; }); m.remove(); });
     const box = $('#ages'); if (!box) return;
     box.addEventListener('click', ev => { const b = ev.target.closest('[data-age]'); if (!b) return; store.set('age', store.get('age', '') === b.dataset.age ? '' : b.dataset.age); renderHome(); });
@@ -709,7 +711,7 @@
       + '<div class="sec"><h2>' + (a ? '이 나이에 맞는 글' : '아빠 가이드') + '</h2>' + (!a ? '<a class="all" href="#/guide">전체 보기 →</a>' : picks.length > 4 ? '<a class="all" href="#/guide/age/' + key + '">전체 보기 →</a>' : '') + '</div>'
       + '<div class="tiles" style="margin-top:0">' + picks.slice(0, 4).map(g => tile(g.e, g.title, '#/g/' + g.id)).join('') + '</div>'
       + '<div id="homeCom">' + (canRead() ? '<div class="sec"><h2>' + (a ? '또래 아빠들 글' : '커뮤니티 새 글') + '</h2><a class="all" href="#/community">전체 보기 →</a></div><div class="loading">불러오는 중…</div>' : '') + '</div>'
-      + '<p class="foot-note"><a href="#/terms">이용약관</a> · <a href="#/privacy">개인정보 처리방침</a></p>'
+      + '<p class="foot-note"><a href="terms.html">이용약관</a> · <a href="privacy.html">개인정보 처리방침</a></p>'
       + '</section>';
     window.scrollTo(0, 0);
     bindHomeAge();
@@ -738,13 +740,22 @@
     return '<a class="grow" href="#/g/' + esc(g.id) + '"><span class="ge">' + esc(g.e) + '</span><span class="tx"><b>' + esc(g.title) + '</b><small>' + esc(g.sub) + '</small></span>'
       + (g.tag ? '<span class="tag ' + tagCls(g.tag) + '">' + esc(g.tag) + '</span>' : '') + '</a>';
   }
-  function guideChips(cur) {
-    const link = (h, e, name, on) => '<a class="chip' + (on ? ' on' : '') + '" href="' + h + '"><span class="e">' + e + '</span>' + esc(name) + '</a>';
-    return '<div class="chips" data-keep="guide">' + GD.cats.map(c => link('#/guide/' + c.key, c.e, c.name, c.key === cur) + (c.key === 'faq' ? link('#/calc', '💰', '계산기', cur === 'calc') : '')).join('')
-      + link('#/library', '🗂️', '자료실', cur === 'library') + '</div>';
-  }
+  // 가이드 상단 버튼(11-05 휴먼쌤 "'계산기' 다음에 '나들이'를 넣어주고 그다음에 '놀이'" · "'정책/정보/자료실'을 하나로 합쳐줘"). 커뮤니티 잠금 화면의 타일도 이 목록을 쓴다
+  const MERGED = [{ key: 'policy', name: '정책', h: '#/guide/policy' }, { key: 'info', name: '정보', h: '#/guide/info' }, { key: 'library', name: '자료실', h: '#/library' }];
+  const GUIDE_BTNS = [
+    { h: '#/guide/leave', e: '💼', name: '육아휴직', on: ['leave'] },
+    { h: '#/guide/faq', e: '🙋', name: 'Q&A', on: ['faq'] },
+    { h: '#/calc', e: '💰', name: '계산기', on: ['calc'] },
+    { h: '#/guide/outing', e: '🎡', name: '나들이', on: ['outing'] },
+    { h: '#/guide/play', e: '🎮', name: '놀이', on: ['play'] },
+    { h: '#/guide/mind', e: '🧠', name: '심리', on: ['mind'] },
+    { h: '#/guide/policy', e: '🗂️', name: '정보', on: MERGED.map(m => m.key) }      // 11-05 휴먼쌤 "하나로 묶을때 단어를 '정보'로만"
+  ];
+  const guideChips = cur => '<div class="chips" data-keep="guide">' + GUIDE_BTNS.map(b => '<a class="chip' + (b.on.indexOf(cur) >= 0 ? ' on' : '') + '" href="' + b.h + '"><span class="e">' + b.e + '</span>' + esc(b.name) + '</a>').join('') + '</div>';
+  // 합친 버튼 안에서 정책·정보·자료실을 고른다. 주소는 그대로라 글과 안내의 링크가 그대로 맞는다
+  const mergedSeg = cur => (MERGED.some(m => m.key === cur) ? '<div class="seg guideseg">' + MERGED.map(m => '<a class="' + (m.key === cur ? 'on' : '') + '" href="' + m.h + '"' + (m.key === cur ? ' aria-current="page"' : '') + '>' + m.name + '</a>').join('') + '</div>' : '');
   // 가이드 탭은 표지 없이 바로 글로(11-05 휴먼쌤 "네모칸으로 버튼 누르게 하는 표지는 없는게 더 낫고"). 어느 칸이든 제목과 상단 버튼 자리가 같다
-  const guideHead = cur => pageHead('📚', '아빠 가이드') + guideChips(cur);
+  const guideHead = cur => pageHead('📚', '아빠 가이드') + guideChips(cur) + mergedSeg(cur);
   // 근거 법령 표시(11-05 휴먼쌤 "'2026.11.04 법령기준'은 사실이 아니지 … 실제 법령의 명칭과 유효일자를 적어서 신뢰를 확보해"). 표는 law-data.js, 글과는 출처 주소로 잇는다
   const LAW_DATA = window.YK_LAWS || { checked: '', items: [] };
   const lawsFor = list => { const urls = list.reduce((a, g) => a.concat((g.sources || []).map(s => s.u || '')), []); return LAW_DATA.items.filter(l => urls.some(u => l.match.some(m => u.indexOf(m) >= 0))); };
@@ -761,9 +772,11 @@
   function lawWarn(g, laws) {
     const newer = laws.filter(l => g.updated && l.effective > g.updated);
     if (newer.length) return '<div class="warn">⚠️ 이 글을 확인한 뒤 ' + esc(newer[0].name) + '이 바뀌었어요(' + dotd(newer[0].effective) + ' 시행). 내용이 다를 수 있으니 1350에 확인해 주세요.</div>';
-    if (g.status !== '일반 조언' && g.updated && daysAgo(g.updated) > 180) return '<div class="warn">⚠️ 확인한 지 6개월이 넘은 글이에요. 신청 전에 1350에 확인해 주세요.</div>';
+    if (g.status !== '일반 조언' && g.status !== '공식 안내' && g.updated && daysAgo(g.updated) > 180) return '<div class="warn">⚠️ 확인한 지 6개월이 넘은 글이에요. 신청 전에 1350에 확인해 주세요.</div>';
     return '';
   }
+  // 자료 오류 제보(11-05 휴먼쌤 "자료 오류 제보"): 가이드 글 · Q&A · 계산기 · 자료실 끝에. ref = 글 번호 또는 faq · library · calc-종류
+  const fixBtn = ref => '<button type="button" class="fixbtn" data-fix="' + esc(ref) + '">자료 오류 제보</button>';
   // Q&A(11-05 휴먼쌤 "Q&A인데 그냥 읽기 자료같은 느낌이야"): 질문을 누르면 답이 펼쳐진다. 저장된 Q&A는 서버 없이 보이고, 관리자가 답한 질문을 위에 더한다
   const qaItem = (q, a, more) => '<details class="qa"><summary><span class="qm">Q</span><b>' + esc(q) + '</b></summary><div class="qa-a"><span class="am">A</span><div><p>' + rich(a) + '</p>' + (more ? '<a class="lk2" href="' + esc(more) + '">자세히 보기 ›</a>' : '') + '</div></div></details>';
   async function renderQna() {
@@ -774,7 +787,7 @@
       + '<div class="qalist"><div id="qaNew"></div>' + items.map(g => qaItem(g.q, g.a, '#/g/' + g.id)).join('') + '</div>'
       + '<button type="button" class="btn primary qaask" data-ask="1">질문하기</button>'
       + notes(['운영자가 확인해서 답을 여기에 올려요', '답은 법률 자문이 아니에요'])
-      + lawBox(lawsFor(items)) + '</section>';
+      + lawBox(lawsFor(items)) + fixBtn('faq') + '</section>';
     window.scrollTo(0, 0);
     try {
       const r = await api('qnaList');
@@ -791,7 +804,8 @@
     view.innerHTML = '<section class="pad">'
       + guideHead(cat)
       + (cat === 'leave' ? calcCard() + '<a class="grow" href="#/calc" style="margin-top:16px"><span class="ge">🧮</span><span class="tx"><b>계산기 모음</b><small>단축근무 · 출산휴가 · 아이 날짜</small></span></a>' : '')
-      + '<div class="glist">' + (items.length ? items.map(grow).join('') : empty('준비 중이에요', '곧 글이 올라와요')) + '</div>'
+      + '<div class="glist">' + (items.length ? items.map(grow).join('') : empty('준비 중이에요', '곧 글이 올라와요'))
+      + (cat === 'outing' ? '<a class="grow" href="#/community/play"><span class="ge">💬</span><span class="tx"><b>아빠들의 나들이 글</b><small>커뮤니티 나들이 칸</small></span></a>' : '') + '</div>'
       + lawBox(lawsFor(items))
       + '</section>';
     window.scrollTo(0, 0);
@@ -819,6 +833,7 @@
     bar(backBtn('#/guide/' + g.cat) + '<div class="fill atitle">아빠 가이드 · ' + esc(c.name || '') + '</div>');
     const laws = lawsFor([g]);
     const note = g.status === '공식 근거' ? '<div class="draft"><span>✅</span><span>' + dotd(g.updated) + ' 법령과 정부 안내로 확인. 내 경우는 1350이나 고용센터에 문의</span></div>'
+      : g.status === '공식 안내' ? '<div class="draft"><span>✅</span><span>' + dotd(g.updated) + ' 정부 안내로 확인. 번호와 조건은 바뀔 수 있어요</span></div>'
       : g.status === '일반 조언' ? '<div class="draft"><span>✍️</span><span>일반적인 조언이에요. 집마다 다를 수 있어요.</span></div>'
       : g.status === '자료 정리' ? '<div class="draft"><span>🗂️</span><span>' + dotd(g.updated) + ' 출처가 있는 자료로 정리. 내 경우는 1350이나 고용센터에 문의</span></div>' : '';
     view.innerHTML = '<section class="pad"><article class="garticle">'
@@ -827,7 +842,7 @@
       + blocks(g.body)
       + lawBox(laws)
       + (g.sources && g.sources.length ? '<div class="srcs"><b>출처</b><ul>' + g.sources.map(s => '<li><a href="' + esc(s.u) + '" target="_blank" rel="noopener">' + esc(s.t) + '</a></li>').join('') + '</ul></div>' : '')
-      + (g.status !== '일반 조언' ? '<button type="button" class="fixbtn" data-fix="' + esc(g.id) + '">내용이 달라졌나요? 알려 주기</button>' : '')
+      + fixBtn(g.id)
       + '</article>'
       + (g.community && CAT[g.community] ? '<a class="glink" href="#/community/' + esc(g.community) + '"><span>💬 커뮤니티 "' + esc(CAT[g.community].name) + '"에서 이야기 나누기</span><span>→</span></a>' : '')
       + '</section>';
@@ -841,7 +856,7 @@
     bar(brandBar());
     // 네 개를 2열 2행으로 고정한다(11-05 휴먼쌤 "스크롤 말고 그냥 2열 2행으로")
     const grid = '<div class="calcgrid">' + CALC_TABS.map(t => '<a class="chip' + (t.key === tab ? ' on' : '') + '" href="#/calc/' + t.key + '"><span class="e">' + t.e + '</span>' + esc(t.name) + '</a>').join('') + '</div>';
-    view.innerHTML = '<section class="pad">' + guideHead('calc') + grid + '<div id="calcJob"></div><div id="calcForm"></div><div id="calcOut"></div></section>';
+    view.innerHTML = '<section class="pad">' + guideHead('calc') + grid + '<div id="calcJob"></div><div id="calcForm"></div><div id="calcOut"></div>' + fixBtn('calc-' + tab) + '</section>';
     window.scrollTo(0, 0);
     const fill = ({ leave: calcLeave, reduce: calcReduce, paternity: calcPaternity, dates: calcDates })[tab];
     // 고용보험 근로자는 세 계산기 모두, 공무원·교원은 육아휴직 수당을 계산한다. 그 밖의 직종은 정보와 이동 단추. 날짜 칸은 누구나
@@ -1100,7 +1115,7 @@
     sec.insertAdjacentHTML('beforeend', '<div class="searchbar"><input id="libQ" type="search" placeholder="키워드 검색: 6+6, 복직, 판례, 후기" enterkeyhint="search" autocomplete="off" value="' + esc(lib.q) + '"></div>'
       + '<div class="chips" id="libTopics"><button type="button" class="chip' + (!lib.topic ? ' on' : '') + '" data-t="">전체</button>' + lib.topics.map(t => '<button type="button" class="chip' + (lib.topic === t ? ' on' : '') + '" data-t="' + esc(t) + '">' + esc(t) + '</button>').join('') + '</div>'
       + '<div class="sec" style="margin-top:4px"><h2 style="font-size:15px">' + (lib.updated ? esc(dot(lib.updated)) + ' 모음' : '자료') + '</h2><span id="libCount"></span></div><div class="list" id="libList"></div>'
-      + notes(['누르면 원문으로 이동', '숫자는 그 자료가 나온 때 기준']));
+      + notes(['누르면 원문으로 이동', '숫자는 그 자료가 나온 때 기준']) + fixBtn('library'));
     $('#libQ').addEventListener('input', ev => { lib.q = ev.target.value.trim(); lib.shown = LIB_STEP; paintLibrary(); });
     $('#libTopics').addEventListener('click', ev => { const b = ev.target.closest('[data-t]'); if (!b) return; lib.topic = b.dataset.t; lib.shown = LIB_STEP; $$('#libTopics .chip').forEach(x => x.classList.toggle('on', x === b)); paintLibrary(); });
     $('#libList').addEventListener('click', ev => { if (!ev.target.closest('#libMore')) return; lib.shown += LIB_STEP; paintLibrary(); });
@@ -1130,7 +1145,8 @@
         : '<div id="lockCta"><button type="button" class="btn primary" id="lockGo">초대 코드가 있어요</button><button type="button" class="btn line" id="lockNo">코드가 없어요 (신청서)</button><small class="hint">서류나 사진은 받지 않아요.</small></div>')
       + '</div>'
       + '<div class="sec"><h2>' + (kakaoOn() ? '가입 전에도' : '인증 전에도') + ' 볼 수 있어요</h2></div>'
-      + '<div class="tiles center" style="margin-top:0">' + tile('📚', '아빠 가이드', '#/guide') + tile('🙋', 'Q&A', '#/guide/faq') + tile('💰', '계산기', '#/calc') + tile('🗂️', '자료실', '#/library') + '</div></section>';
+      // 가이드 상단 버튼을 그대로 나열해 누르면 그 칸으로(11-05 휴먼쌤 "'아빠가이드' 버튼은 빼고 … 전부다 나열")
+      + '<div class="tiles center" style="margin-top:0">' + GUIDE_BTNS.map(b => tile(b.e, b.name, b.h)).join('') + '</div></section>';
     window.scrollTo(0, 0);
     const after = () => render();
     const lk = $('#lockKakao'); if (lk) lk.addEventListener('click', kakaoGo);
@@ -1166,9 +1182,9 @@
     view.innerHTML = '<section class="pad">'
       + pageHead('💬', '커뮤니티')
       + '<div class="chips">' + chip('', '전체', '🏠', cat) + CATS.map(c => chip(c.key, c.name, c.e, cat)).join('') + '</div>'
-      // 나이는 드롭다운, 검색창은 늘 이 자리에(11-05 휴먼쌤 "드롭다운으로" · "지금 위치에 고정")
-      + '<label class="agesel"><select id="ageSel" aria-label="아이 나이로 거르기"><option value="">전체 나이</option>' + AGES.map(x => '<option value="' + x.key + '"' + (x.key === listState.age ? ' selected' : '') + '>' + esc(x.name) + '</option>').join('') + '</select></label>'
-      + '<div class="searchbar" id="searchbar"><input id="q" type="search" placeholder="키워드로 글 찾기 (예: 복직, 이유식)" enterkeyhint="search" autocomplete="off" value="' + esc(q) + '"><button type="button" class="sgo" id="qgo">찾기</button><button type="button" class="sx" id="qx" aria-label="검색 지우기">✕</button></div>'
+      // 나이 드롭다운과 검색창을 한 줄에 절반씩(11-05 휴먼쌤 "2줄로 하지 말고 칸을 절반씩 해서 1줄로"). 칸이 좁아 안내 글자를 줄였다
+      + '<div class="findrow"><label class="agesel"><select id="ageSel" aria-label="아이 나이로 거르기"><option value="">전체 나이</option>' + AGES.map(x => '<option value="' + x.key + '"' + (x.key === listState.age ? ' selected' : '') + '>' + esc(x.name) + '</option>').join('') + '</select></label>'
+      + '<div class="searchbar" id="searchbar"><input id="q" type="search" placeholder="키워드 검색" aria-label="키워드로 글 찾기" enterkeyhint="search" autocomplete="off" value="' + esc(q) + '"><button type="button" class="sx" id="qx" aria-label="검색 지우기">✕</button><button type="button" class="sgo" id="qgo">찾기</button></div></div>'
       + (mode === 'local' ? mockBadge() : '')
       + '<div id="hotBox"></div>'
       + '<div class="list" id="list"></div><button type="button" class="more" id="more" hidden>더 보기</button>'
@@ -1296,10 +1312,25 @@
     try { await api('deleteComment', cid); const el = $('#c' + cid); if (el) el.remove(); const n = $('#cmtN'); if (n) n.textContent = $$('#cmts .cmt-item').length; listState.posts = []; toast('댓글을 지웠어요'); }
     catch (e) { fail(e); }
   }
-  async function reportFlow(kind, id) {
-    const reason = window.prompt('무엇이 문제인가요? 운영자가 읽고 판단해요. (아이 개인정보 노출, 비방, 광고 등)', '');
-    if (reason === null) return;
-    try { const r = await api('report', kind, id, reason.trim()); toast(r.already ? '이미 신고했어요' : '신고를 받았어요. 고마워요'); } catch (e) { fail(e); }
+  // 신고(11-05 휴먼쌤 "커뮤니티 신고기능도 넣어주고"): 사유를 고르면 운영자 신고함에 쌓인다. 남의 글·댓글에만 '신고' 버튼이 보인다
+  const REPORT_WHY = ['욕설·비방', '아이 개인정보', '광고·도배', '잘못된 정보', '기타'];
+  function reportFlow(kind, id) {
+    showSheet('<div class="sheet" role="dialog" aria-modal="true" aria-label="신고하기"><div class="grip"></div><h2>' + (kind === 'comment' ? '댓글' : '글') + ' 신고하기</h2><p>운영자가 읽고 판단해요.</p>'
+      + '<div class="catpick" id="repWhy" style="margin-top:14px">' + REPORT_WHY.map(w => '<button type="button" class="chip" data-w="' + w + '">' + w + '</button>').join('') + '</div>'
+      + '<textarea class="inp" id="repMore" rows="2" maxlength="200" style="min-height:64px;margin-top:12px" placeholder="더 적을 말이 있으면 (없어도 돼요)" aria-label="더 적을 말"></textarea>'
+      + '<div class="err" id="repErr" hidden></div>'
+      + '<button type="button" class="btn primary" id="repGo">신고하기</button><button type="button" class="btn ghost" id="repNo">취소</button></div>');
+    let why = '';
+    $('#repWhy').addEventListener('click', ev => { const b = ev.target.closest('[data-w]'); if (!b) return; why = b.dataset.w; $$('#repWhy .chip').forEach(x => x.classList.toggle('on', x === b)); $('#repErr').hidden = true; });
+    $('#repNo').addEventListener('click', closeSheet);
+    $('#repGo').addEventListener('click', async ev => {
+      const err = $('#repErr');
+      if (!why) { err.hidden = false; err.textContent = '사유를 골라 주세요'; return; }
+      const more = $('#repMore').value.trim();
+      ev.target.disabled = true;
+      try { const r = await api('report', kind, id, more ? why + ': ' + more : why); closeSheet(); toast(r.already ? '이미 신고했어요' : '신고를 받았어요. 고마워요'); }
+      catch (e) { err.hidden = false; err.textContent = errText(e); ev.target.disabled = false; }
+    });
   }
   // 사용자 차단: 내 화면에서만 숨긴다. 상대는 알 수 없고, MY에서 풀 수 있다
   async function blockFlow(uid, nick) {
@@ -1413,7 +1444,74 @@
       : '<p class="rknext" style="margin-top:0">운영 계정은 계급 없이 표시돼요.</p>';
     return '<section class="rkbox" id="rankBox">' + head
       + '<ol class="rkladder">' + RANKS.map((x, i) => '<li class="' + (i === lv ? 'me' : cur && i < lv ? 'done' : 'todo') + '"' + (i === lv ? ' aria-current="true"' : '') + '>' + (i === lv ? '<em>나</em>' : '') + rankMark(i) + '<b>' + x.name + '</b><small>' + x.at + '점</small></li>').join('') + '</ol>'
-      + '<details class="rkhow"><summary>점수 얻는 법</summary><ul><li>다른 아빠 글에 댓글 <b>2점</b> (글마다 1번)</li><li>글쓰기 <b>3점</b> (하루 2개까지)</li><li>내 글에 다른 아빠 댓글 <b>1점</b> (글마다 사람당 1번)</li><li>지운 글·댓글은 빠져요</li></ul></details></section>';
+      + (cur && cur.pass ? '<button type="button" class="btn line passbtn" id="passBtn">아내에게 보낼 외출증 받기 (' + cur.pass + ')</button>' : cur ? '<p class="rknext" style="margin-top:12px">일병이 되면 아내에게 보낼 외출증이 나와요</p>' : '<button type="button" class="btn line passbtn" id="passBtn">외출증 미리 보기 (상병 예시)</button>')
+      + '<details class="rkhow"><summary>점수 얻는 법</summary><ul><li>다른 아빠 글에 댓글 <b>2점</b> (글마다 1번)</li><li>글쓰기 <b>3점</b> (하루 2개까지)</li><li>내 글에 다른 아빠 댓글 <b>1점</b> (글마다 사람당 1번)</li><li>지운 글·댓글은 빠져요</li><li>외출증: 일병 <b>30분</b> · 상병 <b>1시간</b> · 병장 <b>2시간</b> · 예비군 <b>반나절</b> · 민방위 <b>하루</b></li></ul></details></section>';
+  }
+  // 외출증 카드(11-05 휴먼쌤 "아내한테 보내는 장난카드 컨셉 좋은거 같아"). 장난이라 권한과 상관없다. 닉네임의 거주지·아이 출생연도는 넣지 않고 별명만 쓴다. 그림 파일은 이 기기에서 만들고 서버로 보내지 않는다
+  function drawRank(c, i, x, y, s) {
+    const box = col => { c.fillStyle = col; c.beginPath(); if (c.roundRect) c.roundRect(0, 0, 20, 20, 4); else c.rect(0, 0, 20, 20); c.fill(); };
+    c.save(); c.translate(x, y); c.scale(s / 20, s / 20);
+    if (i < 4) { box('#3F5232'); const n = i + 1, top = (20 - (n * 2.4 + (n - 1) * 1.6)) / 2; c.fillStyle = '#FFF6D6'; for (let k = 0; k < n; k++) c.fillRect(4, top + k * 4, 12, 2.4); }
+    else if (i === 4) { box('#5F6F3E'); RANK_CAMO.forEach(p => { c.fillStyle = p[1]; c.fill(new Path2D(p[0])); }); }
+    else { box('#FFC914'); c.fillStyle = '#14213D'; c.fill(new Path2D(RANK_TRI)); }
+    c.restore();
+  }
+  function drawPass(cv, lv, name) {
+    const W = 1080, H = 1350, r = RANKS[lv], c = cv.getContext('2d'), ff = getComputedStyle(document.body).fontFamily, ink = '#1B1F2A', olive = '#3F5232', red = '#C8321F';
+    const font = (w, px) => w + ' ' + px + 'px ' + ff;
+    const text = (s, x, y, f, col, align) => { c.font = f; c.fillStyle = col; c.textAlign = align || 'left'; c.fillText(s, x, y); };
+    const wrap = (s, x, y, max, lh, f, col) => { c.font = f; c.fillStyle = col; c.textAlign = 'left'; let line = '', yy = y; Array.from(s).forEach(ch => { if (c.measureText(line + ch).width > max) { c.fillText(line, x, yy); line = ch.trim(); yy += lh; } else line += ch; }); c.fillText(line, x, yy); return yy; };
+    c.fillStyle = '#F4EFDF'; c.fillRect(0, 0, W, H);
+    c.fillStyle = olive; c.fillRect(0, 0, W, 150);
+    text('육아맨 사령부', W / 2, 96, font(800, 46), '#FFF6D6', 'center');
+    text('외 출 증', W / 2, 310, font(900, 128), ink, 'center');
+    c.strokeStyle = ink; c.lineWidth = 4;
+    const col1 = 90, col2 = 320, right = W - 90, row = (y, label) => { c.beginPath(); c.moveTo(col1, y); c.lineTo(right, y); c.stroke(); text(label, col1, y + 66, font(700, 38), '#5F6675'); };
+    row(370, '계급·성명');
+    drawRank(c, lv, col2, 390, 72);
+    let nameSize = 52; c.font = font(800, nameSize);
+    while (nameSize > 30 && c.measureText(r.name + ' ' + name).width > right - col2 - 92) { nameSize -= 2; c.font = font(800, nameSize); }   // 별명이 길면 줄여서 칸 안에
+    text(r.name + ' ' + name, col2 + 92, 444, font(800, nameSize), ink);
+    row(482, '외출 시간');
+    text(r.pass, col2, 556, font(900, 64), red);
+    row(594, '복무 평가');
+    const after = wrap(r.line, col2, 660, right - col2, 56, font(700, 42), ink);
+    const y4 = Math.max(after + 44, 706);
+    row(y4, '신청 사유');
+    wrap('육아 전선에서 성실히 복무하여 잠시 숨을 돌리고자 함', col2, y4 + 66, right - col2, 56, font(700, 42), ink);
+    const y5 = y4 + 172;
+    c.beginPath(); c.moveTo(col1, y5); c.lineTo(right, y5); c.stroke();
+    text('승인권자: 아내', col1, y5 + 76, font(800, 46), ink);
+    const check = (x, label) => { c.lineWidth = 5; c.strokeRect(x, y5 + 38, 44, 44); c.lineWidth = 4; text(label, x + 60, y5 + 76, font(800, 46), ink); };
+    check(560, '승인'); check(780, '반려');
+    text('이 외출증의 효력은 아내가 승인할 때만 발생합니다.', W / 2, y5 + 160, font(700, 36), '#5F6675', 'center');
+    const d = new Date();
+    text(d.getFullYear() + '. ' + String(d.getMonth() + 1).padStart(2, '0') + '. ' + String(d.getDate()).padStart(2, '0') + '.', col1, H - 76, font(700, 38), ink);
+    // 직인
+    c.save(); c.translate(W - 190, H - 118); c.rotate(-0.2); c.strokeStyle = red; c.lineWidth = 7; c.beginPath(); c.arc(0, 0, 82, 0, Math.PI * 2); c.stroke();
+    text('육아맨', 0, -8, font(900, 40), red, 'center'); text('사령부', 0, 42, font(900, 40), red, 'center'); c.restore();
+  }
+  function openPass(lv) {
+    const r = RANKS[lv], name = nickParts(me && me.nick).name || (me ? me.nick : '');
+    showSheet('<div class="sheet" role="dialog" aria-modal="true" aria-label="외출증"><div class="grip"></div><h2>' + r.name + ' 외출증</h2>'
+      + '<canvas id="passCv" class="passcv" width="1080" height="1350" role="img" aria-label="' + r.name + ' ' + esc(name) + ' 외출증 ' + r.pass + '. 승인권자 아내"></canvas>'
+      + '<button type="button" class="btn primary" id="passSend">아내에게 보내기</button><button type="button" class="btn line" id="passSave">그림 저장</button><button type="button" class="btn ghost" id="passNo">닫기</button></div>');
+    const cv = $('#passCv');
+    let blob = null;     // 누르는 즉시 공유 창을 열어야 해서 그림 파일을 미리 만들어 둔다
+    const paint = () => { if (!$('#passCv')) return; drawPass(cv, lv, name); cv.toBlob(b => { blob = b; }, 'image/png'); };
+    paint();
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(paint);
+    const save = () => { if (!blob) return; const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'yukaman-pass.png'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 5000); };
+    $('#passNo').addEventListener('click', closeSheet);
+    $('#passSave').addEventListener('click', () => { save(); toast('그림을 저장했어요'); });
+    $('#passSend').addEventListener('click', async () => {
+      if (!blob) return;
+      const file = new File([blob], 'yukaman-pass.png', { type: 'image/png' });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        try { await navigator.share({ files: [file], text: '충성! ' + r.name + ' ' + name + ', 외출 ' + r.pass + ' 결재 올립니다.' }); toast('결재 올렸습니다. 승인을 기다리세요'); }
+        catch (e) { if (!e || e.name !== 'AbortError') { save(); toast('그림을 저장했어요. 카톡으로 아내에게 보내 주세요'); } }
+      } else { save(); toast('그림을 저장했어요. 카톡으로 아내에게 보내 주세요'); }
+    });
   }
   async function renderMe() {
     setTab('me');
@@ -1445,7 +1543,7 @@
       + '<div class="profile" style="margin-top:12px"><span class="big">' + esc(first(r.user.nick)) + '</span><div class="tx"><b>' + esc(r.user.nick) + '</b><small>' + ymd(r.user.created) + '부터 육아맨 · 글 ' + r.posts.length + ' · 댓글 ' + r.comments.length + '</small></div><button type="button" class="edit" id="editNick">닉네임 바꾸기</button></div>'
       + statusBox(r)
       + (canWrite() ? rankBox(r) : '')
-      + (r.user.role === 'admin' ? '<a class="glink" href="#/admin"><span>🛠️ 관리자 화면: 인증 신청 · 초대 코드 · 회원</span><span>→</span></a>' : '')
+      + (r.user.role === 'admin' ? '<a class="glink" href="#/admin"><span>🛠️ 관리자 화면: 신고 · 제보 · 질문 · 회원</span><span>→</span></a>' : '')
       + (canWrite() && !(kakaoOn() && r.user.role !== 'admin') ? inviteBox(r) : '')
       + newCommentsBox(r)
       + '<div class="seg" id="meSegs" style="margin-top:16px"><button type="button" class="' + (meSeg === 'posts' ? 'on' : '') + '" data-seg="posts">내 글 ' + r.posts.length + '</button><button type="button" class="' + (meSeg === 'comments' ? 'on' : '') + '" data-seg="comments">내 댓글 ' + r.comments.length + '</button></div>'
@@ -1472,6 +1570,7 @@
       try { await api('unblockUser', +b.dataset.unblock); listState.posts = []; toast('차단을 풀었어요'); render(); } catch (e) { b.disabled = false; fail(e); }
     });
     bindInstall(); window.scrollTo(0, 0);
+    const pb = $('#passBtn'); if (pb) pb.addEventListener('click', () => openPass(RANKS[r.rank] ? r.rank : 2));    // 운영 계정은 계급이 없어 상병 예시로 미리 본다
     noteRank(r.rank);
     if (pendingInvite && canWrite()) {        // 이미 인증했어도 관리자 코드는 쓸 수 있다(서버가 아빠 코드는 쓰지 않고 넘긴다)
       const c = pendingInvite; clearInvite();
@@ -1520,6 +1619,7 @@
   function forgetDevice() { setMe(null); store.del('token'); store.del('recovery'); store.del('welcomed'); listState.posts = []; }
 
   // ----- 관리자 -----
+  const admOpen = new Set();     // 열어 둔 칸. 처리한 뒤 화면을 다시 그려도 열린 채로 둔다
   async function renderAdmin() {
     setTab('me');
     bar(backBtn('#/me') + '<div class="fill atitle">관리자</div>');
@@ -1540,39 +1640,65 @@
     };
     // Q&A 질문 · 글 제보 · 올라간 Q&A · 최신화 점검(11-05 휴먼쌤)
     const qaAll = r.qna || [], qaQ = qaAll.filter(x => x.kind !== 'fix'), qaFix = qaAll.filter(x => x.kind === 'fix'), qaPub = r.qna_published || [];
-    const guideTitle = id => { const g = GD.items.find(x => x.id === id); return g ? g.title : ''; };
+    const guideTitle = id => { if (id === 'faq') return 'Q&A'; if (id === 'library') return '자료실'; if (/^calc-/.test(id || '')) return '계산기'; const g = GD.items.find(x => x.id === id); return g ? g.title : ''; };
+    const fixHref = id => (id === 'faq' ? '#/guide/faq' : id === 'library' ? '#/library' : /^calc-/.test(id) ? '#/calc/' + id.slice(5) : '#/g/' + id);
     const qaCard = x => '<div class="appl" data-qa="' + x.id + '"><div class="meta"><b>질문</b><span class="time">' + ago(x.created) + '</span></div>'
       + '<textarea class="inp" data-f="q" rows="2" maxlength="300" style="min-height:64px;margin-top:6px" aria-label="질문">' + esc(x.question) + '</textarea>'
       + '<textarea class="inp" data-f="a" rows="4" maxlength="1000" style="min-height:96px;margin-top:8px" aria-label="답변" placeholder="답을 적어 올리면 Q&amp;A에 바로 보여요. 근거 법령도 함께 적어 주세요."></textarea>'
       + '<div class="two" style="margin-top:8px"><button type="button" class="btn primary small" data-qaa="answer">답변 올리기</button><button type="button" class="btn line small" data-qaa="delete">지우기</button></div></div>';
     const fixCard = x => '<div class="appl" data-qa="' + x.id + '"><div class="meta"><b>' + esc(guideTitle(x.ref) || '일반') + '</b><span class="time">' + ago(x.created) + '</span></div><p>' + esc(x.question) + '</p>'
-      + '<div class="two" style="margin-top:8px">' + (x.ref ? '<a class="btn line small" href="#/g/' + esc(x.ref) + '" style="text-align:center">글 열기</a>' : '') + '<button type="button" class="btn primary small" data-qaa="delete">처리 완료</button></div></div>';
+      + '<div class="two" style="margin-top:8px">' + (x.ref ? '<a class="btn line small" href="' + esc(fixHref(x.ref)) + '" style="text-align:center">열어 보기</a>' : '') + '<button type="button" class="btn primary small" data-qaa="delete">처리 완료</button></div></div>';
     const pubCard = x => '<div class="appl" data-qa="' + x.id + '"><div class="meta"><b>' + esc(x.question) + '</b><span class="time">' + ago(x.answered_at) + '</span></div><p>' + esc(x.answer) + '</p><button type="button" class="btn line small" data-qaa="delete">내리기</button></div>';
     const oldDocs = GD.items.filter(g => g.status !== '일반 조언' && g.updated && daysAgo(g.updated) > 90);
     const upcoming = LAW_DATA.items.filter(l => l.upcoming).map(l => esc(l.name) + ' ' + dotd(l.upcoming));
+    const reports = r.reports || [];
+    // 항목별로 접어 두고 건수만 먼저 보인다(11-05 휴먼쌤 "다 늘어놓진 않을꺼지? 접어두거나"). 처리할 것이 있는 칸은 건수가 노랗게. 처리할 일이 있는 칸부터 놓는다
+    const adm = (key, title, count, hot, body) => '<details class="adm" data-adm="' + key + '"' + (admOpen.has(key) ? ' open' : '') + '><summary><b>' + title + '</b>' + (count ? '<span class="admn' + (hot ? ' due' : '') + '">' + count + '</span>' : '') + '</summary><div class="admb">' + body + '</div></details>';
+    const todo = (n, unit) => n + unit;
     view.innerHTML = '<section class="pad">'
-      + '<div class="sec"><h2>Q&amp;A 질문</h2><span>' + qaQ.length + '건</span></div>' + (qaQ.length ? qaQ.map(qaCard).join('') : '<div class="about">대기 중인 질문이 없어요.</div>')
-      + '<div class="sec"><h2>글 제보</h2><span>' + qaFix.length + '건</span></div>' + (qaFix.length ? qaFix.map(fixCard).join('') : '<div class="about">대기 중인 제보가 없어요.</div>')
-      + (qaPub.length ? '<div class="sec"><h2>올라간 Q&amp;A</h2><span>' + qaPub.length + '건</span></div>' + qaPub.map(pubCard).join('') : '')
-      + '<div class="sec"><h2>최신화 점검</h2></div><div class="about">' + notes(['법령 표 확인: ' + dotd(LAW_DATA.checked) + ' (' + daysAgo(LAW_DATA.checked) + '일 전)', '예고된 개정: ' + (upcoming.join(', ') || '없음'), '확인한 지 90일 넘은 글: ' + oldDocs.length + '편'])
-      + oldDocs.slice(0, 20).map(g => '<a class="lk2" style="display:block" href="#/g/' + esc(g.id) + '">' + esc(g.title) + '</a>').join('') + '</div>'
-      + '<div class="sec"><h2>인증 신청</h2><span>' + r.queue.length + '건</span></div>'
-      + (r.queue.length ? r.queue.map(q => '<div class="appl" data-id="' + q.id + '"><div class="meta"><b>' + esc(q.nick) + '</b><span class="time">' + ago(q.created) + '</span></div><small>' + esc(STAGE[q.stage] || '') + '</small><p>' + esc(q.answer) + '</p><div class="two"><button type="button" class="btn primary small" data-d="1">승인</button><button type="button" class="btn line small" data-d="0">거절</button></div></div>').join('') : '<div class="about">대기 중인 신청이 없어요.</div>')
-      + '<p class="calcnote">승인·거절하면 신청 내용은 바로 지워져요.</p>'
-      + '<div class="sec"><h2>신고함</h2><span>' + (r.reports || []).length + '건</span></div>'
-      + ((r.reports || []).length ? r.reports.map(x => '<div class="appl" data-rk="' + esc(x.kind) + '" data-rt="' + x.target_id + '"><div class="meta"><b>' + (x.kind === 'post' ? '글' : '댓글') + ' · ' + esc(x.author || '(탈퇴)') + '</b><span class="time">' + x.n + '명 · ' + ago(x.first_at) + '</span></div>'
+      + adm('reports', '신고함', todo(reports.length, '건'), reports.length > 0, reports.length ? reports.map(x => '<div class="appl" data-rk="' + esc(x.kind) + '" data-rt="' + x.target_id + '"><div class="meta"><b>' + (x.kind === 'post' ? '글' : '댓글') + ' · ' + esc(x.author || '(탈퇴)') + '</b><span class="time">' + x.n + '명 · ' + ago(x.first_at) + '</span></div>'
         + (x.gone ? '<small>이미 지워진 글이에요</small>' : '<p>' + (x.title ? '<b>' + esc(x.title) + '</b>\n' : '') + esc(x.preview || '') + '</p>') + (x.reasons ? '<small>사유: ' + esc(x.reasons) + '</small>' : '')
         + (x.post_id && !x.gone ? '<a class="lk2" href="#/p/' + x.post_id + '">글 열기</a>' : '')
         + '<div class="two"><button type="button" class="btn primary small" data-rp="hide">숨기기</button><button type="button" class="btn line small" data-rp="keep">그대로 두기</button></div></div>').join('') : '<div class="about">대기 중인 신고가 없어요.</div>')
-      + '<div class="sec"><h2>초대 코드</h2></div><div class="about"><div class="two"><input class="inp" id="invNote" placeholder="어디에 쓸 코드인가요(메모)" maxlength="60"><button type="button" class="btn primary small" id="invMake">5개 만들기</button></div>'
-      + '<div id="invList">' + r.invites.map(i => '<div class="irow"><code>' + esc(i.code) + '</code><span class="time">' + (i.used ? '사용함' : esc(i.note || '안 씀')) + '</span>' + (i.used ? '' : '<button type="button" class="edit" data-share="' + esc(i.code) + '">보내기</button>') + '</div>').join('') + '</div></div>'
-      + '<div class="sec"><h2>회원</h2><span>' + r.users.length + '명</span></div>' + r.users.map(urow).join('')
+      + adm('fix', '자료 오류 제보', todo(qaFix.length, '건'), qaFix.length > 0, qaFix.length ? qaFix.map(fixCard).join('') : '<div class="about">대기 중인 제보가 없어요.</div>')
+      + adm('qna', 'Q&amp;A 질문', todo(qaQ.length, '건'), qaQ.length > 0, qaQ.length ? qaQ.map(qaCard).join('') : '<div class="about">대기 중인 질문이 없어요.</div>')
+      + adm('queue', '인증 신청', todo(r.queue.length, '건'), r.queue.length > 0, (r.queue.length ? r.queue.map(q => '<div class="appl" data-id="' + q.id + '"><div class="meta"><b>' + esc(q.nick) + '</b><span class="time">' + ago(q.created) + '</span></div><small>' + esc(STAGE[q.stage] || '') + '</small><p>' + esc(q.answer) + '</p><div class="two"><button type="button" class="btn primary small" data-d="1">승인</button><button type="button" class="btn line small" data-d="0">거절</button></div></div>').join('') : '<div class="about">대기 중인 신청이 없어요.</div>')
+        + '<p class="calcnote">승인·거절하면 신청 내용은 바로 지워져요.</p>')
+      + (qaPub.length ? adm('pub', '올라간 Q&amp;A', todo(qaPub.length, '건'), false, qaPub.map(pubCard).join('')) : '')
+      + adm('fresh', '최신화 점검', oldDocs.length ? '오래된 글 ' + oldDocs.length + '편' : '', oldDocs.length > 0, '<div class="about"><div id="watchBox"></div>' + notes(['법령 표 확인: ' + dotd(LAW_DATA.checked) + ' (' + daysAgo(LAW_DATA.checked) + '일 전)', '예고된 개정: ' + (upcoming.join(', ') || '없음'), '확인한 지 90일 넘은 글: ' + oldDocs.length + '편'])
+        + oldDocs.slice(0, 20).map(g => '<a class="lk2" style="display:block" href="#/g/' + esc(g.id) + '">' + esc(g.title) + '</a>').join('') + '</div>')
+      + adm('invites', '초대 코드', '', false, '<div class="about"><div class="two"><input class="inp" id="invNote" placeholder="어디에 쓸 코드인가요(메모)" maxlength="60"><button type="button" class="btn primary small" id="invMake">5개 만들기</button></div>'
+        + '<div id="invList">' + r.invites.map(i => '<div class="irow"><code>' + esc(i.code) + '</code><span class="time">' + (i.used ? '사용함' : esc(i.note || '안 씀')) + '</span>' + (i.used ? '' : '<button type="button" class="edit" data-share="' + esc(i.code) + '">보내기</button>') + '</div>').join('') + '</div></div>')
+      + adm('users', '회원', todo(r.users.length, '명'), false, r.users.map(urow).join(''))
       + '</section>';
     window.scrollTo(0, 0);
     view.addEventListener('click', adminClick);
+    paintWatch();
+  }
+  // 매주 도는 자동 점검(법령 조문 · 자료 링크)이 연 이슈(tools/post_issue.sh, 11-05 휴먼쌤 "1단계 시작"). 저장소가 공개라 키 없이 읽고, 칸을 다시 그릴 때마다 묻지 않게 한 번만 읽는다. 못 읽으면 목록 링크만 둔다
+  const WATCH_REPO = 'humanteacher89-cell/yukaman', WATCH_LABEL = encodeURIComponent('자동 점검');
+  let watchIssues;
+  async function paintWatch() {
+    const list = 'https://github.com/' + WATCH_REPO + '/issues?q=is%3Aopen+label%3A%22' + WATCH_LABEL + '%22';
+    if (watchIssues === undefined) {
+      try {
+        const res = await fetch('https://api.github.com/repos/' + WATCH_REPO + '/issues?state=open&labels=' + WATCH_LABEL);
+        watchIssues = res.ok ? (await res.json()).map(x => ({ title: String(x.title || ''), url: String(x.html_url || '') })) : null;
+      } catch (e) { watchIssues = null; }
+    }
+    const box = $('#watchBox');
+    if (!box) return;
+    const link = (href, text) => '<a class="lk2" style="display:block" href="' + esc(href) + '" target="_blank" rel="noopener">' + esc(text) + '</a>';
+    if (watchIssues === null) { box.innerHTML = '<p class="calcnote">자동 점검 결과를 못 읽었어요.</p>' + link(list, '점검 결과 열기'); return; }
+    if (!watchIssues.length) { box.innerHTML = '<p class="calcnote">자동 점검(매주 월요일): 확인할 것 없음</p>'; return; }
+    box.innerHTML = '<p class="calcnote">자동 점검(매주 월요일): 확인할 것 ' + watchIssues.length + '건</p>' + watchIssues.map(x => link(/^https:\/\/github\.com\//.test(x.url) ? x.url : list, x.title)).join('');
+    const sum = box.closest('.adm').querySelector('summary');
+    if (!sum.querySelector('.watchn')) sum.insertAdjacentHTML('beforeend', '<span class="admn due watchn">자동 점검 ' + watchIssues.length + '건</span>');
   }
   async function adminClick(ev) {
     if (parse().name !== 'admin') { view.removeEventListener('click', adminClick); return; }
+    const fold = ev.target.closest('.adm > summary');
+    if (fold) { const box = fold.parentNode; if (box.open) admOpen.delete(box.dataset.adm); else admOpen.add(box.dataset.adm); return; }     // 눌린 뒤에 열리고 닫히므로 지금 상태의 반대로 적는다
     const d = ev.target.closest('[data-d]');
     const u = ev.target.closest('[data-u]');
     const sh = ev.target.closest('[data-share]');
@@ -1687,10 +1813,9 @@
       + '<p>' + (rename ? '일주일에 한 번 바꿀 수 있어요. 지난 글의 이름도 함께 바뀌어요.' : fromKakao ? '글에 이 이름으로 보여요.' : '이메일이나 서류는 받지 않아요.') + '</p>'
       + '<span class="lbl">닉네임</span><div class="nick3">'
       + '<label>별명<input class="inp" id="nName" maxlength="8" placeholder="든든이" autocomplete="off" enterkeyhint="next" value="' + esc(P.name) + '"></label>'
-      + '<label>거주지<input class="inp" id="nPlace" maxlength="6" placeholder="청주" autocomplete="off" enterkeyhint="next" value="' + esc(P.place) + '"></label>'
-      + '<label>자녀 출생연도<input class="inp" id="nYear" maxlength="2" inputmode="numeric" placeholder="24" autocomplete="off" enterkeyhint="done" value="' + esc(P.year) + '"></label></div>'
+      + '<label>거주지(시/군)<input class="inp" id="nPlace" maxlength="6" placeholder="청주" autocomplete="off" enterkeyhint="next" value="' + esc(P.place) + '"></label>'
+      + '<label>자녀 출생연도 <span class="nw">(막내 기준)</span><input class="inp" id="nYear" maxlength="2" inputmode="numeric" placeholder="24" autocomplete="off" enterkeyhint="done" value="' + esc(P.year) + '"></label></div>'
       + '<div class="nickshow" id="nickShow"></div>'
-      + '<small class="hint">거주지는 시·군까지만 · 출생연도는 끝 2자리(곧 태어나면 예정 연도, 아이가 둘 이상이면 막내) · 글에 그대로 보여요</small>'
       + (rename ? '' : (fromKakao && !pendingInvite ? '' : '<label class="lbl" for="invite">초대 코드 (있으면)</label><input class="inp code" id="invite" maxlength="12" placeholder="없으면 비워 두세요" autocomplete="off" autocapitalize="characters" value="' + esc(pendingInvite) + '">')
         + '<label class="chk"><input type="checkbox" id="agree"> <span>' + TERMS_LINE + '</span></label>')
       + '<div class="err" id="nickErr" hidden></div>'
@@ -1845,9 +1970,9 @@
   // 질문하기 · 글 제보(서버에 쌓이고 관리자가 본다. 쓴 사람은 저장하지 않는다)
   function openAsk(kind, ref) {
     const fix = kind === 'fix';
-    showSheet('<div class="sheet" role="dialog" aria-modal="true" aria-label="' + (fix ? '내용 알려 주기' : '질문하기') + '"><div class="grip"></div><h2>' + (fix ? '내용이 달라졌나요?' : '질문하기') + '</h2>'
-      + '<p>' + (fix ? '바뀐 내용이나 틀린 곳을 적어 주세요. 확인해서 고칠게요.' : '운영자가 확인해서 답을 Q&amp;A에 올려요.') + '</p>'
-      + '<label class="lbl" for="askIn">' + (fix ? '무엇이 다른가요' : '궁금한 것') + '</label><textarea class="inp" id="askIn" rows="4" maxlength="300" style="min-height:112px" placeholder="' + (fix ? '예: 상한액이 바뀌었어요' : '예: 육아휴직 중에 이사해도 되나요?') + '"></textarea>'
+    showSheet('<div class="sheet" role="dialog" aria-modal="true" aria-label="' + (fix ? '자료 오류 제보' : '질문하기') + '"><div class="grip"></div><h2>' + (fix ? '자료 오류 제보' : '질문하기') + '</h2>'
+      + '<p>' + (fix ? '틀리거나 바뀐 곳을 적어 주세요. 확인해서 고칠게요.' : '운영자가 확인해서 답을 Q&amp;A에 올려요.') + '</p>'
+      + '<label class="lbl" for="askIn">' + (fix ? '어디가 틀렸나요' : '궁금한 것') + '</label><textarea class="inp" id="askIn" rows="4" maxlength="300" style="min-height:112px" placeholder="' + (fix ? '예: 상한액이 바뀌었어요, 링크가 안 열려요' : '예: 육아휴직 중에 이사해도 되나요?') + '"></textarea>'
       + '<small class="hint">아이 이름·회사 이름은 적지 말아 주세요.</small><div class="err" id="askErr" hidden></div>'
       + '<button type="button" class="btn primary" id="askGo">보내기</button><button type="button" class="btn ghost" id="askNo">취소</button></div>');
     $('#askNo').addEventListener('click', closeSheet);

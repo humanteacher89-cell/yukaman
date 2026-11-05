@@ -43,6 +43,8 @@
 // 저장하는 개인정보: 닉네임 · 기기 토큰 해시 · 복구 코드 해시 · 쓴 글·댓글 · 대기 중인 신청 답변(결정 뒤 지움) · 누가 초대했는지 · 마지막 접속 시각.
 //   약관 동의 시각 · 차단한 회원 목록도 둔다. 횟수 제한용 기기 주소(IP)는 해시 16자로 짧게(가입·코드·복구 시도에만, 이틀 안에 지움). 지운 글·댓글은 내용을 비우고 시각만 남긴다. 탈퇴하면 계정 줄을 지운다.
 
+import { findBadWord } from './badwords.js';
+
 const CATS = ['leave', 'play', 'gear', 'question', 'tip', 'vent', 'etc'];           // public/app.js CATS와 같게(11-05 휴먼쌤: 육아휴직 / 나들이 / 용품 / 질문 / 정보 / 하소연 / 기타)
 const AGES = ['expect', 'baby', 'kid', 'low', 'high', 'teen'];   // 아이 나이 칸(public/app.js AGES와 같게). 글에 붙이면 또래 아빠들 글로 거른다(11-04 UI 3안 '아이 나이 길')
 const STAGES = ['raising', 'expecting'];
@@ -60,6 +62,7 @@ const json = (obj, status = 200) => new Response(JSON.stringify(obj), {
   status, headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' }
 });
 const no = (error, status = 400) => json({ ok: false, error }, status);
+const badWord = word => json({ ok: false, error: 'bad_word', word }, 400);   // 어떤 말이 걸렸는지 알려 줘야 고칠 수 있다
 const str = (v, n) => String(v == null ? '' : v).replace(/\r\n?/g, '\n').replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '').trim().slice(0, n);
 const len = s => Array.from(s).length;
 const nickKey = s => s.replace(/\s+/g, '').toLowerCase();
@@ -80,6 +83,7 @@ const NICK_RE = /^[가-힣A-Za-z0-9]{2,8}\/[가-힣]{2,6}\/\d{2}$/;
 function checkNick(nick) {
   if (!NICK_RE.test(nick)) return 'nick_form';
   if (RESERVED.test(foldNick(nick))) return 'nick_reserved';
+  if (nick.split('/').some(findBadWord)) return 'nick_bad';
   return '';
 }
 
@@ -302,6 +306,8 @@ async function createPost(request, env) {
   if (age && !AGES.includes(age)) return no('age');
   if (len(title) < LIM.title[0] || len(title) > LIM.title[1]) return no('title_len');
   if (len(text) < LIM.body[0] || len(text) > LIM.body[1]) return no('body_len');
+  const bad = findBadWord(title + '\n' + text);
+  if (bad) return badWord(bad);
   if (!isAdmin(a.user) && !(await allow(env.DB, 'u:' + a.user.id, 'post'))) return no('limit', 429);
   const created = nowIso();
   const r = await env.DB.prepare('INSERT INTO posts (user_id, cat, age, title, body, created) VALUES (?1, ?2, ?3, ?4, ?5, ?6)')
@@ -336,6 +342,8 @@ async function addComment(request, env, postId) {
   if (!b) return no('bad_json');
   const text = str(b.body, 2000);
   if (len(text) < LIM.comment[0] || len(text) > LIM.comment[1]) return no('comment_len');
+  const bad = findBadWord(text);
+  if (bad) return badWord(bad);
   const p = await env.DB.prepare('SELECT id FROM posts WHERE id = ?1 AND deleted IS NULL').bind(postId).first();
   if (!p) return no('not_found', 404);
   if (!isAdmin(a.user) && !(await allow(env.DB, 'u:' + a.user.id, 'comment'))) return no('limit', 429);

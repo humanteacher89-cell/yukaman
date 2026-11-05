@@ -1,0 +1,28 @@
+# 자료 링크 점검(2026-11-05 휴먼쌤 "1단계 시작"). 매주 월요일 아침 자료실과 글 출처의 주소를 읽어 없어진 주소를 찾는다.
+# 찾으면 이슈를 열고(GitHub가 저장소 주인에게 메일을 보낸다), 없어지면 닫는다. 막힘·시간 초과는 해외 서버에서 흔해 이슈로 열지 않고 실행 요약에만 남긴다. 고치지는 않고 알리기만 한다.
+name: link-watch
+on:
+  schedule:
+    - cron: '30 0 * * 1'     # 월요일 09:30(한국)
+  workflow_dispatch:
+permissions:
+  contents: read
+  issues: write
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: 링크 점검
+        id: check
+        run: |
+          set +e
+          python3 -X utf8 tools/check_links.py
+          code=$?
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          if [ "$code" = "2" ]; then exit 1; fi
+          exit 0
+      - name: 이슈 열기 또는 닫기
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash tools/post_issue.sh "자료 링크를 확인해 주세요" link-watch.md

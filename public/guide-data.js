@@ -27,6 +27,19 @@
     moelNov: { t: '고용노동부 2026-11-03 시행령 개정 보도자료', u: 'https://www.moel.go.kr/news/enews/report/enewsView.do?news_seq=20188' },
     korea2026: { t: '정책브리핑 2026 일·가정양립 지원제도', u: 'https://www.korea.kr/news/policyNewsView.do?newsId=148958223' },
     korea10: { t: '정책브리핑 새해 육아기 10시 출근 지원', u: 'https://www.korea.kr/news/policyNewsView.do?newsId=148957375' },
+    // 심리 글(11-05 휴먼쌤 "'심리'부분이 너무 약해서 여기도 좀 추가해줘 더 풍성하게")
+    mohwMh: { t: '보건복지부 정신건강상담전화 안내', u: 'https://www.mohw.go.kr/menu.es?mid=a10706040100' },
+    mohw109: { t: '보건복지부 자살예방 상담전화 109 통합 보도자료', u: 'https://www.mohw.go.kr/board.es?mid=a10503010100&bid=0027&act=view&list_no=1479607&tag=&nPage=1' },
+    korea2606: { t: '정책브리핑 "당신은 혼자가 아닙니다"', u: 'https://www.korea.kr/news/policyNewsView.do?newsId=148966728' },
+    mhSelf: { t: '국가정신건강정보포털 자가검진', u: 'https://www.mentalhealth.go.kr/portal/mdexmnDtl/mdexmnTypeList.do' },
+    mohwKakao: { t: '보건복지부 마음건강 자가검진 SNS 채널 보도자료', u: 'https://www.mohw.go.kr/board.es?mid=a10503010100&bid=0027&act=view&list_no=1482634&tag=&nPage=1' },
+    eap: { t: '근로복지넷 근로자지원프로그램(EAP)', u: 'https://welfare.comwel.or.kr/default/eap/emp.do?kindCd=EAP03&mCode=D030010010&majorCd=IND06&regionCd=1&subRegionCd=' },
+    famCall: { t: '성평등가족부 가족상담전화 안내', u: 'https://www.mogef.go.kr/cc/opc/cc_opc_f002.do' },
+    voucher: { t: '보건복지부 2026년 정신건강 심리상담 바우처사업 지침', u: 'https://www.mohw.go.kr/board.es?mid=a10409020000&bid=0026&tag=&act=view&list_no=1488771' },
+    y1388: { t: '성평등가족부 청소년상담 1388 안내', u: 'https://www.mogef.go.kr/cc/ccy/cc_ccy_f001.do' },
+    aapSleep: { t: '미국소아과학회 2022 안전한 영아 수면 근거', u: 'https://publications.aap.org/pediatrics/article/150/1/e2022057991/188305/Evidence-Base-for-2022-Updated-Recommendations-for' },
+    ztt25: { t: 'ZERO TO THREE: 25개월 아이의 한쪽 부모 선호', u: 'https://www.zerotothree.org/resource/from-baby-to-big-kid-month-25/' },
+    cmiPrefer: { t: 'Child Mind Institute: 한쪽 부모를 더 찾는 아이', u: 'https://childmind.org/article/my-daughter-treats-her-dad-as-a-rival-for-my-attention-and-is-mean-to-him-when-he-comes-home-is-animosity-towards-the-less-favored-parent-normal/' },
     moel66: { t: '고용노동부 상담 답변: 6+6 적용 기준', u: 'https://www.moel.go.kr/minwon/fastcounsel/fastcounselView.do?inetDcssMngId=202501080525450040945' },
     moelCiv1: { t: '고용노동부 상담 답변: 공무원·근로자 부부의 6+6(2025-03)', u: 'https://www.moel.go.kr/minwon/fastcounsel/fastcounselView.do?inetDcssMngId=202503181109200080639' },
     moelCiv2: { t: '고용노동부 상담 답변: 교사 아내·사기업 남편의 6+6(2025-02)', u: 'https://www.moel.go.kr/minwon/fastcounsel/fastcounselView.do?inetDcssMngId=202502031122161240281' },
@@ -101,6 +114,7 @@
     cats: [
       { key: 'leave', name: '육아휴직', e: '💼' },
       { key: 'faq', name: 'Q&A', e: '🙋' },       // 11-05 휴먼쌤 "'육아휴직' 오른쪽에 'Q&A'". 글은 official-data.js, 관리자가 답한 질문은 서버에서
+      { key: 'outing', name: '나들이', e: '🎡' },    // 11-05 휴먼쌤 "'계산기' 다음에 '나들이'를 넣어주고 그다음에 '놀이'". 가이드 상단 버튼 순서는 app.js GUIDE_BTNS
       { key: 'play', name: '놀이', e: '🎮' },
       { key: 'mind', name: '심리', e: '🧠' },
       { key: 'policy', name: '정책', e: '📢' },
@@ -404,7 +418,7 @@
           { tip: '아기를 세게 흔드는 놀이는 하지 않아요. 걱정되면 소아청소년과에 물어보세요.' }
         ],
         sources: [] },
-      { id: 'play-weekend', cat: 'play', e: '🎒', tag: '인기', community: 'play', status: '일반 조언', updated: UP,
+      { id: 'play-weekend', cat: 'outing', e: '🎒', tag: '인기', community: 'play', status: '일반 조언', updated: UP,
         title: '주말 나들이 준비물 체크리스트', sub: '두 번 다녀오면 외워지는 목록',
         body: [
           { h: '기본' },
@@ -423,7 +437,7 @@
           { tip: '"이 노래 끝나면 정리"처럼 끝나는 신호를 미리 알려 주면 마무리가 쉬워요.' }
         ],
         sources: [] },
-      { id: 'play-dadcrew', cat: 'play', e: '👨‍👧‍👦', tag: 'NEW', community: 'play', status: '일반 조언', updated: UP,
+      { id: 'play-dadcrew', cat: 'outing', e: '👨‍👧‍👦', tag: 'NEW', community: 'play', status: '일반 조언', updated: UP,
         title: '아빠 모임 찾기·만들기', sub: '100인의 아빠단부터 동네 모임까지',
         body: [
           { h: '있는 모임' },
@@ -455,6 +469,24 @@
         sources: [L.eq192, L.korea10, L.eq222] },
 
       // ---------- 심리 ----------
+      { id: 'mind-help', cat: 'mind', e: '📞', tag: '필수', community: 'question', status: '공식 안내', updated: '2026-11-05',
+        title: '힘들 때 바로 연락할 곳', sub: '위기 전화 · 직장인 상담 · 가족 상담',
+        body: [
+          { h: '지금 위험하면' },
+          { go: 'tel:109', t: '자살예방 상담 109 전화하기' },
+          { go: 'tel:15770199', t: '정신건강 위기상담 1577-0199 전화하기' },
+          { ul: ['1577-0199는 가까운 정신건강복지센터로 연결돼요. 밤과 공휴일에는 광역 센터로 연결돼요.', '나나 아이가 당장 위험하면 119나 112, 또는 가까운 응급실로 가요.'] },
+          { h: '우울한지 확인해 보고 싶으면' },
+          { ul: ['국가정신건강정보포털(mentalhealth.go.kr) 자가검진을 해 봐요. 진단이 아니라 참고용이에요.', '카카오톡에서 "국립정신건강센터" 채널을 추가해도 우울 자가검진을 할 수 있어요.'] },
+          { h: '상담을 받고 싶으면' },
+          { ul: [
+            '직장인: 근로복지넷 근로자지원프로그램(EAP). 고용보험 상시근로자 300인 미만 회사에 다니면 1인당 연 7회, 회당 50분이에요. 우울·불안과 부부·자녀 고민도 다뤄요.',
+            '가족 문제: 가족상담전화 1577-4206(365일 24시간, 2번 가족서비스). 깊은 상담이 필요하면 지역 가족센터로 이어 줘요.',
+            '심리상담 이용권: 정신건강 심리상담 바우처(옛 전국민 마음투자 지원사업). 대상과 서류는 해마다 바뀔 수 있어 복지로나 정신건강복지센터에 먼저 물어요.'
+          ] },
+          { tip: '"이 정도로 전화해도 되나" 싶을 때가 전화할 때예요.' }
+        ],
+        sources: [L.mohwMh, L.mohw109, L.korea2606, L.mhSelf, L.mohwKakao, L.eap, L.famCall, L.voucher] },
       { id: 'mind-dad-blues', cat: 'mind', e: '🌧️', tag: '필수', community: 'question', status: '일반 조언', updated: UP,
         title: '아빠도 산후우울을 겪어요', sub: '혼자 버티지 않아도 돼요',
         body: [
@@ -463,9 +495,24 @@
           { ul: ['짜증과 분노가 늘고 사소한 일에 폭발해요.', '자도 자도 피곤해요.', '아이와 있는 시간이 즐겁지 않아요.', '혼자 있고 싶고 술이 늘어요.'] },
           { h: '할 수 있는 것' },
           { ul: ['아내에게 "나도 힘들다"고 말해요. 누가 더 힘든지 겨루는 일이 아니에요.', '하루 20분이라도 혼자 걸어요.', '같은 시기 아빠와 이야기해요.', '2주 넘게 이어지면 정신건강의학과나 보건소에 상담해요. 정신건강 위기상담은 1577-0199예요.'] },
-          { tip: '자신이나 아이를 해칠 것 같은 생각이 들면 바로 자살예방 상담 109, 정신건강 위기상담 1577-0199, 또는 119에 연락해요.' }
+          { tip: '자신이나 아이를 해칠 것 같은 생각이 들면 바로 자살예방 상담 109, 정신건강 위기상담 1577-0199, 또는 119에 연락해요.' },
+          { go: '#/g/mind-help', t: '연락할 곳 모아 보기' }
         ],
         sources: [] },
+      { id: 'mind-sleep', cat: 'mind', e: '😴', tag: 'NEW', community: 'question', status: '일반 조언', updated: '2026-11-05',
+        title: '잠이 부족할 때 버티는 법', sub: '밤 당번을 나누면 달라져요',
+        body: [
+          { p: '잠이 모자라면 짜증이 늘고 마음도 가라앉아요. 의지로 버티지 말고 잠을 나눠요.' },
+          { h: '밤을 나누는 법' },
+          { ul: ['밤 당번을 정해요. 예: 밤 10시~새벽 2시는 아빠, 새벽 2시~6시는 엄마.', '당번이 아닌 사람은 귀마개를 하거나 다른 방에서 자요. 끊기지 않는 잠이 중요해요.', '주말에는 낮잠 시간을 한 사람씩 통째로 줘요.', '모유 수유 중이면 아빠 당번에 유축 수유나 분유를 넣을 수 있는지 아내와 정해요.'] },
+          { h: '졸릴 때 조심할 것' },
+          { ul: ['소파나 안락의자에서 아기를 안고 잠들지 않아요. 미국소아과학회는 이곳을 아기에게 아주 위험한 자리로 봐요. 졸리면 아기를 아기 침대에 먼저 눕혀요.', '잠을 거의 못 잔 날은 운전을 피하고 대중교통을 써요.'] },
+          { h: '낮에 버티기' },
+          { ul: ['아기가 자면 집안일보다 먼저 20분 누워요.', '커피는 오전에 마시고 늦은 오후에는 줄여요.', '해가 있을 때 10분 걸어요.'] },
+          { tip: '잠을 자도 2주 넘게 기분이 가라앉으면 잠 문제만이 아닐 수 있어요.' },
+          { go: '#/g/mind-dad-blues', t: '아빠도 산후우울을 겪어요' }
+        ],
+        sources: [L.aapSleep] },
       { id: 'mind-anger', cat: 'mind', e: '😤', tag: '', community: 'question', status: '일반 조언', updated: UP,
         title: '아이에게 화내고 후회할 때', sub: '화는 없앨 수 없고, 다루는 거예요',
         body: [
@@ -481,6 +528,78 @@
           { tpl: '일          | 평일      | 주말\n밤중 수유   | 교대      | 바꿔서\n등원        | 아빠      | -\n하원        | 엄마      | -\n목욕        | 아빠      | 아빠\n병원        | 엄마      | 같이\n장보기      | 아빠      | 같이' }
         ],
         sources: [] },
+      { id: 'mind-mom-only', cat: 'mind', e: '🥲', tag: 'NEW', community: 'vent', status: '일반 조언', updated: '2026-11-05',
+        title: '아이가 엄마만 찾아서 서운할 때', sub: '한쪽 부모를 찾는 시기는 흔해요',
+        body: [
+          { p: '어린아이가 한쪽 부모를 더 찾는 일은 흔해요. 좋아하는 사람을 고르고 스스로 정하는 연습이기도 해요. 아빠가 못해서가 아니에요.' },
+          { h: '이렇게 해 봐요' },
+          { ul: ['아빠 담당 일을 하나 정해요. 목욕, 등원, 잠자기 전 책처럼 매일 같은 일이요.', '엄마가 잠깐 자리를 비워요. 옆에 있으면 아이는 엄마에게 가기 쉬워요.', '놀이는 아이가 이끌게 둬요. "블록 할까, 공 할까?"처럼 고르게 해요.', '울어도 바로 넘기지 않아요. 안아 주며 "엄마는 곧 와. 지금은 아빠랑 있자"고 말해요.'] },
+          { h: '하지 않을 것' },
+          { ul: ['"아빠 싫어?"라고 묻기', '아이 몰래 나가기. 짧게 인사하고 나가요.', '엄마와 비교하며 자책하기'] },
+          { tip: '서운한 건 당연해요. 아이 앞이 아니라 아내나 다른 아빠에게 말해요. 커뮤니티 "하소연"도 있어요.' }
+        ],
+        sources: [L.ztt25, L.cmiPrefer] },
+      { id: 'mind-leave-self', cat: 'mind', e: '🏠', tag: 'NEW', community: 'vent', status: '일반 조언', updated: '2026-11-05',
+        title: '육아휴직 중 내가 작아질 때', sub: '일이 없어진 자리를 채우는 법',
+        body: [
+          { p: '휴직하면 월급, 동료, 직함이 한꺼번에 멀어져요. 어른과 말 한마디 못 하는 날도 있어요. 이상한 일이 아니에요.' },
+          { h: '하루에 넣을 것' },
+          { ul: ['하루 한 번은 밖으로 나가요. 놀이터, 도서관, 장보기면 돼요.', '어른과 하루 한 번 이야기해요. 전화도 괜찮아요.', '내 시간을 표에 넣어요. 주 2번 1시간씩 아내와 맞바꿔요.', '오늘 한 일을 적어요. "이유식 3끼, 병원 1번"처럼요. 티가 안 나는 날에 도움이 돼요.'] },
+          { h: '돈 걱정' },
+          { ul: ['급여가 줄어드는 달을 미리 계산해요.', '한 달에 한 번 아내와 통장을 같이 봐요. 혼자 끙끙대지 않아요.'] },
+          { go: '#/calc/leave', t: '우리 집 금액 계산하기' },
+          { go: '#/g/play-dadcrew', t: '아빠 모임 찾기·만들기' },
+          { tip: '2주 넘게 아무것도 하기 싫으면 혼자 버티지 말고 상담을 받아요.' },
+          { go: '#/g/mind-help', t: '연락할 곳 모아 보기' }
+        ],
+        sources: [] },
+      { id: 'mind-return', cat: 'mind', e: '💼', tag: 'NEW', community: 'leave', status: '일반 조언', updated: '2026-11-05',
+        title: '복직이 불안할 때', sub: '걱정을 일정으로 바꾸기',
+        body: [
+          { p: '"내 자리가 있을까", "아이가 적응할까". 막연하면 더 불안해요. 걱정을 할 일로 바꿔요.' },
+          { h: '복직 한 달 전' },
+          { ul: ['복직일과 부서를 회사에 글로 확인해요.', '어린이집 적응 일정과 등하원 담당을 정해요.', '아이가 아픈 날 누가 쉴지 미리 정해요.'] },
+          { h: '복직 일주일 전' },
+          { ul: ['출근 시간에 맞춰 일어나 등원까지 연습해요.', '아이와 헤어질 때 하는 인사를 짧게 정해요.'] },
+          { h: '알아 둘 권리' },
+          { ul: ['회사는 휴직 전과 같은 일 또는 같은 수준의 임금을 주는 일로 복귀시켜야 해요.', '휴직 기간은 근속기간에 들어가요.'] },
+          { go: '#/g/o5', t: '복직 전 체크리스트' },
+          { go: '#/g/o11', t: '복직했더니 다른 일을 시키면' },
+          { tip: '첫 한 달은 아이도 아빠도 힘들어요. 잘 안 되는 게 보통이에요.' }
+        ],
+        sources: [L.eq19] },
+      { id: 'mind-compare', cat: 'mind', e: '⚖️', tag: 'NEW', community: 'vent', status: '일반 조언', updated: '2026-11-05',
+        title: '다른 아빠, 다른 아이와 비교될 때', sub: '내 아이의 어제와 비교해요',
+        body: [
+          { h: '아이 발달이 걱정되면' },
+          { ul: ['옆집 아이 대신 내 아이의 석 달 전과 비교해요.', '영유아 건강검진을 챙기고, 걱정되면 소아청소년과에 물어요. 혼자 검색만 하면 불안이 커져요.'] },
+          { go: '#/g/baby-care', t: '신생아 돌봄, 믿을 만한 곳' },
+          { h: '내가 부족해 보이면' },
+          { ul: ['SNS의 아빠는 잘된 장면만 올려요. 비교가 심하면 일주일만 앱을 지워 봐요.', '하루 10분, 폰 없이 아이에게만 집중하는 시간부터 만들어요.', '처음부터 잘하는 아빠는 없어요. 해 보면서 늘어요.', '완벽한 아빠보다 실수하면 사과하는 아빠가 나아요.'] },
+          { go: '#/g/mind-anger', t: '아이에게 화내고 후회할 때' }
+        ],
+        sources: [] },
+      { id: 'mind-sibling', cat: 'mind', e: '👧', tag: 'NEW', community: 'question', status: '일반 조언', updated: '2026-11-05',
+        title: '둘째가 태어나 첫째가 힘들어할 때', sub: '첫째 담당은 아빠가 맡기 좋아요',
+        body: [
+          { p: '동생이 생기면 첫째가 아기처럼 굴거나 떼가 늘 수 있어요. 말로 못 하는 불안이 행동으로 나오는 경우가 많아요.' },
+          { h: '아빠가 할 일' },
+          { ul: ['첫째와 단둘이 보내는 시간을 매일 10분 정해요. 놀이는 첫째가 골라요.', '출산 전후에는 어린이집 옮기기, 잠자리 바꾸기 같은 큰 변화를 겹치지 않아요.', '"형이니까, 누나니까" 참으라는 말을 줄여요.', '속상한 마음은 받아 줘요. "동생 때문에 화났구나." 때리는 행동만 막아요.', '기저귀 가져오기처럼 작은 일을 맡겨요. 하기 싫다면 넘어가요.'] },
+          { h: '부부 사이' },
+          { ul: ['엄마는 둘째, 아빠는 첫째로 나뉘면 둘이 이야기할 틈이 사라져요. 주 1회 15분은 정해 둬요.'] },
+          { go: '#/g/o25', t: '둘째가 생기면 육아휴직을 또 쓸 수 있나요?' },
+          { go: '#/g/mind-couple', t: '아내와 육아 분담 정하는 법' }
+        ],
+        sources: [] },
+      { id: 'mind-teen', cat: 'mind', e: '🚪', tag: 'NEW', community: 'question', status: '일반 조언', updated: '2026-11-05',
+        title: '사춘기 아이와 말이 끊겼을 때', sub: '캐묻지 말고 옆에 있기',
+        body: [
+          { ul: ['질문 대신 같이 하는 일을 만들어요. 라면 끓이기, 데려다주기, 운동처럼요.', '마주 앉기보다 나란히 있을 때 말이 잘 나와요. 차 안이 좋아요.', '조언은 물어볼 때만 해요. 먼저 "그럴 수 있지"라고 말해요.', '방에 들어갈 때는 노크해요.', '꼭 지킬 약속을 두세 개만 정해요. 귀가 시간, 안전, 폭력 금지처럼요. 나머지는 넘겨요.'] },
+          { h: '도움을 받을 때' },
+          { ul: ['잠과 식사가 크게 바뀌거나, 친구를 끊거나, 죽고 싶다는 말을 하면 미루지 말고 전문가에게 물어요.', '청소년상담 1388은 만 9~24세 청소년과 부모·보호자 모두 쓸 수 있어요. 365일 24시간이고, 휴대전화는 지역번호 + 1388이에요.'] },
+          { go: '#/g/mind-help', t: '연락할 곳 모아 보기' }
+        ],
+        sources: [L.y1388] },
 
       // ---------- 정책 ----------
       { id: 'policy-pay-table', cat: 'policy', e: '💰', tag: '필수', community: 'leave', status: '공식 근거', updated: UP,
