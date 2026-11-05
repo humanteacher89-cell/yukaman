@@ -25,7 +25,7 @@
   const GCAT = {}; GD.cats.forEach(c => { GCAT[c.key] = c; });
   const LIM = { title: [2, 60], body: [1, 3000], comment: [1, 1000], answer: [20, 500], ask: [5, 300], qa: [2, 1000] };   // server/app.js LIM과 같게
   const PAGE = 20;
-  const RESERVED = /(육아맨|운영|관리|자료실|공식|스태프|스탭|매니저|마스터|휴먼쌤|휴먼샘|admin|official|staff|manager|master|moderator|yukaman|humanssaem)/i;   // server/app.js와 같게
+  const RESERVED = /(육아맨|운영|관리|자료실|공식|스태프|스탭|매니저|마스터|휴먼쌤|휴먼샘|심사|admin|official|staff|manager|master|moderator|yukaman|humanssaem)/i;   // server/app.js와 같게
   const foldNick = s => s.replace(/[\s_.\-]+/g, '').toLowerCase().replace(/0/g, 'o').replace(/1/g, 'i').replace(/3/g, 'e').replace(/5/g, 's');
   const MSG = {
     login: '닉네임을 먼저 정해 주세요', unknown_user: '이 기기의 닉네임 기록이 없어요. 다시 정해 주세요',
@@ -37,7 +37,8 @@
     verify: '커뮤니티는 인증한 아빠만 읽고 쓸 수 있어요', blocked: '이용이 제한된 계정이에요',
     code_bad: '맞지 않는 초대 코드예요', code_used: '이미 쓴 초대 코드예요', stage: '지금 상황을 골라 주세요', answer_len: '이야기는 20자 이상으로 적어 주세요', pledge: '약속에 체크해 주세요', invite_max: '초대 코드는 3개까지 만들 수 있어요',
     ask_len: '5자 이상 300자 안으로 적어 주세요', identity_bad: '본인인증을 확인하지 못했어요. 다시 해 주세요', identity_denied: '만 19세 이상 남성만 가입할 수 있어요', identity_dup: '이미 가입한 분이에요. MY에서 복구 코드로 돌아와 주세요', identity_off: '본인인증을 준비하고 있어요',
-    kakao_bad: '카카오 로그인을 확인하지 못했어요. 다시 해 주세요', kakao_off: '카카오 로그인을 준비하고 있어요', kakao_taken: '이 기기는 다른 카카오 계정과 연결돼 있어요. 로그아웃한 뒤 다시 해 주세요', kakao_mismatch: '가입할 때 쓴 카카오 계정으로 해 주세요', kakao_used: '이미 가입한 카카오 계정이에요. 카카오로 다시 시작해 주세요', kakao_leave: '카카오 연결을 끊어야 탈퇴할 수 있어요'
+    kakao_bad: '카카오 로그인을 확인하지 못했어요. 다시 해 주세요', kakao_off: '카카오 로그인을 준비하고 있어요', kakao_taken: '이 기기는 다른 카카오 계정과 연결돼 있어요. 로그아웃한 뒤 다시 해 주세요', kakao_mismatch: '가입할 때 쓴 카카오 계정으로 해 주세요', kakao_used: '이미 가입한 카카오 계정이에요. 카카오로 다시 시작해 주세요', kakao_leave: '카카오 연결을 끊어야 탈퇴할 수 있어요',
+    terms: '약관에 동의해 주세요', user_blocked: '차단한 아빠의 글이에요', block_self: '나는 차단할 수 없어요', block_staff: '운영 계정은 차단할 수 없어요', review_bad: '맞지 않는 심사용 코드예요', review_off: '심사용 입구가 닫혀 있어요'
   };
 
   // ----- 도구 -----
@@ -133,10 +134,12 @@
   function randomToken() { const a = new Uint8Array(24); crypto.getRandomValues(a); let s = ''; a.forEach(b => { s += String.fromCharCode(b); }); return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); }
   function token() { let t = store.get('token'); if (!t || !/^[A-Za-z0-9_-]{16,80}$/.test(t)) { t = randomToken(); store.set('token', t); } return t; }
   let me = store.get('me', null);
-  function setMe(u) { me = u ? { id: u.id, nick: u.nick, created: u.created, verified: !!u.verified, role: u.role || 'user', how: u.how || '', blocked: !!u.blocked, kakao: !!u.kakao } : null; if (me) store.set('me', me); else { store.del('me'); store.del('rank'); } }
+  function setMe(u) { me = u ? { id: u.id, nick: u.nick, created: u.created, verified: !!u.verified, role: u.role || 'user', how: u.how || '', blocked: !!u.blocked, kakao: !!u.kakao, terms: !!u.terms } : null; if (me) store.set('me', me); else { store.del('me'); store.del('rank'); } }
   const canWrite = () => me && !me.blocked && (me.verified || me.role === 'admin');
   const canRead = canWrite;   // 커뮤니티 읽기 자격은 쓰기와 같다
-  const pub = u => ({ id: u.id, nick: u.nick, created: u.created, verified: !!u.verified, role: 'user', how: u.how || '', blocked: false });
+  const pub = u => ({ id: u.id, nick: u.nick, created: u.created, verified: !!u.verified, role: 'user', how: u.how || '', blocked: false, terms: true });
+  // 차단 단추를 보일지: 나와 운영·자료실 계정의 글에는 없다(서버 blockUser와 같게)
+  const canBlock = x => me && x.uid !== me.id && canWrite() && x.badge !== 'admin' && x.badge !== 'official';
   // 초대 링크(#/join/코드)의 코드는 이 기기에 남겨 둔다 — 주소가 #/me로 바뀌거나 새로고침해도 사라지지 않게(11-04 검수 6). 쓰이면 지운다.
   let pendingInvite = store.get('invite', '');
   let invitePrompted = false;          // 이번에 열어 둔 동안 초대 시트를 한 번만 자동으로 띄운다("둘러보기"를 눌렀는데 MY마다 다시 뜨지 않게)
@@ -167,7 +170,11 @@
     },
     listPosts: p => remote.call('GET', '/posts' + qs(p)),
     getPost: id => remote.call('GET', '/posts/' + id),
-    join: (nick, invite) => remote.call('POST', '/join', { nick, invite }),
+    join: (nick, invite) => remote.call('POST', '/join', { nick, invite, terms: true }),   // 화면이 동의 칸을 확인한 뒤에만 부른다
+    agreeTerms: () => remote.call('POST', '/me/terms', { agree: true }),
+    blockUser: id => remote.call('POST', '/blocks', { user_id: id }),
+    unblockUser: id => remote.call('DELETE', '/blocks/' + id),
+    reviewLogin: code => remote.call('POST', '/login/review', { code }),
     me: () => remote.call('GET', '/me'),
     rename: nick => remote.call('PATCH', '/me', { nick }),
     createPost: p => remote.call('POST', '/posts', p),
@@ -230,15 +237,17 @@
     async listPosts(p) {
       this.needDad();
       const d = this.load(), limit = p.limit || PAGE, words = String(p.q || '').toLowerCase().split(/\s+/).filter(Boolean);
-      let rows = d.posts.filter(x => { if (x.deleted || (p.cat && x.cat !== p.cat) || (p.age && x.age !== p.age) || (p.before && x.id >= p.before)) return false; const hay = (x.title + '\n' + x.body).toLowerCase(); return words.every(w => hay.indexOf(w) >= 0); }).sort((a, b) => b.id - a.id);
+      const bl = this.blocks();
+      let rows = d.posts.filter(x => { if (x.deleted || bl.includes(x.user_id) || (p.cat && x.cat !== p.cat) || (p.age && x.age !== p.age) || (p.before && x.id >= p.before)) return false; const hay = (x.title + '\n' + x.body).toLowerCase(); return words.every(w => hay.indexOf(w) >= 0); }).sort((a, b) => b.id - a.id);
       const more = rows.length > limit; rows = rows.slice(0, limit);
       return { ok: true, posts: rows.map(x => this.card(x)), next: more ? rows[rows.length - 1].id : null };
     },
     async getPost(id) {
       this.needDad();
       const d = this.load(); const p = d.posts.find(x => x.id === id && !x.deleted); if (!p) throw new ApiError('not_found', 404);
+      const bl = this.blocks(); if (bl.includes(p.user_id)) throw new ApiError('user_blocked', 403);
       const post = this.card(p); post.body = p.body;
-      return { ok: true, post, comments: d.comments.filter(c => c.post_id === id && !c.deleted).map(c => ({ id: c.id, body: c.body, created: c.created, nick: this.u(c.user_id).nick, uid: c.user_id, badge: this.badge(c.user_id), rank: this.rank(c.user_id) })) };
+      return { ok: true, post, comments: d.comments.filter(c => c.post_id === id && !c.deleted && !bl.includes(c.user_id)).map(c => ({ id: c.id, body: c.body, created: c.created, nick: this.u(c.user_id).nick, uid: c.user_id, badge: this.badge(c.user_id), rank: this.rank(c.user_id) })) };
     },
     async join(nick, invite) {
       const d = this.load(); const have = this.user(); if (have) return { ok: true, user: pub(have), existing: true };
@@ -249,6 +258,11 @@
     },
     async report() { this.needDad(); return { ok: true }; },
     async seen() { return { ok: true }; },
+    async agreeTerms() { return { ok: true, user: pub(this.need()) }; },
+    // 차단: 서버 blockUser와 같은 뜻. 이 기기 시험 모드에서는 내가 차단한 번호만 둔다
+    blocks() { const u = this.user(); return u ? (u.blocks || []) : []; },
+    async blockUser(id) { const u = this.needDad(); u.blocks = this.blocks().filter(x => x !== id).concat(id); this.save(); return { ok: true }; },
+    async unblockUser(id) { const u = this.need(); u.blocks = this.blocks().filter(x => x !== id); this.save(); return { ok: true }; },
     newRec() { const d = this.load(); d.seq.rec = (d.seq.rec || 0) + 1; return 'TEST-' + String(1000 + d.seq.rec) + '-RCVR'; },
     async recover(code) {
       const d = this.load(), c = String(code || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
@@ -265,7 +279,7 @@
     },
     async me() {
       const u = this.need(); const d = this.db;
-      return { ok: true, user: pub(u), rank: this.rank(u.id), points: this.points(u.id), application: null, invites: d.invites, invite_max: 3,
+      return { ok: true, user: pub(u), rank: this.rank(u.id), points: this.points(u.id), application: null, blocks: this.blocks().map(id => ({ id, nick: this.u(id).nick })), invites: d.invites, invite_max: 3,
         posts: d.posts.filter(p => p.user_id === u.id && !p.deleted).sort((a, b) => b.id - a.id).map(p => this.card(p)),
         comments: d.comments.filter(c => c.user_id === u.id && !c.deleted).sort((a, b) => b.id - a.id)
           .map(c => { const p = d.posts.find(x => x.id === c.post_id && !x.deleted); return p ? { id: c.id, body: c.body, created: c.created, post_id: c.post_id, post_title: p.title } : null; }).filter(Boolean) };
@@ -290,7 +304,7 @@
     async hotPosts() {
       this.needDad(); const d = this.load();
       const heat = p => new Set(d.comments.filter(c => c.post_id === p.id && !c.deleted && c.user_id !== p.user_id).map(c => c.user_id)).size;
-      return { ok: true, posts: d.posts.filter(p => !p.deleted && heat(p) >= 2).sort((a, b) => heat(b) - heat(a) || b.id - a.id).slice(0, 3).map(p => this.card(p)) };
+      return { ok: true, posts: d.posts.filter(p => !p.deleted && !this.blocks().includes(p.user_id) && heat(p) >= 2).sort((a, b) => heat(b) - heat(a) || b.id - a.id).slice(0, 3).map(p => this.card(p)) };
     },
     async qnaList() { return { ok: true, items: [] }; },
     async ask() { return { ok: true }; }
@@ -344,6 +358,7 @@
     if (code === 'unknown_user') { setMe(null); toast(MSG.unknown_user, 'err'); openSheet(after); return; }
     if (code === 'login') { openSheet(after); return; }
     if (code === 'verify') { if (me) { me.verified = false; store.set('me', me); } openVerify(after); return; }
+    if (code === 'terms') { openTerms(after); return; }
     toast(MSG[code] || MSG.server, 'err');
     if (window.console && (code === 'server' || code === 'no_api')) console.warn('yukaman', e);
   }
@@ -683,29 +698,8 @@
     if (err) fail(err);
   }
 
-  // ----- 약관 · 개인정보 처리방침(검수 14). 초안이다: 공개 전에 휴먼쌤이 읽고 정한다 -----
-  function renderLegal(kind) {
-    setTab('me');
-    bar(backBtn('#/me') + '<div class="fill atitle">' + (kind === 'terms' ? '이용약관' : '개인정보 처리방침') + '</div>');
-    const who = esc(CFG.OPERATOR || '운영자'), mail = CFG.CONTACT ? esc(CFG.CONTACT) : '문의처 준비 중';
-    const T = kind === 'terms' ? [
-      { h: '서비스' }, { p: '육아맨은 ' + who + '가 운영하는 아빠 육아 가이드와 커뮤니티예요. 가이드·계산기·자료실은 누구나, 커뮤니티는 인증한 아빠만 쓸 수 있어요.' },
-      { h: '안내의 한계' }, { p: '제도·금액 안내와 계산 결과는 참고 자료이고 법률·의료·세무 자문이 아니에요. 실제 지급액과 자격은 고용센터 등 담당 기관이 정해요.' },
-      { h: '지켜 주세요' }, { ul: ['아이의 이름·얼굴·어린이집 이름처럼 누구인지 알 수 있는 정보를 올리지 않아요.', '다른 사람을 비방하거나 광고·사칭 글을 올리지 않아요.', '인증 신청 내용을 거짓으로 쓰지 않아요.'] },
-      { h: '운영' }, { p: '신고된 글이나 위 약속을 어긴 글은 숨길 수 있고, 되풀이되면 이용을 제한할 수 있어요. 글의 권리는 쓴 사람에게 있어요.' },
-      { h: '탈퇴' }, { p: 'MY에서 언제든 탈퇴할 수 있고, 내 글과 댓글 내용이 함께 지워져요.' },
-      { h: '문의' }, { p: mail }
-    ] : [
-      { h: '받는 것' }, { ul: ['닉네임(별명·거주지·자녀 출생연도 끝 2자리, 다른 아빠들에게 보여요), 내가 쓴 글·댓글, 신고 내용', '카카오 로그인 회원번호의 해시(프로필·이메일·전화번호는 받지 않아요)', '본인인증을 쓰면 중복 가입을 막는 값의 해시(이름·전화번호·생년월일·성별은 확인 뒤 바로 버려요)', '질문·제보 내용(쓴 사람은 저장하지 않아요. Q&A로 올리면 공개되고, 처리하면 지워요)', '인증 신청 답변(승인·거절하면 바로 지워요)', '이 기기 토큰과 복구 코드의 해시(원래 값은 서버에 없어요)', '누가 초대했는지, 마지막 접속 시각', '가입·코드·복구 시도 횟수 제한을 위한 기기 주소(IP)의 짧은 해시(이틀 안에 지워요)'] },
-      { h: '받지 않는 것' }, { p: '이메일, 서류, 아이 이름·사진. 전화번호는 본인인증 때 확인만 하고 저장하지 않아요. 계산기에 넣은 아이 날짜와 월급은 이 기기에만 저장되고 서버로 보내지 않아요.' },
-      { h: '왜 쓰나' }, { p: '커뮤니티 운영, 아빠 인증, 도배·사칭 막기에만 써요. 광고나 판매에 쓰지 않고 다른 곳에 주지 않아요.' },
-      { h: '어디에 두나' }, { p: 'Cloudflare(Pages, D1)에 저장해요. 로그인은 카카오가, 본인인증은 포트원과 본인확인기관이 처리해요.' },
-      { h: '언제 지우나' }, { p: '글·댓글은 지우는 즉시 내용을 비워요. 탈퇴하면 글·댓글 내용과 계정을 지우고 카카오 연결도 끊어요. 막힌 계정의 기록은 재가입을 막기 위해 남을 수 있어요.' },
-      { h: '문의' }, { p: who + ' · ' + mail }
-    ];
-    view.innerHTML = '<section class="pad"><article class="garticle"><div class="draft"><span>📝</span><span>초안이에요. 정식 공개 전에 확정해요.</span></div>' + blocks(T) + '</article></section>';
-    window.scrollTo(0, 0);
-  }
+  // ----- 약관 · 개인정보 처리방침: 앱 안 사본을 두지 않고 Play에 적는 주소와 같은 terms.html · privacy.html로 보낸다(11-05 Play 등록). #/terms · #/privacy는 옛 링크용 -----
+  function renderLegal(kind) { location.replace(kind === 'terms' ? 'terms.html' : 'privacy.html'); }
 
   // ----- 아빠 가이드 -----
   const tagCls = t => t === 'NEW' ? 'new' : t === '인기' ? 'hot' : t === '필수' ? '' : 'gray';
@@ -1203,7 +1197,8 @@
     const mine = me && (c.uid === me.id || me.role === 'admin');
     return '<div class="cmt-item" id="c' + c.id + '"><div class="top">' + who(c.nick, c.badge, c.rank) + '<span class="right"><span class="time">' + ago(c.created) + '</span>'
       + (mine ? '<button type="button" class="del" data-del-cmt="' + c.id + '">삭제</button>' : '')
-      + (me && c.uid !== me.id && canWrite() ? '<button type="button" class="del" data-report="comment" data-rid="' + c.id + '">신고</button>' : '') + '</span></div><div class="txt">' + rich(c.body) + '</div></div>';
+      + (me && c.uid !== me.id && canWrite() ? '<button type="button" class="del" data-report="comment" data-rid="' + c.id + '">신고</button>' : '')
+      + (canBlock(c) ? '<button type="button" class="del" data-block="' + c.uid + '" data-bnick="' + esc(c.nick) + '">차단</button>' : '') + '</span></div><div class="txt">' + rich(c.body) + '</div></div>';
   }
   async function renderPost(id) {
     setTab('community');
@@ -1216,10 +1211,19 @@
     let r;
     const seq = renderSeq;
     try { r = await api('getPost', id); if (seq !== renderSeq) return; }
-    catch (e) { if (seq !== renderSeq) return; if (readDenied(e)) { lockPost(); return; } view.innerHTML = '<section class="pad">' + empty('글을 찾을 수 없어요', '지워졌거나 주소가 틀렸어요') + '</section>'; app.classList.remove('composing'); if (!(e && e.code === 'not_found')) fail(e); return; }
+    catch (e) {
+      if (seq !== renderSeq) return;
+      if (readDenied(e)) { lockPost(); return; }
+      const hidden = e && e.code === 'user_blocked';
+      view.innerHTML = '<section class="pad">' + (hidden ? empty('차단한 아빠의 글이에요', 'MY에서 차단을 풀 수 있어요') : empty('글을 찾을 수 없어요', '지워졌거나 주소가 틀렸어요')) + '</section>';
+      app.classList.remove('composing');
+      if (!hidden && !(e && e.code === 'not_found')) fail(e);
+      return;
+    }
     const p = r.post, c = CAT[p.cat] || { name: p.cat, e: '' }, mine = me && (p.uid === me.id || me.role === 'admin');
     $('#postAct').innerHTML = (mine ? '<button type="button" class="abtn danger" id="delPost">삭제</button>' : '')
-      + (me && p.uid !== me.id && canWrite() ? '<button type="button" class="abtn ghosty" data-report="post" data-rid="' + p.id + '">신고</button>' : '');
+      + (me && p.uid !== me.id && canWrite() ? '<button type="button" class="abtn ghosty" data-report="post" data-rid="' + p.id + '">신고</button>' : '')
+      + (canBlock(p) ? '<button type="button" class="abtn ghosty" data-block="' + p.uid + '" data-bnick="' + esc(p.nick) + '">차단</button>' : '');
     const ph = !me ? '닉네임을 정하면 댓글을 쓸 수 있어요' : canWrite() ? '댓글을 남겨 보세요' : '아빠 인증을 하면 댓글을 쓸 수 있어요';
     view.innerHTML = '<section class="pad">'
       + '<article class="post"><div class="meta"><span class="badges"><span class="badge c-' + (CAT[p.cat] ? esc(p.cat) : 'etc') + '">' + c.e + ' ' + esc(c.name) + '</span>' + (AGE[p.age] ? '<span class="agetag">' + esc(AGE[p.age].name) + '</span>' : '') + '</span><span class="time">' + ago(p.created) + '</span></div>'
@@ -1266,6 +1270,16 @@
     if (reason === null) return;
     try { const r = await api('report', kind, id, reason.trim()); toast(r.already ? '이미 신고했어요' : '신고를 받았어요. 고마워요'); } catch (e) { fail(e); }
   }
+  // 사용자 차단: 내 화면에서만 숨긴다. 상대는 알 수 없고, MY에서 풀 수 있다
+  async function blockFlow(uid, nick) {
+    if (!confirm(nick + '님을 차단할까요? 이 아빠의 글과 댓글이 내 화면에서 사라져요. MY에서 언제든 풀 수 있어요.')) return;
+    try {
+      await api('blockUser', uid);
+      listState.posts = [];
+      toast('차단했어요');
+      if (parse().name === 'post') render();
+    } catch (e) { fail(e); }
+  }
   function autosize(ta) { const fit = () => { ta.style.height = 'auto'; ta.style.height = Math.min(ta.scrollHeight, 120) + 'px'; }; ta.addEventListener('input', fit); fit(); }
 
   // ----- 글쓰기 -----
@@ -1311,7 +1325,7 @@
   // ----- MY -----
   let meSeg = 'posts';
   // 11-05 휴먼쌤 "이런 어설픈건 빼주고 법적으로 필요할 때만 '이용약관'에 올려": 운영자·문의·저장 항목은 약관과 처리방침 안에 둔다. 처리방침은 공개 의무(개인정보 보호법 제30조)라 링크만 남긴다
-  function aboutBox() { return '<p class="foot-note"><a href="#/terms">이용약관</a> · <a href="#/privacy">개인정보 처리방침</a></p>'; }
+  function aboutBox() { return '<p class="foot-note"><a href="terms.html">이용약관</a> · <a href="privacy.html">개인정보 처리방침</a></p>'; }
   function themeBox() {
     const cur = store.get('theme', 'auto');
     return '<div class="about" id="themeBox"><b>화면 밝기</b><div class="seg" style="margin-top:8px">' + [['auto', '기기 따라'], ['light', '밝게'], ['dark', '어둡게']].map(x => '<button type="button" class="' + (cur === x[0] ? 'on' : '') + '" data-theme-pick="' + x[0] + '">' + x[1] + '</button>').join('') + '</div></div>';
@@ -1378,10 +1392,12 @@
         + '<div class="profile" style="margin-top:12px"><span class="big">👋</span><div class="tx"><b>' + (kakaoOn() ? '아직 가입 전이에요' : '아직 닉네임이 없어요') + '</b>' + (kakaoOn() ? '' : '<small>이메일·서류는 받지 않아요.</small>') + '</div></div>'
         + (pendingInvite ? '<div class="notice vcta" style="margin-top:12px"><span class="e">🎟️</span><span>받은 초대 코드 <b>' + esc(pendingInvite) + '</b>가 있어요. 시작하기를 누르면 바로 인증돼요.</span></div>' : '')
         + (kakaoOn() ? '<div style="margin-top:12px">' + kakaoBtn('startBtn', '카카오로 시작하기') + '</div>' : '<button type="button" class="btn primary" id="startBtn" style="margin-top:12px">시작하기</button>')
-        + '<button type="button" class="btn ghost" id="recoverBtn">' + (kakaoOn() ? '복구 코드가 있어요' : '다른 폰에서 쓰던 닉네임이 있어요 (복구 코드)') + '</button>' + themeBox() + installBox() + aboutBox() + '</section>';
+        + '<button type="button" class="btn ghost" id="recoverBtn">' + (kakaoOn() ? '복구 코드가 있어요' : '다른 폰에서 쓰던 닉네임이 있어요 (복구 코드)') + '</button>' + themeBox() + installBox() + aboutBox()
+        + (mode === 'server' ? '<p class="foot-note"><button type="button" class="textlink" id="reviewBtn">앱 심사용 입구</button></p>' : '') + '</section>';
       bindTheme();
       $('#startBtn').addEventListener('click', () => { if (kakaoOn()) kakaoGo(); else openSheet(() => render()); });
       $('#recoverBtn').addEventListener('click', () => openRecover(() => render()));
+      const rv = $('#reviewBtn'); if (rv) rv.addEventListener('click', () => openReview(() => render()));
       bindInstall(); window.scrollTo(0, 0);
       if (pendingInvite && !invitePrompted) { invitePrompted = true; openSheet(() => render()); }
       return;
@@ -1402,7 +1418,7 @@
       + (canWrite() && !(kakaoOn() && r.user.role !== 'admin') ? inviteBox(r) : '')
       + newCommentsBox(r)
       + '<div class="seg" id="meSegs" style="margin-top:16px"><button type="button" class="' + (meSeg === 'posts' ? 'on' : '') + '" data-seg="posts">내 글 ' + r.posts.length + '</button><button type="button" class="' + (meSeg === 'comments' ? 'on' : '') + '" data-seg="comments">내 댓글 ' + r.comments.length + '</button></div>'
-      + '<div class="list" id="meList"></div>' + accountBox(r) + themeBox() + installBox() + aboutBox() + '</section>';
+      + '<div class="list" id="meList"></div>' + accountBox(r) + blocksBox(r) + themeBox() + installBox() + aboutBox() + '</section>';
     const paint = () => {
       $('#meList').innerHTML = meSeg === 'posts'
         ? (r.posts.length ? r.posts.map(pcard).join('') : empty('아직 쓴 글이 없어요', canWrite() ? '커뮤니티에서 첫 글을 써 보세요' : '아빠 인증을 하면 쓸 수 있어요'))
@@ -1418,6 +1434,12 @@
     const ib = $('#inviteBox');
     if (ib) ib.addEventListener('click', ev => { const b = ev.target.closest('[data-share]'); if (b) shareInvite(b.dataset.share); });
     bindAccount();
+    const ub = $('#blockBox');
+    if (ub) ub.addEventListener('click', async ev => {
+      const b = ev.target.closest('[data-unblock]'); if (!b) return;
+      b.disabled = true;
+      try { await api('unblockUser', +b.dataset.unblock); listState.posts = []; toast('차단을 풀었어요'); render(); } catch (e) { b.disabled = false; fail(e); }
+    });
     bindInstall(); window.scrollTo(0, 0);
     noteRank(r.rank);
     if (pendingInvite && canWrite()) {        // 이미 인증했어도 관리자 코드는 쓸 수 있다(서버가 아빠 코드는 쓰지 않고 넘긴다)
@@ -1435,6 +1457,11 @@
     return '<div class="about" id="acctBox"><b>내 계정</b>' + (kakaoOn() ? '<div style="margin:8px 0 10px">' + kakaoBtn('kakaoLink', '카카오 연결하기') + '</div>' : '') + '<p class="sm">폰을 바꿔도 이 코드로 돌아올 수 있어요. 어디에 적어 두세요.</p>'
       + '<div class="irow"><code>' + (rec ? esc(rec) : (r.has_recovery ? '이 기기에 코드가 없어요' : '코드 없음')) + '</code><button type="button" class="edit" id="recNew">' + (rec ? '새 코드' : '코드 받기') + '</button></div>'
       + '<div class="two" style="margin-top:10px"><button type="button" class="btn line small" id="logoutBtn">이 기기 로그아웃</button>' + (me && me.role === 'admin' ? '' : '<button type="button" class="btn line small danger" id="quitBtn">탈퇴하기</button>') + '</div></div>';
+  }
+  function blocksBox(r) {
+    const list = r.blocks || [];
+    return '<div class="about" id="blockBox"><b>차단한 아빠 ' + list.length + '</b>'
+      + (list.length ? list.map(x => '<div class="irow"><span class="bnick">' + esc(x.nick) + '</span><button type="button" class="edit" data-unblock="' + x.id + '">풀기</button></div>').join('') : '<p class="sm">글이나 댓글의 차단 단추로 내 화면에서 숨길 수 있어요.</p>') + '</div>';
   }
   function bindAccount() {
     const kl = $('#kakaoLink'); if (kl) kl.addEventListener('click', kakaoGo);
@@ -1578,6 +1605,47 @@
     $('#kkGo').addEventListener('click', kakaoGo);
     $('#kkNo').addEventListener('click', () => { invitePrompted = true; closeSheet(); });
   }
+  // 약관 동의(Play 사용자 제작 콘텐츠 정책). 링크는 새 창이라 쓰던 내용이 남는다. 가입 전에 만든 계정은 첫 글·댓글 때 openTerms로 받는다
+  const TERMS_LINE = '만 18세 이상이고, <a href="terms.html" target="_blank" rel="noopener">이용약관</a>과 <a href="privacy.html" target="_blank" rel="noopener">개인정보 처리방침</a>에 동의해요. 아이의 이름·얼굴 같은 개인정보는 올리지 않을게요.';
+  function openTerms(after) {
+    showSheet('<div class="sheet" role="dialog" aria-modal="true" aria-label="약관 동의"><div class="grip"></div><h2>약관에 동의해 주세요</h2>'
+      + '<p>글과 댓글을 올리려면 약관 동의가 필요해요. 비방, 음란물, 아이 개인정보 같은 글은 지우고 이용을 제한할 수 있어요.</p>'
+      + '<label class="chk"><input type="checkbox" id="tAgree"> <span>' + TERMS_LINE + '</span></label>'
+      + '<div class="err" id="tErr" hidden></div>'
+      + '<button type="button" class="btn primary" id="tGo">동의하고 계속하기</button>'
+      + '<button type="button" class="btn ghost" id="tLater">나중에 할게요</button></div>', after);
+    $('#tLater').addEventListener('click', closeSheet);
+    $('#tGo').addEventListener('click', async ev => {
+      const err = $('#tErr');
+      if (!$('#tAgree').checked) { err.hidden = false; err.textContent = '약관 동의에 체크해 주세요'; return; }
+      ev.target.disabled = true;
+      try { const r = await api('agreeTerms'); setMe(r.user); const f = sheetAfter; closeSheet(); if (f) f(); }
+      catch (e) { err.hidden = false; err.textContent = errText(e); ev.target.disabled = false; }
+    });
+  }
+  // 앱 심사용 입구: 심사자는 카카오 계정이 없어 코드로 들어온다. 코드는 서버 비밀 값에만 있다. 복구처럼 이 기기의 옛 토큰은 버린다
+  function openReview(after) {
+    showSheet('<div class="sheet" role="dialog" aria-modal="true" aria-label="앱 심사용 입구"><div class="grip"></div><h2>앱 심사용 입구</h2>'
+      + '<p>앱 심사 담당자만 쓰는 곳이에요. 일반 회원은 카카오로 시작해 주세요.</p>'
+      + '<label class="lbl" for="revIn">심사용 코드</label><input class="inp code" id="revIn" maxlength="14" autocomplete="off" autocapitalize="characters">'
+      + '<div class="err" id="revErr" hidden></div>'
+      + '<button type="button" class="btn primary" id="revGo">들어가기</button>'
+      + '<button type="button" class="btn ghost" id="revLater">취소</button></div>', after);
+    $('#revLater').addEventListener('click', closeSheet);
+    const run = async () => {
+      const err = $('#revErr'), btn = $('#revGo');
+      btn.disabled = true;
+      try {
+        store.del('token'); setMe(null);
+        const r = await api('reviewLogin', $('#revIn').value.trim());
+        setMe(r.user); const f = sheetAfter; closeSheet();
+        toast('심사용 계정으로 들어왔어요'); if (f) f(); else render();
+      } catch (e) { err.hidden = false; err.textContent = errText(e); btn.disabled = false; }
+    };
+    $('#revGo').addEventListener('click', run);
+    $('#revIn').addEventListener('keydown', ev => { if (ev.key === 'Enter' && !ev.isComposing) { ev.preventDefault(); run(); } });
+    setTimeout(() => { const n = $('#revIn'); if (n) n.focus(); }, 60);
+  }
   // 닉네임은 세 칸을 합쳐 만든다(11-05 휴먼쌤 "닉네임에 별명/거주지/자녀연생 끝2자리 입력"). 예: 든든이/청주/24
   const nickNow = () => ($('#nName').value.trim() || '별명') + '/' + ($('#nPlace').value.trim() || '거주지') + '/' + ($('#nYear').value.trim() || '00');
   function openSheet(after, kind) {
@@ -1593,7 +1661,7 @@
       + '<div class="nickshow" id="nickShow"></div>'
       + '<small class="hint">거주지는 시·군까지만 · 출생연도는 끝 2자리(곧 태어나면 예정 연도) · 글에 그대로 보여요</small>'
       + (rename ? '' : (fromKakao && !pendingInvite ? '' : '<label class="lbl" for="invite">초대 코드 (있으면)</label><input class="inp code" id="invite" maxlength="12" placeholder="없으면 비워 두세요" autocomplete="off" autocapitalize="characters" value="' + esc(pendingInvite) + '">')
-        + '<label class="chk"><input type="checkbox" id="agree"> 서로 존중하고, 아이의 이름·얼굴 같은 개인정보는 올리지 않을게요.</label>')
+        + '<label class="chk"><input type="checkbox" id="agree"> <span>' + TERMS_LINE + '</span></label>')
       + '<div class="err" id="nickErr" hidden></div>'
       + '<button type="button" class="btn primary" id="joinBtn">' + (rename ? '바꾸기' : '다음') + '</button>'
       + '<button type="button" class="btn ghost" id="laterBtn">' + (rename ? '취소' : '둘러보기만 할래요') + '</button></div>', after);
@@ -1617,7 +1685,7 @@
     if (!/^\d{2}$/.test(year)) return say('자녀 출생연도 끝 2자리를 숫자로 적어 주세요(예: 24)');
     const nick = name + '/' + place + '/' + year;
     const bad = checkNick(nick); if (bad) return say(MSG[bad]);
-    if (!rename && !$('#agree').checked) return say('약속에 체크해 주세요');
+    if (!rename && !$('#agree').checked) return say('약관 동의에 체크해 주세요');
     const btn = $('#joinBtn'); btn.disabled = true;
     try {
       const inv = $('#invite'), invite = rename || !inv ? '' : (inv.value || '').trim();
@@ -1775,6 +1843,7 @@
     const b = ev.target.closest('[data-back]'); if (b) { ev.preventDefault(); back(b.dataset.back); return; }
     const dc = ev.target.closest('[data-del-cmt]'); if (dc) { delComment(+dc.dataset.delCmt); }
     const rb = ev.target.closest('[data-report]'); if (rb) { reportFlow(rb.dataset.report, +rb.dataset.rid); }
+    const bl = ev.target.closest('[data-block]'); if (bl) { blockFlow(+bl.dataset.block, bl.dataset.bnick); }
     if (ev.target.closest('[data-ask]')) openAsk('question');
     const fx = ev.target.closest('[data-fix]'); if (fx) openAsk('fix', fx.dataset.fix);
   });

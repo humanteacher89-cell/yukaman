@@ -18,7 +18,16 @@ CREATE TABLE IF NOT EXISTS users (
   blocked      INTEGER NOT NULL DEFAULT 0,     -- 1 = 인증 취소하고 다시 신청 못 함
   comments_seen TEXT,                          -- 내 글의 새 댓글을 마지막으로 본 시각(MY 배지, 검수 22). 기존 표에는 MIGRATIONS로 더함
   identity_hash TEXT,                          -- SHA-256('id|' + 본인인증 DI 또는 CI). 1인 1계정 확인용, 이름·전화번호는 저장하지 않는다(11-05). 기존 표에는 MIGRATIONS로 더함. 색인도 MIGRATIONS에
-  kakao_hash   TEXT                            -- SHA-256('kakao|' + 카카오 회원번호). 프로필·이메일·전화번호는 받지 않는다(11-05). 기존 표에는 MIGRATIONS로 더함. 색인도 MIGRATIONS에
+  kakao_hash   TEXT,                           -- SHA-256('kakao|' + 카카오 회원번호). 프로필·이메일·전화번호는 받지 않는다(11-05). 기존 표에는 MIGRATIONS로 더함. 색인도 MIGRATIONS에
+  terms_at     TEXT                            -- 약관 동의 시각. 비어 있으면 글·댓글 전에 동의를 받는다(11-05 Play 등록). 기존 표에는 MIGRATIONS로 더함
+);
+
+-- 사용자 차단(11-05 Play 등록): user_id의 화면에서 blocked_id의 글·댓글을 숨긴다. 탈퇴하면 양쪽 줄을 지운다
+CREATE TABLE IF NOT EXISTS user_blocks (
+  user_id    INTEGER NOT NULL,
+  blocked_id INTEGER NOT NULL,
+  created    TEXT NOT NULL,
+  PRIMARY KEY (user_id, blocked_id)
 );
 
 -- 카카오를 마치고 닉네임을 정하기 전의 기기(30분). 가입하면 줄을 지운다

@@ -33,21 +33,21 @@ r = await call('POST', '/posts', null, { cat: 'tip', title: '제목입니다', b
 ok(r.status === 401 && r.data.error === 'login', '토큰 없으면 401');
 
 // 닉네임
-r = await call('POST', '/join', A, { nick: N('육아맨운영자') });
+r = await call('POST', '/join', A, { terms: true, nick: N('육아맨운영자') });
 ok(r.data.error === 'nick_reserved', '운영 사칭 이름 막기');
-r = await call('POST', '/join', A, { nick: 'a' });
+r = await call('POST', '/join', A, { terms: true, nick: 'a' });
 ok(r.data.error === 'nick_form', '세 칸이 아닌 닉네임');
 for (const bad of ['시험/청주', '시험/청주/2024', '시험/청주/ab', 'a/청주/24', '띄어 쓰기/청주/24', '시험/qq/24']) {
-  r = await call('POST', '/join', A, { nick: bad });
+  r = await call('POST', '/join', A, { terms: true, nick: bad });
   ok(r.data.error === 'nick_form', '닉네임 꼴 막기 ' + bad);
 }
-r = await call('POST', '/join', A, { nick: N('시험A' + stamp) });
+r = await call('POST', '/join', A, { terms: true, nick: N('시험A' + stamp) });
 ok(r.data.ok && r.data.user.verified === false, '가입: 인증 전');
 const recA = r.data.recovery;
 ok(/^[A-Z2-9]{4}-[A-Z2-9]{4}-[A-Z2-9]{4}$/.test(recA || ''), '가입 때 복구 코드 12자');
-r = await call('POST', '/join', A, { nick: '다른이름' + stamp });
+r = await call('POST', '/join', A, { terms: true, nick: '다른이름' + stamp });
 ok(r.data.existing === true && !r.data.recovery, '같은 기기는 기존 사용자(복구 코드 다시 안 줌)');
-r = await call('POST', '/join', B, { nick: N('시험A' + stamp) });
+r = await call('POST', '/join', B, { terms: true, nick: N('시험A' + stamp) });
 ok(r.data.error === 'nick_taken', '같은 닉네임 막기');
 
 // 인증 전에는 못 읽고 못 쓴다
@@ -73,7 +73,7 @@ r = await call('GET', '/posts?limit=2', A);
 ok(r.status === 200 && r.data.posts.every(p => p.badge !== 'official'), '인증 뒤 읽기, 자료실 글은 목록에 없음');
 r = await call('GET', '/posts/1', A);
 ok(r.status === 200 && r.data.post.badge === 'official', '자료실 글은 번호로는 열림');
-r = await call('POST', '/join', C, { nick: N('시험C' + stamp), invite: 'TESTDADS' });
+r = await call('POST', '/join', C, { terms: true, nick: N('시험C' + stamp), invite: 'TESTDADS' });
 ok(r.data.ok && r.data.user.verified === false && r.data.invite_error === 'code_used', '쓴 코드는 다시 못 씀, 가입은 됨');
 
 // 글·댓글·검색
@@ -139,7 +139,7 @@ ok(r.data.invites.length === 3 && r.data.invites[0].used === true && r.data.invi
 
 // 사칭 이름 막기
 for (const bad of ['운영진', '휴먼쌤', 'yukaman', 'adm1n', '매니저1']) {
-  r = await call('POST', '/join', rnd(), { nick: N(bad) });
+  r = await call('POST', '/join', rnd(), { terms: true, nick: N(bad) });
   ok(r.data.error === 'nick_reserved', '사칭 이름 막기 ' + bad);
 }
 
@@ -173,7 +173,7 @@ r = await call('POST', '/invites', C, {});
 const cCode = r.data.invite.code;
 
 // 신청서 → 관리자 승인 → 답변 지움
-r = await call('POST', '/join', B, { nick: N('시험B' + stamp) });
+r = await call('POST', '/join', B, { terms: true, nick: N('시험B' + stamp) });
 ok(r.data.ok, 'B 가입');
 r = await call('POST', '/verify/apply', B, { stage: 'raising', answer: '짧음', pledge: true });
 ok(r.data.error === 'answer_len', '답변 짧음');
@@ -185,7 +185,7 @@ r = await call('GET', '/admin/queue', A);
 ok(r.status === 403, '일반 회원은 관리자 화면 금지');
 
 // 관리자 코드
-r = await call('POST', '/join', ADMIN, { nick: N('시험관' + stamp), invite: 'TESTADMN' });
+r = await call('POST', '/join', ADMIN, { terms: true, nick: N('시험관' + stamp), invite: 'TESTADMN' });
 ok(r.data.user.role === 'admin' && r.data.user.verified === true, '관리자 코드');
 const recAdmin = r.data.recovery;
 r = await call('POST', '/posts', ADMIN, { cat: 'tip', title: '운영 안내 ' + stamp, body: '운영 글' });
@@ -224,7 +224,7 @@ ok(r.status === 200, '관리자 읽기');
 const uid = (await call('GET', '/me', C)).data.user.id;
 r = await call('POST', '/admin/user', ADMIN, { user_id: uid, action: 'block' });
 ok(r.data.ok, '막기');
-r = await call('POST', '/join', rnd(), { nick: N('새기기' + stamp), invite: cCode });
+r = await call('POST', '/join', rnd(), { terms: true, nick: N('새기기' + stamp), invite: cCode });
 ok(r.data.invite_error === 'code_bad' && r.data.user.verified === false, '막힌 회원의 안 쓴 초대 코드는 폐기됨');
 r = await call('POST', '/posts', C, { cat: 'tip', title: '제목입니다', body: '내용' });
 ok(r.status === 403 && r.data.error === 'blocked', '막힌 회원 글 금지');
@@ -339,7 +339,7 @@ r = await call('GET', '/admin/queue', ADMIN);
 const qq = r.data.qna.find(x => x.kind === 'question'), qf = r.data.qna.find(x => x.kind === 'fix');
 ok(qq && qf && qf.ref === 'leave-apply', '관리자 화면에 질문과 제보');
 const G = rnd();
-r = await call('POST', '/join', G, { nick: N('일반' + stamp) });
+r = await call('POST', '/join', G, { terms: true, nick: N('일반' + stamp) });
 ok(r.data.ok, '일반 회원');
 r = await call('POST', '/admin/qna', G, { id: qq.id, action: 'delete' });
 ok(r.status === 403, '일반 회원은 답변 금지');
@@ -366,7 +366,7 @@ r = await call('POST', '/posts', ADMIN, { cat: 'tip', title: '뜨는 글 ' + sta
 const hid = r.data.id;
 const H1 = rnd(), H2 = rnd();
 for (const [t, nm] of [[H1, '인기하'], [H2, '인기둘']]) {
-  r = await call('POST', '/join', t, { nick: N(nm + stamp) });
+  r = await call('POST', '/join', t, { terms: true, nick: N(nm + stamp) });
   ok(r.data.ok, '인기 시험 가입');
   r = await call('POST', '/admin/user', ADMIN, { user_id: r.data.user.id, action: 'verify' });
   ok(r.data.ok, '인기 시험 인증');
@@ -387,7 +387,7 @@ ok(!r.data.posts.find(p => p.id === hid), '지운 글은 안 뜸');
 const R1 = rnd(), R2 = rnd(), R3 = rnd();
 const rids = {};
 for (const [t, nm] of [[R1, '계급하'], [R2, '계급둘'], [R3, '계급셋']]) {
-  r = await call('POST', '/join', t, { nick: N(nm + stamp) });
+  r = await call('POST', '/join', t, { terms: true, nick: N(nm + stamp) });
   rids[t] = r.data.user.id;
   await call('POST', '/admin/user', ADMIN, { user_id: r.data.user.id, action: 'verify' });
 }
@@ -437,7 +437,7 @@ const K = { male: { status: 'VERIFIED', verifiedCustomer: { name: '시험', gend
   ready: { status: 'READY' }, cionly: { status: 'VERIFIED', verifiedCustomer: { gender: 'MALE', birthDate: '1990-01-01', ci: 'ci-' + stamp } } };
 const mock = await startMock(8798, K);
 const I1 = rnd(), I2 = rnd();
-r = await call('POST', '/join', I1, { nick: N('본인' + stamp) });
+r = await call('POST', '/join', I1, { terms: true, nick: N('본인' + stamp) });
 ok(r.data.ok && r.data.user.verified === false, '본인인증 전 가입');
 r = await call('POST', '/verify/identity', null, { id: 'case-male' });
 ok(r.status === 401, '본인인증도 가입 뒤');
@@ -455,7 +455,7 @@ r = await call('POST', '/verify/identity', I1, { id: 'case-male' });
 ok(r.data.ok && r.data.user.verified === true && r.data.user.how === 'identity', '본인인증으로 인증');
 r = await call('GET', '/posts?limit=1', I1);
 ok(r.status === 200, '본인인증 뒤 읽기');
-r = await call('POST', '/join', I2, { nick: N('둘째' + stamp) });
+r = await call('POST', '/join', I2, { terms: true, nick: N('둘째' + stamp) });
 r = await call('POST', '/verify/identity', I2, { id: 'case-dup' });
 ok(r.status === 409 && r.data.error === 'identity_dup', '같은 사람의 두 번째 계정 막기');
 r = await call('POST', '/verify/identity', I2, { id: 'case-cionly' });
@@ -476,9 +476,9 @@ r = await call('POST', '/login/kakao', KA, { code: 'k1', redirect_uri: RED });
 ok(r.data.ok && r.data.need_nick === true && !r.data.user, '처음이면 닉네임 먼저');
 r = await call('GET', '/me', KA);
 ok(r.status === 401, '닉네임 전에는 계정 없음');
-r = await call('POST', '/join', KA, { nick: '잘못된꼴' });
+r = await call('POST', '/join', KA, { terms: true, nick: '잘못된꼴' });
 ok(r.data.error === 'nick_form', '카카오 뒤에도 닉네임 꼴 검사');
-r = await call('POST', '/join', KA, { nick: N('카카오' + stamp) });
+r = await call('POST', '/join', KA, { terms: true, nick: N('카카오' + stamp) });
 ok(r.data.ok && r.data.user.verified === true && r.data.user.how === 'kakao' && r.data.user.kakao === true && !r.data.recovery, '카카오 + 닉네임이면 바로 인증, 복구 코드 없음');
 r = await call('GET', '/posts?limit=1', KA);
 ok(r.status === 200, '가입 뒤 커뮤니티 읽기');
@@ -516,9 +516,9 @@ ok(r.data.need_nick === true, '탈퇴 뒤 다시 오면 새 가입');
 const KD = rnd(), KE = rnd();
 await call('POST', '/login/kakao', KD, { code: 'k2', redirect_uri: RED });
 await call('POST', '/login/kakao', KE, { code: 'k2', redirect_uri: RED });
-r = await call('POST', '/join', KD, { nick: N('먼저' + stamp) });
+r = await call('POST', '/join', KD, { terms: true, nick: N('먼저' + stamp) });
 ok(r.data.ok && r.data.user.kakao === true, '먼저 마친 기기 가입');
-r = await call('POST', '/join', KE, { nick: N('나중' + stamp) });
+r = await call('POST', '/join', KE, { terms: true, nick: N('나중' + stamp) });
 ok(r.status === 409 && r.data.error === 'kakao_used', '같은 카카오로 두 번 가입 안 됨');
 r = await call('POST', '/login/kakao', KE, { code: 'k2', redirect_uri: RED });
 ok(r.data.ok && r.data.user.nick === N('먼저' + stamp), '뒤의 기기는 카카오로 같은 계정에');
@@ -544,7 +544,7 @@ r = await call('POST', '/login/kakao', rnd(), { code: 'k2', redirect_uri: RED })
 ok(r.data.need_nick === true, '웹훅: 다시 오면 새 가입');
 const KF = rnd();
 await call('POST', '/login/kakao', KF, { code: 'k4', redirect_uri: RED });
-r = await call('POST', '/join', KF, { nick: N('넷째' + stamp) });
+r = await call('POST', '/join', KF, { terms: true, nick: N('넷째' + stamp) });
 ok(r.data.ok && r.data.user.kakao === true, '웹훅 시험용 가입');
 r = await hook('POST', '', AK, 'app_id=1&user_id=1004&referrer_type=ACCOUNT_DELETE');
 ok(r.status === 200, '웹훅: POST 본문으로 끊기');
@@ -557,13 +557,133 @@ ok(r.data.ok && r.data.user && r.data.user.blocked === true, '웹훅: 막힌 계
 const KG = rnd();
 await call('POST', '/login/kakao', KG, { code: 'k1', redirect_uri: RED });
 await hook('GET', '?app_id=1&user_id=1001&referrer_type=INCOMPLETE_SIGN_UP', AK);
-r = await call('POST', '/join', KG, { nick: N('다섯째' + stamp) });
+r = await call('POST', '/join', KG, { terms: true, nick: N('다섯째' + stamp) });
 ok(r.data.ok && r.data.user.kakao === false && r.data.user.verified === false, '웹훅: 닉네임 전이면 대기 기록도 지워짐');
 r = await call('POST', '/login/kakao', ADMIN, { code: 'ui9', redirect_uri: RED });
 ok(r.data.ok && r.data.user.role === 'admin' && r.data.user.kakao === true, '관리자도 카카오 잇기');
 await hook('GET', '?app_id=1&user_id=2000&referrer_type=UNLINK_FROM_APPS', AK);
 r = await call('GET', '/me', ADMIN);
 ok(r.status === 200 && r.data.user.role === 'admin' && r.data.user.kakao === false, '웹훅: 관리자는 지우지 않고 연결만 풀림');
+
+// ----- Play 등록(11-05): 약관 동의 · 심사용 입구 · 사용자 차단 -----
+const REVIEW = 'REVW-2345-TEST';      // .dev.vars REVIEW_CODE와 같게
+r = await call('POST', '/join', rnd(), { nick: N('약관' + stamp) });
+ok(r.data.error === 'terms', '동의 없으면 가입 안 됨');
+r = await call('POST', '/join', rnd(), { nick: N('약관' + stamp), terms: 'yes' });
+ok(r.data.error === 'terms', '동의 값이 true가 아니면 가입 안 됨');
+r = await call('POST', '/join', rnd(), { terms: true, nick: N('심사계정') });
+ok(r.data.error === 'nick_reserved', '심사 이름은 일반 회원이 못 씀');
+r = await call('POST', '/login/review', null, { code: REVIEW });
+ok(r.status === 401, '심사 입구: 기기 토큰 없으면 거절');
+const RV = rnd();
+r = await call('POST', '/login/review', RV, { code: 'WRONG' });
+ok(r.data.error === 'review_bad', '심사 입구: 짧은 코드 거절');
+r = await call('POST', '/login/review', RV, { code: 'ABCD-EFGH-2345' });
+ok(r.data.error === 'review_bad' && (await call('GET', '/me', RV)).status === 401, '심사 입구: 틀린 코드면 계정 없음');
+r = await call('POST', '/login/review', RV, { code: REVIEW });
+ok(r.data.ok && r.data.user.verified === true && r.data.user.how === 'review' && r.data.user.kakao === false && r.data.user.terms === false && r.data.user.role === 'user', '심사 입구: 맞는 코드면 인증된 심사용 계정');
+const rvId = r.data.user.id;
+r = await call('GET', '/posts?limit=1', RV);
+ok(r.status === 200 && Array.isArray(r.data.posts), '심사용 계정은 커뮤니티를 읽는다');
+// 약관 전에 만든 계정(terms_at 없음)은 첫 글·댓글 때 막히고, 동의하면 된다
+r = await call('POST', '/posts', RV, { cat: 'tip', title: '심사 글입니다', body: '내용' });
+ok(r.status === 403 && r.data.error === 'terms', '동의 전 글쓰기 막힘');
+r = await call('POST', '/me/terms', RV, {});
+ok(r.data.error === 'terms', 'agree 없으면 동의 안 됨');
+r = await call('POST', '/me/terms', null, { agree: true });
+ok(r.status === 401, '동의도 로그인이 있어야 한다');
+r = await call('POST', '/me/terms', RV, { agree: true });
+ok(r.data.ok && r.data.user.terms === true, '약관 동의');
+r = await call('POST', '/posts', RV, { cat: 'tip', title: '심사 글입니다', body: '내용' });
+ok(r.data.ok && r.data.id, '동의 뒤 글쓰기');
+const rvPost = r.data.id;
+const RV2 = rnd();
+r = await call('POST', '/login/review', RV2, { code: REVIEW.replace(/-/g, '').toLowerCase() });
+ok(r.data.ok && r.data.user.id === rvId && r.data.user.terms === true, '심사 입구: 코드는 여러 번 쓰고 같은 계정, 소문자·띄어쓰기 무시');
+r = await call('GET', '/me', RV);
+ok(r.status === 401, '심사 입구: 이전 기기는 끊김');
+// 차단: 내 화면에서만 사라진다
+const BA = rnd(), BB = rnd();
+await call('POST', '/login/kakao', BA, { code: 'k5', redirect_uri: RED });
+await call('POST', '/login/kakao', BB, { code: 'k6', redirect_uri: RED });
+r = await call('POST', '/join', BA, { terms: true, nick: N('차단자' + stamp) });
+ok(r.data.ok && r.data.user.terms === true, '가입하면 약관 동의가 남는다');
+const baId = r.data.user.id;
+r = await call('POST', '/join', BB, { terms: true, nick: N('상대' + stamp) });
+const bbId = r.data.user.id;
+r = await call('POST', '/login/review', BA, { code: REVIEW });
+ok(r.status === 409 && r.data.error === 'token_in_use', '심사 입구: 다른 계정이 있는 기기는 거절');
+const bbWord = '차단시험글' + stamp;
+r = await call('POST', '/posts', BB, { cat: 'tip', title: bbWord, body: '상대가 쓴 글' });
+const bbPost = r.data.id;
+await call('POST', `/posts/${bbPost}/comments`, BA, { body: '내 댓글' });
+await call('POST', `/posts/${bbPost}/comments`, RV2, { body: '심사 계정 댓글' });
+r = await call('POST', `/posts/${rvPost}/comments`, BB, { body: '상대 댓글' });
+const bbCmt = r.data.comment.id;
+r = await call('POST', '/posts', BA, { cat: 'tip', title: '내가 쓴 글입니다', body: '내 글' });
+const baPost = r.data.id;
+await call('POST', '/me/seen', BA);
+await new Promise(done => setTimeout(done, 5));
+await call('POST', `/posts/${baPost}/comments`, BB, { body: '상대가 내 글에' });
+await call('POST', `/posts/${baPost}/comments`, RV2, { body: '심사 계정이 내 글에' });
+r = await call('GET', '/me', BA);
+ok(r.data.new_comments === 2 && Array.isArray(r.data.blocks) && r.data.blocks.length === 0, '차단 전: 새 댓글 2개, 차단 목록 비어 있음');
+r = await call('GET', '/posts/hot', BA);
+ok(r.data.posts.some(p => p.id === bbPost), '차단 전: 지금 뜨는 글에 보임');
+r = await call('POST', '/blocks', null, { user_id: bbId });
+ok(r.status === 401, '차단: 로그인이 있어야 한다');
+r = await call('POST', '/blocks', BA, {});
+ok(r.data.error === 'bad_json', '차단: 번호가 없으면 거절');
+r = await call('POST', '/blocks', BA, { user_id: baId });
+ok(r.data.error === 'block_self', '나는 차단할 수 없다');
+r = await call('POST', '/blocks', BA, { user_id: 99999999 });
+ok(r.status === 404, '없는 사람은 차단할 수 없다');
+r = await call('POST', '/blocks', BA, { user_id: (await call('GET', '/me', ADMIN)).data.user.id });
+ok(r.status === 403 && r.data.error === 'block_staff', '운영 계정은 차단할 수 없다');
+r = await call('POST', '/blocks', BA, { user_id: bbId });
+ok(r.data.ok, '차단');
+r = await call('POST', '/blocks', BA, { user_id: bbId });
+ok(r.data.ok, '두 번 차단해도 그대로');
+r = await call('GET', '/posts?limit=50', BA);
+ok(!r.data.posts.some(p => p.uid === bbId), '차단 뒤 목록에서 사라짐');
+r = await call('GET', '/posts?q=' + encodeURIComponent(bbWord), BA);
+ok(r.data.posts.length === 0, '차단 뒤 검색에서 사라짐(색인)');
+r = await call('GET', '/posts?q=' + encodeURIComponent('차단'), BA);
+ok(!r.data.posts.some(p => p.uid === bbId), '차단 뒤 검색에서 사라짐(짧은 낱말)');
+r = await call('GET', '/posts/hot', BA);
+ok(!r.data.posts.some(p => p.id === bbPost), '차단 뒤 지금 뜨는 글에서 사라짐');
+r = await call('GET', `/posts/${bbPost}`, BA);
+ok(r.status === 403 && r.data.error === 'user_blocked' && !r.data.post, '차단한 사람의 글은 열리지 않음');
+r = await call('GET', `/posts/${rvPost}`, BA);
+ok(r.status === 200 && !r.data.comments.some(c => c.id === bbCmt), '남의 글에서도 차단한 사람의 댓글이 사라짐');
+r = await call('GET', '/me', BA);
+ok(r.data.new_comments === 1 && r.data.new_list.length === 1 && r.data.blocks.length === 1 && r.data.blocks[0].id === bbId, '차단 뒤 새 댓글에서 빠지고 차단 목록에 보임');
+r = await call('GET', '/posts?limit=50', BB);
+ok(r.data.posts.some(p => p.id === baPost), '차단당한 쪽은 그대로 본다');
+r = await call('GET', `/posts/${bbPost}`, RV2);
+ok(r.status === 200, '다른 사람에게는 그대로 보임');
+r = await call('DELETE', `/blocks/${bbId}`, BA);
+ok(r.data.ok, '차단 풀기');
+r = await call('GET', `/posts/${bbPost}`, BA);
+ok(r.status === 200, '풀면 다시 보임');
+await call('POST', '/blocks', BA, { user_id: bbId });
+// 탈퇴: 차단 줄과 신고한 사람 번호를 지운다
+r = await call('POST', '/reports', BB, { kind: 'post', id: baPost, reason: '시험 신고' });
+ok(r.data.ok, '탈퇴 시험용 신고');
+r = await call('POST', '/me/leave-kakao', BB, { code: 'k6', redirect_uri: RED });
+ok(r.data.ok, '차단당한 사람 탈퇴');
+r = await call('GET', '/me', BA);
+ok(r.data.blocks.length === 0, '탈퇴하면 차단 줄도 지워짐');
+r = await call('GET', '/admin/queue', ADMIN);
+ok(r.data.reports.some(x => x.kind === 'post' && x.target_id === baPost), '탈퇴해도 처리 전 신고는 남음');
+// 심사자가 탈퇴를 시험해도 다음 입장 때 다시 만든다
+r = await call('DELETE', '/me', RV2, { confirm: true });
+ok(r.data.ok, '심사용 계정 탈퇴');
+r = await call('GET', '/me', RV2);
+ok(r.status === 401, '심사용 계정 지워짐');
+const RV3 = rnd();
+r = await call('POST', '/login/review', RV3, { code: REVIEW });
+ok(r.data.ok && r.data.user.verified === true && r.data.user.terms === false && r.data.user.id !== undefined, '탈퇴 뒤 심사 입구로 새 계정');
 mock.server.close();
 
 console.log('통과', n, '건');

@@ -10,7 +10,7 @@
 #   python -X utf8 deploy.py deploy                        Pages에 올리기(휴먼쌤이 시킨 때만)
 # 지어낸 견본 글(test/seed-local.sql)은 내 컴퓨터 미리 보기에서만 쓴다. 공개 D1에는 넣지 않는다.
 # wrangler: 환경 변수 WRANGLER_JS(wrangler.js 경로, NODE가 있으면 그 node로) → 위쪽 폴더 어딘가의 tools/cf-wrangler(포터블, 로그인 정보 config/ 포함) → npx wrangler.
-import os, re, secrets, shutil, subprocess, sys
+import glob, os, re, secrets, shutil, subprocess, sys, time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 PROJECT = 'humanssaem-yukaman'
@@ -27,6 +27,7 @@ MIGRATIONS = [
     'CREATE UNIQUE INDEX IF NOT EXISTS users_identity ON users (identity_hash) WHERE identity_hash IS NOT NULL',
     'ALTER TABLE users ADD COLUMN kakao_hash TEXT',         # 2026-11-05 카카오 로그인
     'CREATE UNIQUE INDEX IF NOT EXISTS users_kakao ON users (kakao_hash) WHERE kakao_hash IS NOT NULL',
+    'ALTER TABLE users ADD COLUMN terms_at TEXT',           # 2026-11-05 약관 동의(Play 등록)
     # 검색 색인(검수 27): trigram이라 한국어 조사가 붙어도 세 글자 조각으로 찾는다. 글을 넣고·고치고·지울 때 트리거가 따라간다. 이미 있으면 그대로.
     "CREATE VIRTUAL TABLE IF NOT EXISTS posts_fts USING fts5(title, body, content='posts', content_rowid='id', tokenize='trigram')",
     'CREATE TRIGGER IF NOT EXISTS posts_ai AFTER INSERT ON posts BEGIN INSERT INTO posts_fts(rowid, title, body) VALUES (new.id, new.title, new.body); END',
@@ -148,7 +149,7 @@ def main():
         import datetime, json
         os.makedirs(os.path.join(HERE, 'backups'), exist_ok=True)
         data = {}
-        for t in ('users', 'invites', 'applications', 'posts', 'comments', 'reports', 'qna'):
+        for t in ('users', 'user_blocks', 'invites', 'applications', 'posts', 'comments', 'reports', 'qna'):
             r = subprocess.run(wrangler_cmd() + ['d1', 'execute', DB, '--remote', '--json', '--command', 'SELECT * FROM ' + t], cwd=HERE, capture_output=True, text=True, encoding='utf-8', errors='replace')
             if r.returncode:
                 if 'no such table' in r.stdout + r.stderr:      # 아직 migrate 전이라 표가 없는 경우
@@ -159,6 +160,11 @@ def main():
         out = os.path.join('backups', 'yukaman-' + datetime.datetime.now().strftime('%Y%m%d-%H%M') + '.json')
         json.dump(data, open(os.path.join(HERE, out), 'w', encoding='utf-8'), ensure_ascii=False)
         print('백업:', out, {k: len(v) for k, v in data.items()}, flush=True)
+        # 처리방침 약속: 30일 지난 백업은 지운다(탈퇴한 사람의 글이 사본으로 오래 남지 않게). 드라이브 거울에서도 따라 지워지고 휴지통에 30일 더 있다
+        for old in glob.glob(os.path.join(HERE, 'backups', 'yukaman-*.json')):
+            if time.time() - os.path.getmtime(old) > 30 * 86400:
+                os.remove(old)
+                print('30일 지난 백업 지움:', os.path.basename(old), flush=True)
     elif what == 'logs':
         sys.exit(wrangler('pages', 'deployment', 'tail', '--project-name', PROJECT))
     elif what == 'logout-user':

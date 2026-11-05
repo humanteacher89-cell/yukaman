@@ -4,7 +4,7 @@
 import http from 'node:http';
 
 const KEY = 'test-key', SECRET = 'test-kakao-secret';
-const idOf = code => ({ k1: 1001, k2: 1002, k3: 1003, k4: 1004 })[code] || (String(code).startsWith('ui') ? 2000 : 0);
+const idOf = code => ({ k1: 1001, k2: 1002, k3: 1003, k4: 1004, k5: 1005, k6: 1006 })[code] || (String(code).startsWith('ui') ? 2000 : 0);
 
 export async function startMock(port, identity = {}) {
   const unlinked = [];

@@ -456,7 +456,6 @@ input[type=date].inp { -webkit-appearance: none; appearance: none; min-height: 4
 .garticle a { color: var(--pri); text-decoration: underline; }
 .tipbox { margin-top: 12px; padding: 12px 14px; border-radius: 12px; background: #FFF7E6; color: #7C4A00; font-size: 14.5px; line-height: 1.55; font-weight: 600; }
 .tpl { margin: 10px 0 0; padding: 12px 14px; border-radius: 12px; background: var(--bg); border: 1.5px dashed var(--line); font: inherit; font-size: 14.5px; line-height: 1.65; white-space: pre-wrap; overflow-wrap: anywhere; }
-.draft { display: flex; gap: 8px; align-items: flex-start; margin-top: 16px; color: var(--sub); font-size: 13px; font-weight: 600; line-height: 1.5; }
 .srcs { margin-top: 24px; padding-top: 12px; border-top: 1px solid var(--line); font-size: 13px; color: var(--sub); line-height: 1.6; }
 .srcs b { display: block; color: var(--ink); margin-bottom: 4px; }
 .srcs a { color: var(--pri); text-decoration: none; }
@@ -468,7 +467,9 @@ input[type=date].inp { -webkit-appearance: none; appearance: none; min-height: 4
 .install { position: relative; }
 .recruit { margin-top: 0; }
 .recruit a.btn { text-align: center; margin-top: 8px; }
-.foot-note a, .lk2 { color: var(--pri); text-decoration: underline; }
+.textlink { border: 0; background: none; padding: 10px 8px; font: inherit; color: var(--mute); text-decoration: underline; }
+.bnick { min-width: 0; color: var(--ink); font-weight: 700; overflow-wrap: anywhere; }
+.foot-note a, .lk2, .chk a { color: var(--pri); text-decoration: underline; }
 .lk2 { display: inline-block; font-size: 13px; font-weight: 700; margin-top: 6px; }
 .abtn.ghosty { background: transparent; color: var(--sub); padding: 9px 10px; }
 :focus-visible { outline: 2.5px solid var(--pri); outline-offset: 2px; }
@@ -515,7 +516,7 @@ html[data-theme=dark] { background: #0D1119; }
 [data-theme=dark] .pill.soon { color: #14213D; }
 
 /* 색감 4 '버터와 하늘'(11-04 휴먼쌤 선택): 작은 글자·링크는 짙은 하늘(--pri-d)로 대비 4.5:1 이상, 채움은 --pri, 강조 칸은 버터(--but). 색을 직접 쓴 곳을 덮는다 */
-.pcard .foot .cmt, .body a, .tab.on, .vb.of, .notice.vcta b, .dt summary, .six, .calcnote a, .sec a.all, .gcalc .fold, .gcalc .big em, .tag, .garticle a, .srcs a, .glink span:last-child, .foot-note a, .lk2, .avatar, .reccode, .result > strong, .gcalc .big strong, .calctbl tr.sum td, .jobhint b { color: var(--pri-d); }
+.pcard .foot .cmt, .body a, .tab.on, .vb.of, .notice.vcta b, .dt summary, .six, .calcnote a, .sec a.all, .gcalc .fold, .gcalc .big em, .tag, .garticle a, .srcs a, .glink span:last-child, .foot-note a, .chk a, .lk2, .avatar, .reccode, .result > strong, .gcalc .big strong, .calctbl tr.sum td, .jobhint b { color: var(--pri-d); }
 .fab { box-shadow: 0 8px 20px rgba(27,31,42,.28); }
 .seg { background: #ECEAE2; }
 .tab .dot { background: #EF4444; }
