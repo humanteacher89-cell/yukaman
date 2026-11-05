@@ -72,7 +72,7 @@ Play Console에 그대로 옮겨 적는 값입니다. 2026-11-05에 앱 코드 �
 - 결과는 법령 숫자로 만든 어림이며, 실제 지급액은 담당 기관이 정해요
 
 아빠 커뮤니티
-- 카카오로 가입한 아빠끼리 글과 댓글로 이야기해요
+- 네이버로 가입한 아빠끼리 글과 댓글로 이야기해요
 - 사진과 영상 없이 글로만, 아이 나이와 분류별로 찾아봐요
 - 활동하면 이병부터 민방위까지 계급이 올라가요
 
@@ -96,11 +96,11 @@ Play Console에 그대로 옮겨 적는 값입니다. 2026-11-05에 앱 코드 �
 | 로그인 세부정보 | 예 | 커뮤니티는 가입이 필요. 아래 '심사용 로그인' |
 | 정부 앱, 금융 기능, 건강 기능 | 아니요, 앱에서 제공하지 않음 | 제도 안내와 어림 계산뿐이고 금융 상품을 다루지 않음. 뉴스 앱 질문이 나오면 아니요. 심리 글(안내 글과 상담 전화 연결, 진단·치료 기능 없음)이 있으니 건강 항목은 설문 문구를 보고 답을 휴먼쌤께 확인한 뒤 저장 |
 | 콘텐츠 등급 | 다른 모든 앱 유형 | IARC 약관 동의는 휴먼쌤 승인. 사용자 콘텐츠 공유·주요 출처·신고 기능·차단 기능·온라인 콘텐츠는 예, 채팅 조정·폭력·선정성·비속어·약물·연령 제한 상품·위치 공유·구매·현금 보상·브라우저는 아니요 |
-| 타겟층 | 18세 이상만 | 휴먼쌤 결정. 카카오 가입은 나이를 확인하지 않고 가입 때 만 18세 이상임을 스스로 확인받음 |
+| 타겟층 | 18세 이상만 | 휴먼쌤 결정. 네이버 가입은 나이를 확인하지 않고 가입 때 만 18세 이상임을 스스로 확인받음 |
 
 ### 심사용 로그인
 
-심사자는 카카오 계정이 없어 코드로 들어옵니다. 코드는 PC의 `tools\secrets\yukaman-review.txt`와 Pages 비밀 값에만 있고, 휴먼쌤이 콘솔의 비밀번호 칸에 직접 넣습니다. 저장소, 노션, 대화에 적지 않습니다. 양식 안내에 따라 영어로 적습니다.
+심사자는 네이버 계정이 없어 코드로 들어옵니다. 코드는 PC의 `tools\secrets\yukaman-review.txt`와 Pages 비밀 값에만 있고, 휴먼쌤이 콘솔의 비밀번호 칸에 직접 넣습니다. 저장소, 노션, 대화에 적지 않습니다. 양식 안내에 따라 영어로 적습니다.
 
 | 칸 | 값 |
 |---|---|
@@ -111,18 +111,18 @@ Play Console에 그대로 옮겨 적는 값입니다. 2026-11-05에 앱 코드 �
 **추가 안내** (500자까지)
 
 ```text
-Open the MY tab (the last tab) and scroll down. Tap the small link 앱 심사용 입구 (app review entrance). Enter the password above as the code and tap 들어가기. No Kakao account is needed. You can then read and write in the community tab (커뮤니티). The first post asks you to agree to the terms. Posts and comments by other users have Report (신고) and Block (차단) buttons. Account deletion is 탈퇴하기 in the MY tab. The account is recreated on the next entry.
+Open the MY tab (the last tab) and scroll down. Tap the small link 앱 심사용 입구 (app review entrance). Enter the password above as the code and tap 들어가기. No Naver account is needed. You can then read and write in the community tab (커뮤니티). The first post asks you to agree to the terms. Posts and comments by other users have Report (신고) and Block (차단) buttons. Account deletion is 탈퇴하기 in the MY tab. The account is recreated on the next entry.
 ```
 
 ### 데이터 보안
 
-계정 만드는 방법은 **OAuth**(카카오 로그인), 전송 중 암호화는 **예**(HTTPS), 계정 삭제 요청 방법 제공은 **예**, 제3자 공유는 **없음**(서비스 제공업체 처리는 공유에서 제외)으로 답합니다. 임시 처리는 모두 **아니요**입니다. 가이드와 계산기는 계정 없이 쓰므로 계정에 딸린 항목은 **선택**으로 답합니다.
+계정 만드는 방법은 **OAuth**(네이버 로그인, 옛 회원은 카카오 로그인), 전송 중 암호화는 **예**(HTTPS), 계정 삭제 요청 방법 제공은 **예**, 제3자 공유는 **없음**(서비스 제공업체 처리는 공유에서 제외)으로 답합니다. 임시 처리는 모두 **아니요**입니다. 가이드와 계산기는 계정 없이 쓰므로 계정에 딸린 항목은 **선택**으로 답합니다.
 
 | 데이터 유형 | 수집 | 필수 여부 | 목적 |
 |---|---|---|---|
 | 개인 정보: 이름 (닉네임의 별명) | 예 | 선택 | 앱 기능, 계정 관리 |
-| 개인 정보: 사용자 ID (회원 번호, 카카오 회원번호 해시, 기기 토큰 해시, 복구 코드 해시) | 예 | 선택 | 앱 기능, 계정 관리 |
-| 개인 정보: 기타 정보 (닉네임의 거주 시·군, 자녀 출생연도 끝 2자리, 초대한 사람) | 예 | 선택 | 앱 기능, 계정 관리 |
+| 개인 정보: 사용자 ID (회원 번호, 네이버 · 카카오 회원번호 해시, 기기 토큰 해시, 복구 코드 해시) | 예 | 선택 | 앱 기능, 계정 관리 |
+| 개인 정보: 기타 정보 (닉네임의 거주 시·군, 자녀 출생연도 끝 2자리, 초대한 사람, 가입 때 확인만 하고 저장하지 않는 네이버 계정 성별) | 예 | 선택 | 앱 기능, 계정 관리 |
 | 앱 활동: 기타 사용자 제작 콘텐츠 (글, 댓글, 신고 내용, 질문·제보) | 예 | 선택 | 앱 기능 |
 | 앱 활동: 기타 작업 (아이 나이 구간, 차단 목록, 약관 동의 시각, 마지막 접속 시각) | 예 | 선택 | 앱 기능, 계정 관리 |
 | 기기 또는 기타 ID (IP 해시, 이틀) | 예 | 필수 | 사기 방지, 보안 |
@@ -132,7 +132,7 @@ Open the MY tab (the last tab) and scroll down. Tap the small link 앱 심사용
 1. 공개판에 `privacy`, `terms`, `assetlinks.json`, 비밀 값 `REVIEW_CODE`를 먼저 올립니다.
 2. 앱을 만들고 AAB를 **내부 테스트**에 올립니다.
 3. Play Console **앱 서명** 화면의 SHA-256 지문을 `public/.well-known/assetlinks.json`에 추가하고 공개판에 다시 올립니다. 빠뜨리면 앱 위쪽에 주소창이 보입니다.
-4. 실제 폰 앱에서 카카오 로그인, 탈퇴, 심사용 입구를 확인합니다.
+4. 실제 폰 앱에서 네이버 로그인, 탈퇴, 심사용 입구를 확인합니다.
 5. 앱 설정을 끝냅니다.
 6. **비공개 테스트**를 시작합니다. 테스터는 15~20명을 모읍니다.
 7. 14일 뒤 **프로덕션 신청**을 합니다.
