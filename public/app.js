@@ -574,14 +574,10 @@
     return pageHead('👶', '우리 아이', line || '날짜를 입력하면 디데이를 알려줘요', '<button type="button" class="edit" id="kidEdit">' + (line ? '날짜 고치기' : '날짜 넣기') + '</button>');
   }
   const KID_NAMES = ['첫째', '둘째', '셋째', '넷째', '다섯째', '여섯째'];
-  // 아이 고르기: 둘 이상일 때만 보인다. 계산기의 날짜 칸 위에도 같은 것을 둔다
-  const kidSeg = () => (calcS.kids.length > 1 ? '<div class="seg kidseg" role="group" aria-label="아이 고르기">' + calcS.kids.map((_, i) => '<button type="button" class="' + (i === calcS.kid ? 'on' : '') + '" data-kid="' + i + '" aria-pressed="' + (i === calcS.kid) + '">' + KID_NAMES[i] + '</button>').join('') + '</div>' : '');
-  // 홈: 아이 고르기 + 아이 추가. 첫 아이 날짜를 넣기 전에는 보이지 않는다
-  function kidsRow() {
-    const k = kidDates(), add = calcS.kids.length < KID_NAMES.length && (calcS.kids.length > 1 || k.birth || k.due);
-    if (calcS.kids.length < 2 && !add) return '';
-    return '<div class="kidrow' + (calcS.kids.length > 1 ? '' : ' one') + '">' + kidSeg() + (add ? '<button type="button" class="kidadd" id="kidAdd">+ 아이 추가</button>' : '') + '</div>';
-  }
+  // 아이 고르기. 계산기의 날짜 칸 위에는 둘 이상일 때만, 홈에는 늘 둔다(always)
+  const kidSeg = always => (always || calcS.kids.length > 1 ? '<div class="seg kidseg" role="group" aria-label="아이 고르기">' + calcS.kids.map((_, i) => '<button type="button" class="' + (i === calcS.kid ? 'on' : '') + '" data-kid="' + i + '" aria-pressed="' + (i === calcS.kid) + '">' + KID_NAMES[i] + '</button>').join('') + '</div>' : '');
+  // 홈: 기본은 '첫째' 칸 하나, 둘째부터는 '아이 추가'로(11-05 휴먼쌤 "기본적으로 '첫째'만 ㅎ해두고, 둘째부터는 아이추가로")
+  const kidsRow = () => '<div class="kidrow">' + kidSeg(true) + (calcS.kids.length < KID_NAMES.length ? '<button type="button" class="kidadd" id="kidAdd">+ 아이 추가</button>' : '') + '</div>';
   function pickKid(i) {
     if (!calcS.kids[i] || i === calcS.kid) return;
     const y = window.scrollY;
@@ -594,7 +590,8 @@
   // 날짜만 고치는 시트(11-04 휴먼쌤 "계산기로 이동해서 불편해"). 계산기 '내 아이 날짜'와 같은 값(calcS)을 쓴다. 날짜를 바꾸면 손으로 고른 나이 칸은 풀고 날짜를 따른다. add = 아이 한 명 더 넣기
   function openKidDates(add) {
     const many = calcS.kids.length > 1, k = add ? { birth: '', due: '' } : kidDates();
-    showSheet('<div class="sheet" role="dialog" aria-modal="true" aria-label="' + (add ? '아이 추가' : '우리 아이 날짜') + '"><div class="grip"></div><h2>' + (add ? '아이 추가' : many ? KID_NAMES[calcS.kid] + ' 날짜' : '우리 아이 날짜') + '</h2><p>둘 중 하나만 넣어도 돼요. 이 기기에만 저장하고 서버로 보내지 않아요.</p>'
+    const title = add ? '아이 추가' : KID_NAMES[calcS.kid] + ' 날짜';
+    showSheet('<div class="sheet" role="dialog" aria-modal="true" aria-label="' + title + '"><div class="grip"></div><h2>' + title + '</h2><p>둘 중 하나만 넣어도 돼요. 이 기기에만 저장하고 서버로 보내지 않아요.</p>'
       + '<div class="two" style="margin-top:14px">' + dateField('kBirth', '태어난 날', k.birth) + dateField('kDue', '출산 예정일', k.due) + '</div>'
       + '<div class="err" id="kErr" hidden></div>'
       + '<button type="button" class="btn primary" id="kSave">저장</button>'
@@ -677,7 +674,12 @@
   }
   function bindHomeAge() {
     const e = $('#kidEdit'); if (e) e.addEventListener('click', () => openKidDates());
-    const ka = $('#kidAdd'); if (ka) ka.addEventListener('click', () => openKidDates(true));
+    const ka = $('#kidAdd');
+    if (ka) ka.addEventListener('click', () => {
+      const k = kidDates();
+      if (calcS.kids.length > 1 || k.birth || k.due) { openKidDates(true); return; }
+      openKidDates(); const err = $('#kErr'); err.hidden = false; err.textContent = '첫째 날짜를 먼저 넣어 주세요';      // 빈 첫째가 남아 순서가 꼬이지 않게
+    });
     const m = $('#tlMore'); if (m) m.addEventListener('click', () => { $$('.tli[hidden]').forEach(x => { x.hidden = false; }); m.remove(); });
     const box = $('#ages'); if (!box) return;
     box.addEventListener('click', ev => { const b = ev.target.closest('[data-age]'); if (!b) return; store.set('age', store.get('age', '') === b.dataset.age ? '' : b.dataset.age); renderHome(); });
