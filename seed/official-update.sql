@@ -334,3 +334,20 @@ UPDATE posts SET cat = 'leave', title = '2026년 9월부터 아빠에게 달라�
 https://www.moel.go.kr/news/enews/report/enewsView.do?news_seq=19964
 https://www.law.go.kr/법령/남녀고용평등과일ㆍ가정양립지원에관한법률/제18조의2
 https://www.korea.kr/news/policyNewsView.do?newsId=148958223' WHERE id = 24 AND user_id = 1 AND deleted IS NULL;
+UPDATE posts SET cat = 'question', title = 'Q. 둘째가 생기면 육아휴직을 또 쓸 수 있나요?', body = 'A. 네. 육아휴직은 아이마다 따로 봐요. 첫째 때 1년을 다 썼어도 둘째로 다시 쓸 수 있어요.
+
+아이마다 따로 보는 것
+- 육아휴직: 아이 한 명당 아빠 1년. 같은 아이로 부모가 각각 3개월 이상 쓰면 6개월 더 써요.
+- 시작 기한: 그 아이가 만 8세 이하 또는 초2 이하일 때까지예요.
+- 6+6: 그 아이 생후 18개월 안에 부모가 각각 시작해야 해요.
+- 단기 육아휴직: 사유에 해당하면 아이마다 1년에 1번 써요.
+
+쌍둥이도 마찬가지예요. 고용노동부는 생후 18개월 안의 두 아이로 부모가 번갈아 쉬면 아이마다 6+6을 적용받을 수 있다고 답했어요.
+
+첫째 휴직 중에 둘째가 태어나는 경우처럼 기간이 겹치면 신청 전에 1350에 물어보세요.
+
+출처
+https://www.moel.go.kr/minwon/fastcounsel/fastcounselView.do?inetDcssMngId=202502061042079620224
+https://edrm.ei.go.kr/ei/eim/eg/ei/eiEminsr/retrievePb0302Info.do
+https://www.moel.go.kr/news/cardinfo/view.do?bbs_seq=20260800522
+https://www.law.go.kr/법령/남녀고용평등과일ㆍ가정양립지원에관한법률/제19조' WHERE id = 25 AND user_id = 1 AND deleted IS NULL;

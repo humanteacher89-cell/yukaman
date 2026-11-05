@@ -451,7 +451,10 @@
   if (calcS.job === 'private') calcS.job = '';                  // 잠깐 있던 값. 교원과 직원으로 나눴다
   if (!K.parse(calcS.start)) calcS.start = nextFirst();
   if (!K.parse(calcS.end)) calcS.end = K.addDays(K.addMonths(calcS.start, 12), -1);
-  const saveCalc = () => store.set('calc', calcS);
+  // 아이가 둘 이상일 때(11-05 휴먼쌤 "아이가 2명 이상인 경우에는 어떻게 해야돼?" · "추천안대로"): calcS.birth·due는 '지금 고른 아이'의 날짜라 계산기는 그대로 따른다. 아이별 날짜는 kids에 둔다(이 기기에만)
+  if (!Array.isArray(calcS.kids) || !calcS.kids.length) { calcS.kids = [{ birth: calcS.birth, due: calcS.due }]; calcS.kid = 0; }
+  if (!calcS.kids[calcS.kid]) { calcS.kid = 0; calcS.birth = calcS.kids[0].birth; calcS.due = calcS.kids[0].due; }
+  const saveCalc = () => { calcS.kids[calcS.kid] = { birth: calcS.birth, due: calcS.due }; store.set('calc', calcS); };
   const toWon = v => Math.round((parseFloat(v) || 0) * 10000);
 
   // 홈·가이드의 계산기 카드: 월급만 넣으면 바로 계산된다(일반 12개월). 자세히는 #/calc/leave
@@ -570,22 +573,46 @@
     const line = kidLine();
     return pageHead('👶', '우리 아이', line || '날짜를 입력하면 디데이를 알려줘요', '<button type="button" class="edit" id="kidEdit">' + (line ? '날짜 고치기' : '날짜 넣기') + '</button>');
   }
-  // 날짜만 고치는 시트(11-04 휴먼쌤 "계산기로 이동해서 불편해"). 계산기 '내 아이 날짜'와 같은 값(calcS)을 쓴다. 날짜를 바꾸면 손으로 고른 나이 칸은 풀고 날짜를 따른다
-  function openKidDates() {
-    const k = kidDates();
-    showSheet('<div class="sheet" role="dialog" aria-modal="true" aria-label="우리 아이 날짜"><div class="grip"></div><h2>우리 아이 날짜</h2><p>둘 중 하나만 넣어도 돼요. 이 기기에만 저장하고 서버로 보내지 않아요.</p>'
+  const KID_NAMES = ['첫째', '둘째', '셋째', '넷째', '다섯째', '여섯째'];
+  // 아이 고르기: 둘 이상일 때만 보인다. 계산기의 날짜 칸 위에도 같은 것을 둔다
+  const kidSeg = () => (calcS.kids.length > 1 ? '<div class="seg kidseg" role="group" aria-label="아이 고르기">' + calcS.kids.map((_, i) => '<button type="button" class="' + (i === calcS.kid ? 'on' : '') + '" data-kid="' + i + '" aria-pressed="' + (i === calcS.kid) + '">' + KID_NAMES[i] + '</button>').join('') + '</div>' : '');
+  // 홈: 아이 고르기 + 아이 추가. 첫 아이 날짜를 넣기 전에는 보이지 않는다
+  function kidsRow() {
+    const k = kidDates(), add = calcS.kids.length < KID_NAMES.length && (calcS.kids.length > 1 || k.birth || k.due);
+    if (calcS.kids.length < 2 && !add) return '';
+    return '<div class="kidrow' + (calcS.kids.length > 1 ? '' : ' one') + '">' + kidSeg() + (add ? '<button type="button" class="kidadd" id="kidAdd">+ 아이 추가</button>' : '') + '</div>';
+  }
+  function pickKid(i) {
+    if (!calcS.kids[i] || i === calcS.kid) return;
+    const y = window.scrollY;
+    saveCalc(); calcS.kid = i; calcS.birth = calcS.kids[i].birth; calcS.due = calcS.kids[i].due; saveCalc();
+    store.del('age');      // 손으로 고른 나이 칸은 풀고 고른 아이의 날짜를 따른다
+    render(); window.scrollTo(0, y);
+  }
+  // 먼저 태어난 아이가 첫째. 고른 아이는 순서가 바뀌어도 그대로 따라간다
+  function sortKids() { const cur = calcS.kids[calcS.kid], at = k => k.birth || k.due || '9999'; calcS.kids.sort((a, b) => (at(a) < at(b) ? -1 : at(a) > at(b) ? 1 : 0)); calcS.kid = calcS.kids.indexOf(cur); }
+  // 날짜만 고치는 시트(11-04 휴먼쌤 "계산기로 이동해서 불편해"). 계산기 '내 아이 날짜'와 같은 값(calcS)을 쓴다. 날짜를 바꾸면 손으로 고른 나이 칸은 풀고 날짜를 따른다. add = 아이 한 명 더 넣기
+  function openKidDates(add) {
+    const many = calcS.kids.length > 1, k = add ? { birth: '', due: '' } : kidDates();
+    showSheet('<div class="sheet" role="dialog" aria-modal="true" aria-label="' + (add ? '아이 추가' : '우리 아이 날짜') + '"><div class="grip"></div><h2>' + (add ? '아이 추가' : many ? KID_NAMES[calcS.kid] + ' 날짜' : '우리 아이 날짜') + '</h2><p>둘 중 하나만 넣어도 돼요. 이 기기에만 저장하고 서버로 보내지 않아요.</p>'
       + '<div class="two" style="margin-top:14px">' + dateField('kBirth', '태어난 날', k.birth) + dateField('kDue', '출산 예정일', k.due) + '</div>'
       + '<div class="err" id="kErr" hidden></div>'
       + '<button type="button" class="btn primary" id="kSave">저장</button>'
-      + (k.birth || k.due ? '<button type="button" class="btn line" id="kClear">날짜 지우기</button>' : '')
+      + (!add && (many || k.birth || k.due) ? '<button type="button" class="btn line" id="kClear">' + (many ? '이 아이 지우기' : '날짜 지우기') + '</button>' : '')
       + '<button type="button" class="btn ghost" id="kCancel">취소</button></div>');
-    const done = msg => { saveCalc(); store.del('age'); closeSheet(); toast(msg); render(); };
+    const done = msg => { saveCalc(); sortKids(); saveCalc(); store.del('age'); closeSheet(); toast(msg); render(); };
     $('#kSave').addEventListener('click', () => {
       const b = $('#kBirth').value, due = $('#kDue').value, err = $('#kErr');
       if (b && b > todayStr()) { err.hidden = false; err.textContent = '태어난 날이 오늘보다 뒤예요. 아직 태어나지 않았다면 출산 예정일 칸에 넣어 주세요'; return; }
-      calcS.birth = b; calcS.due = due; done('날짜를 저장했어요');
+      if (add && !b && !due) { err.hidden = false; err.textContent = '날짜를 하나 넣어 주세요'; return; }
+      if (add) { saveCalc(); calcS.kids.push({ birth: b, due: due }); calcS.kid = calcS.kids.length - 1; }
+      calcS.birth = b; calcS.due = due; done(add ? '아이를 추가했어요' : '날짜를 저장했어요');
     });
-    const c = $('#kClear'); if (c) c.addEventListener('click', () => { calcS.birth = ''; calcS.due = ''; done('날짜를 지웠어요'); });
+    const c = $('#kClear');
+    if (c) c.addEventListener('click', () => {
+      if (calcS.kids.length > 1) { calcS.kids.splice(calcS.kid, 1); calcS.kid = Math.min(calcS.kid, calcS.kids.length - 1); calcS.birth = calcS.kids[calcS.kid].birth; calcS.due = calcS.kids[calcS.kid].due; done('아이를 지웠어요'); }
+      else { calcS.birth = ''; calcS.due = ''; done('날짜를 지웠어요'); }
+    });
     $('#kCancel').addEventListener('click', closeSheet);
   }
   // 나이마다 지금 챙길 것, 순서대로. by = 마지막 날(날짜를 넣었을 때), from = 시작할 수 있는 날, lab = 날짜가 없을 때의 기준. 근거는 각 가이드 글에
@@ -649,7 +676,8 @@
     return '<div class="tl">' + rows + '</div>' + (rest ? '<button type="button" class="more" id="tlMore">' + rest + '개 더 보기</button>' : '');
   }
   function bindHomeAge() {
-    const e = $('#kidEdit'); if (e) e.addEventListener('click', openKidDates);
+    const e = $('#kidEdit'); if (e) e.addEventListener('click', () => openKidDates());
+    const ka = $('#kidAdd'); if (ka) ka.addEventListener('click', () => openKidDates(true));
     const m = $('#tlMore'); if (m) m.addEventListener('click', () => { $$('.tli[hidden]').forEach(x => { x.hidden = false; }); m.remove(); });
     const box = $('#ages'); if (!box) return;
     box.addEventListener('click', ev => { const b = ev.target.closest('[data-age]'); if (!b) return; store.set('age', store.get('age', '') === b.dataset.age ? '' : b.dataset.age); renderHome(); });
@@ -670,6 +698,7 @@
     view.innerHTML = '<section class="pad">'
       + (mode === 'local' ? mockBadge() : '')
       + kidCard()
+      + kidsRow()
       + agesRow(key)
       + '<div class="sec"><h2>' + (a ? esc(a.name) + ', 지금 챙길 것' : '지금 챙길 것') + '</h2>' + (a ? '<span>순서대로</span>' : '') + '</div>'
       + (a && calcS.job !== 'worker' ? '<a class="jobhint" href="#/g/leave-job">회사원 등 고용보험 기준이에요. <b>다른 직종 보기 ›</b></a>' : '')
@@ -868,7 +897,7 @@
       + '<details class="dt"><summary>배우자 직종에 따라 달라요</summary><p>배우자가 공무원·교원이어도 근로자인 나는 6+6을 받아요. 신청할 때 배우자의 휴직 경력을 증빙해요(고용노동부 답변). 배우자가 자영업·프리랜서·전업이면 육아휴직이 없어 일반 기준이에요. 사립학교 교직원 배우자는 답변을 찾지 못했으니 1350에 먼저 물어보세요.</p></details>'
       + '<label class="lbl" for="cSpouse">배우자가 쓰는 기간</label><div class="unit"><input class="inp" id="cSpouse" type="number" inputmode="numeric" min="0" max="18" value="' + esc(calcS.spouseMonths) + '"><span>개월</span></div>'
       + '<div id="spousePayBox">' + manField('cSpousePay', '배우자 월 통상임금 (선택)', calcS.spousePay, '넣으면 우리 집 합계도 보여 드려요.') + '</div>'
-      + '<span class="lbl">아이 날짜(6+6은 꼭 필요해요)</span><div class="two">' + dateField('cBirth', '태어난 날', calcS.birth) + dateField('cDue', '출산 예정일', calcS.due) + '</div><small class="hint">생후 18개월 안에 시작하는지 확인해요. 저장은 이 기기에만 돼요.</small></div>'
+      + '<span class="lbl">아이 날짜(6+6은 꼭 필요해요)</span>' + kidSeg() + '<div class="two">' + dateField('cBirth', '태어난 날', calcS.birth) + dateField('cDue', '출산 예정일', calcS.due) + '</div><small class="hint">생후 18개월 안에 시작하는지 확인해요. 저장은 이 기기에만 돼요.</small></div>'
       + '<div id="singleBox" hidden><small class="hint">한부모는 한부모가족지원법에 따라 지원 대상으로 인정된 모 또는 부예요. 별거 중이거나 혼자 키운다는 것만으로는 아니에요(시행령 제95조의3 제3항).</small></div>'
       + '<details class="dt"><summary>휴직 중에 회사에서 돈을 받나요?</summary><p>회사에서 받는 돈과 급여를 합해 통상임금을 넘으면, 넘는 만큼 급여에서 빠져요.</p>' + manField('cCompany', '매달 받는 금액', calcS.company) + '</details>'
       + '</div>';
@@ -991,7 +1020,7 @@
     $('#calcForm').innerHTML = '<div class="form">' + manField('cPay', '내 월 통상임금', calcS.pay) + ORD_HELP
       + '<span class="lbl">회사 규모</span><div class="seg" id="cPri"><button type="button" data-p="1">우선지원대상기업</button><button type="button" data-p="0">그 밖의 회사</button></div>'
       + '<small class="hint">우선지원대상기업은 대체로 중소기업이에요. 업종별 기준이 있어 회사 인사팀에 물어보면 바로 알 수 있어요.</small>'
-      + '<span class="lbl">아이 날짜</span><div class="two">' + dateField('cDue', '출산 예정일', calcS.due) + dateField('cBirth', '태어난 날', calcS.birth) + '</div></div>';
+      + '<span class="lbl">아이 날짜</span>' + kidSeg() + '<div class="two">' + dateField('cDue', '출산 예정일', calcS.due) + dateField('cBirth', '태어난 날', calcS.birth) + '</div></div>';
     const out = () => {
       const r = K.paternityPay({ ordinary: toWon(calcS.pay), priority: calcS.priority });
       $$('#cPri button').forEach(b => b.classList.toggle('on', (b.dataset.p === '1') === !!calcS.priority));
@@ -1008,7 +1037,7 @@
     out();
   }
   function calcDates() {
-    $('#calcForm').innerHTML = '<div class="form"><span class="lbl">아이 날짜</span><div class="two">' + dateField('cBirth', '태어난 날', calcS.birth) + dateField('cDue', '출산 예정일', calcS.due) + '</div><small class="hint">날짜는 이 기기에만 저장돼요. 서버로 보내지 않아요.</small></div>';
+    $('#calcForm').innerHTML = '<div class="form"><span class="lbl">아이 날짜</span>' + kidSeg() + '<div class="two">' + dateField('cBirth', '태어난 날', calcS.birth) + dateField('cDue', '출산 예정일', calcS.due) + '</div><small class="hint">날짜는 이 기기에만 저장돼요. 서버로 보내지 않아요.</small></div>';
     const out = () => {
       const d = K.childDates({ birth: calcS.birth, due: calcS.due });
       const row = (t, v, n) => '<tr><td>' + esc(t) + (n ? '<small>' + esc(n) + '</small>' : '') + '</td><td>' + dot(v) + '</td></tr>';
@@ -1659,7 +1688,7 @@
       + '<label>거주지<input class="inp" id="nPlace" maxlength="6" placeholder="청주" autocomplete="off" enterkeyhint="next" value="' + esc(P.place) + '"></label>'
       + '<label>자녀 출생연도<input class="inp" id="nYear" maxlength="2" inputmode="numeric" placeholder="24" autocomplete="off" enterkeyhint="done" value="' + esc(P.year) + '"></label></div>'
       + '<div class="nickshow" id="nickShow"></div>'
-      + '<small class="hint">거주지는 시·군까지만 · 출생연도는 끝 2자리(곧 태어나면 예정 연도) · 글에 그대로 보여요</small>'
+      + '<small class="hint">거주지는 시·군까지만 · 출생연도는 끝 2자리(곧 태어나면 예정 연도, 아이가 둘 이상이면 막내) · 글에 그대로 보여요</small>'
       + (rename ? '' : (fromKakao && !pendingInvite ? '' : '<label class="lbl" for="invite">초대 코드 (있으면)</label><input class="inp code" id="invite" maxlength="12" placeholder="없으면 비워 두세요" autocomplete="off" autocapitalize="characters" value="' + esc(pendingInvite) + '">')
         + '<label class="chk"><input type="checkbox" id="agree"> <span>' + TERMS_LINE + '</span></label>')
       + '<div class="err" id="nickErr" hidden></div>'
@@ -1846,6 +1875,7 @@
     const bl = ev.target.closest('[data-block]'); if (bl) { blockFlow(+bl.dataset.block, bl.dataset.bnick); }
     if (ev.target.closest('[data-ask]')) openAsk('question');
     const fx = ev.target.closest('[data-fix]'); if (fx) openAsk('fix', fx.dataset.fix);
+    const kb = ev.target.closest('[data-kid]'); if (kb) pickKid(+kb.dataset.kid);
   });
 
   // 옆으로 밀리는 칩 줄의 양쪽 화살표(11-05 휴먼쌤 "다시 왼쪽으로 돌아가는 버튼이 없어"). 그쪽에 더 있을 때만 보이고, 누르면 밀린다
