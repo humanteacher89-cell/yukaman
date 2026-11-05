@@ -29,7 +29,8 @@
   const foldNick = s => s.replace(/[\s_.\-]+/g, '').toLowerCase().replace(/0/g, 'o').replace(/1/g, 'i').replace(/3/g, 'e').replace(/5/g, 's');
   const MSG = {
     login: '닉네임을 먼저 정해 주세요', unknown_user: '이 기기의 닉네임 기록이 없어요. 다시 정해 주세요',
-    nick_taken: '이미 쓰는 닉네임이에요. 별명을 바꿔 보세요', nick_form: '별명/거주지/자녀 출생연도 끝 2자리로 적어 주세요', nick_reserved: '운영 계정과 헷갈리는 이름은 쓸 수 없어요',
+    nick_taken: '이미 쓰는 닉네임이에요. 별명을 바꿔 보세요', nick_form: '별명/거주지/자녀 출생연도 끝 2자리로 적어 주세요', nick_reserved: '운영 계정과 헷갈리는 이름은 쓸 수 없어요', nick_bad: '욕설이나 비속어는 닉네임에 쓸 수 없어요',
+    bad_word: '욕설이나 비속어는 쓸 수 없어요. 고쳐서 올려 주세요',
     limit: '너무 자주 했어요. 잠시 뒤에 다시 해 주세요', title_len: '제목은 2~60자로 해 주세요', body_len: '내용을 적어 주세요(3000자까지)',
     comment_len: '댓글은 1~1000자로 해 주세요', cat: '분류를 골라 주세요', not_found: '글을 찾을 수 없어요(지워졌을 수 있어요)',
     forbidden: '내가 쓴 것만 지울 수 있어요', bad_json: '보낼 내용이 잘못됐어요', server: '서버에 문제가 있어요. 잠시 뒤 다시 해 주세요', network: '인터넷 연결을 확인해 주세요',
@@ -83,19 +84,21 @@
   // 계급(11-05 휴먼쌤 "1안 좋아 대신 앞에 계급이모티콘도 붙여줘 있잖아 짝대기부터해서"). 재미로만 쓰고 권한 차이는 없다. at은 server/app.js RANK_AT과 같게
   const RANKS = [
     { name: '이병', at: 0, line: '신병 왔습니다. 일단 기저귀부터.' },
-    { name: '일병', at: 10, line: '분유 타는 손이 빨라졌습니다.' },
-    { name: '상병', at: 30, line: '오늘 밤 야간 근무도 이상 무.' },
-    { name: '병장', at: 80, line: '울음소리만 들어도 원인을 압니다.' },
-    { name: '예비군', at: 200, line: '전역했지만 부르면 옵니다.' },
-    { name: '민방위', at: 500, line: '후배 아빠들은 제가 챙깁니다.' }
+    { name: '일병', at: 10, line: '분유 타는 손이 빨라졌습니다.', pass: '30분' },
+    { name: '상병', at: 30, line: '오늘 밤 야간 근무도 이상 무.', pass: '1시간' },
+    { name: '병장', at: 80, line: '울음소리만 들어도 원인을 압니다.', pass: '2시간' },
+    { name: '예비군', at: 200, line: '전역했지만 부르면 옵니다.', pass: '반나절' },
+    { name: '민방위', at: 500, line: '후배 아빠들은 제가 챙깁니다.', pass: '하루' }
   ];
   const rankLevel = pts => { let i = 0; while (RANKS[i + 1] && pts >= RANKS[i + 1].at) i++; return i; };
   // 계급장 그림: 그런 이모지가 없어 직접 그렸다. 작대기 1~4개(이병~병장) · 얼룩무늬(예비군복) · 노란 바탕 삼각형(민방위)
+  const RANK_CAMO = [['M2 5c2-2 5-2 6 0s-1 4-3 4-4-2-3-4z', '#2E3A22'], ['M11 3c2-1 5 0 6 2s-2 3-4 3-3-4-2-5z', '#B3A574'], ['M4 13c2-2 5-1 6 1s-1 4-3 4-4-3-3-5z', '#B3A574'], ['M12 11c2-1 5 0 6 2s-1 4-3 4-4-5-3-6z', '#2E3A22']];
+  const RANK_TRI = 'M10 4 16.500 15.500H3.500z';
   function rankMark(i) {
     let inner = '<rect width="20" height="20" rx="4" fill="#3F5232"/>';
     if (i < 4) { const n = i + 1, top = (20 - (n * 2.4 + (n - 1) * 1.6)) / 2; for (let k = 0; k < n; k++) inner += '<rect x="4" y="' + (top + k * 4).toFixed(1) + '" width="12" height="2.4" rx=".6" fill="#FFF6D6"/>'; }
-    else if (i === 4) inner = '<rect width="20" height="20" rx="4" fill="#5F6F3E"/><path d="M2 5c2-2 5-2 6 0s-1 4-3 4-4-2-3-4z" fill="#2E3A22"/><path d="M11 3c2-1 5 0 6 2s-2 3-4 3-3-4-2-5z" fill="#B3A574"/><path d="M4 13c2-2 5-1 6 1s-1 4-3 4-4-3-3-5z" fill="#B3A574"/><path d="M12 11c2-1 5 0 6 2s-1 4-3 4-4-5-3-6z" fill="#2E3A22"/>';
-    else inner = '<rect width="20" height="20" rx="4" fill="#FFC914"/><path d="M10 4 16.500 15.500H3.500z" fill="#14213D"/>';
+    else if (i === 4) inner = '<rect width="20" height="20" rx="4" fill="#5F6F3E"/>' + RANK_CAMO.map(p => '<path d="' + p[0] + '" fill="' + p[1] + '"/>').join('');
+    else inner = '<rect width="20" height="20" rx="4" fill="#FFC914"/><path d="' + RANK_TRI + '" fill="#14213D"/>';
     return '<svg class="rk" viewBox="0 0 20 20" aria-hidden="true">' + inner + '</svg>';
   }
   // 계급이 있으면 동그라미 글자와 초록 체크 대신 계급장을 쓴다(카카오 가입 뒤로는 글쓴이가 모두 인증이라 체크가 구분이 안 됨). 자료실·운영 계정은 예전 그대로
@@ -162,7 +165,7 @@
       const ct = res.headers.get('Content-Type') || '';
       if (ct.indexOf('application/json') < 0) throw new ApiError('no_api', res.status);
       const data = await res.json();
-      if (!data || !data.ok) throw new ApiError((data && data.error) || 'server', res.status);
+      if (!data || !data.ok) { const er = new ApiError((data && data.error) || 'server', res.status); if (data && data.word) er.word = data.word; throw er; }
       return data;
     },
     listPosts: p => remote.call('GET', '/posts' + qs(p)),
@@ -335,7 +338,7 @@
     const seen = store.get('rank', null);
     store.set('rank', level);
     if (seen === null || level <= seen) return false;
-    toast(RANKS[level].name + ' 진급을 축하합니다. ' + RANKS[level].line);
+    toast(RANKS[level].name + ' 진급! ' + RANKS[level].line + ' MY에 외출증이 나왔어요.');
     return true;
   }
   function fail(e, after) {
@@ -344,7 +347,7 @@
     if (code === 'unknown_user') { setMe(null); toast(MSG.unknown_user, 'err'); openSheet(after); return; }
     if (code === 'login') { openSheet(after); return; }
     if (code === 'verify') { if (me) { me.verified = false; store.set('me', me); } openVerify(after); return; }
-    toast(MSG[code] || MSG.server, 'err');
+    toast(code === 'bad_word' && e.word ? '"' + e.word + '" 같은 말은 쓸 수 없어요. 고쳐서 올려 주세요' : MSG[code] || MSG.server, 'err');
     if (window.console && (code === 'server' || code === 'no_api')) console.warn('yukaman', e);
   }
   // 서버가 커뮤니티 읽기를 막았을 때(인증 해제·막힘·모르는 기기): 내 정보를 맞추고 true를 돌려준다. 화면은 잠금으로 바꾼다.
@@ -778,6 +781,8 @@
     if (g.status !== '일반 조언' && g.status !== '공식 안내' && g.updated && daysAgo(g.updated) > 180) return '<div class="warn">⚠️ 확인한 지 6개월이 넘은 글이에요. 신청 전에 1350에 확인해 주세요.</div>';
     return '';
   }
+  // 자료 오류 제보(11-05 휴먼쌤 "자료 오류 제보"): 가이드 글 · Q&A · 계산기 · 자료실 끝에. ref = 글 번호 또는 faq · library · calc-종류
+  const fixBtn = ref => '<button type="button" class="fixbtn" data-fix="' + esc(ref) + '">자료 오류 제보</button>';
   // Q&A(11-05 휴먼쌤 "Q&A인데 그냥 읽기 자료같은 느낌이야"): 질문을 누르면 답이 펼쳐진다. 저장된 Q&A는 서버 없이 보이고, 관리자가 답한 질문을 위에 더한다
   const qaItem = (q, a, more) => '<details class="qa"><summary><span class="qm">Q</span><b>' + esc(q) + '</b></summary><div class="qa-a"><span class="am">A</span><div><p>' + rich(a) + '</p>' + (more ? '<a class="lk2" href="' + esc(more) + '">자세히 보기 ›</a>' : '') + '</div></div></details>';
   async function renderQna() {
@@ -788,7 +793,7 @@
       + '<div class="qalist"><div id="qaNew"></div>' + items.map(g => qaItem(g.q, g.a, '#/g/' + g.id)).join('') + '</div>'
       + '<button type="button" class="btn primary qaask" data-ask="1">질문하기</button>'
       + notes(['운영자가 확인해서 답을 여기에 올려요', '답은 법률 자문이 아니에요'])
-      + lawBox(lawsFor(items)) + '</section>';
+      + lawBox(lawsFor(items)) + fixBtn('faq') + '</section>';
     window.scrollTo(0, 0);
     try {
       const r = await api('qnaList');
@@ -843,7 +848,7 @@
       + blocks(g.body)
       + lawBox(laws)
       + (g.sources && g.sources.length ? '<div class="srcs"><b>출처</b><ul>' + g.sources.map(s => '<li><a href="' + esc(s.u) + '" target="_blank" rel="noopener">' + esc(s.t) + '</a></li>').join('') + '</ul></div>' : '')
-      + (g.status !== '일반 조언' ? '<button type="button" class="fixbtn" data-fix="' + esc(g.id) + '">내용이 달라졌나요? 알려 주기</button>' : '')
+      + fixBtn(g.id)
       + '</article>'
       + (g.community && CAT[g.community] ? '<a class="glink" href="#/community/' + esc(g.community) + '"><span>💬 커뮤니티 "' + esc(CAT[g.community].name) + '"에서 이야기 나누기</span><span>→</span></a>' : '')
       + '</section>';
@@ -857,7 +862,7 @@
     bar(brandBar());
     // 네 개를 2열 2행으로 고정한다(11-05 휴먼쌤 "스크롤 말고 그냥 2열 2행으로")
     const grid = '<div class="calcgrid">' + CALC_TABS.map(t => '<a class="chip' + (t.key === tab ? ' on' : '') + '" href="#/calc/' + t.key + '"><span class="e">' + t.e + '</span>' + esc(t.name) + '</a>').join('') + '</div>';
-    view.innerHTML = '<section class="pad">' + guideHead('calc') + grid + '<div id="calcJob"></div><div id="calcForm"></div><div id="calcOut"></div></section>';
+    view.innerHTML = '<section class="pad">' + guideHead('calc') + grid + '<div id="calcJob"></div><div id="calcForm"></div><div id="calcOut"></div>' + fixBtn('calc-' + tab) + '</section>';
     window.scrollTo(0, 0);
     const fill = ({ leave: calcLeave, reduce: calcReduce, paternity: calcPaternity, dates: calcDates })[tab];
     // 고용보험 근로자는 세 계산기 모두, 공무원·교원은 육아휴직 수당을 계산한다. 그 밖의 직종은 정보와 이동 단추. 날짜 칸은 누구나
@@ -1116,7 +1121,7 @@
     sec.insertAdjacentHTML('beforeend', '<div class="searchbar"><input id="libQ" type="search" placeholder="키워드 검색: 6+6, 복직, 판례, 후기" enterkeyhint="search" autocomplete="off" value="' + esc(lib.q) + '"></div>'
       + '<div class="chips" id="libTopics"><button type="button" class="chip' + (!lib.topic ? ' on' : '') + '" data-t="">전체</button>' + lib.topics.map(t => '<button type="button" class="chip' + (lib.topic === t ? ' on' : '') + '" data-t="' + esc(t) + '">' + esc(t) + '</button>').join('') + '</div>'
       + '<div class="sec" style="margin-top:4px"><h2 style="font-size:15px">' + (lib.updated ? esc(dot(lib.updated)) + ' 모음' : '자료') + '</h2><span id="libCount"></span></div><div class="list" id="libList"></div>'
-      + notes(['누르면 원문으로 이동', '숫자는 그 자료가 나온 때 기준']));
+      + notes(['누르면 원문으로 이동', '숫자는 그 자료가 나온 때 기준']) + fixBtn('library'));
     $('#libQ').addEventListener('input', ev => { lib.q = ev.target.value.trim(); lib.shown = LIB_STEP; paintLibrary(); });
     $('#libTopics').addEventListener('click', ev => { const b = ev.target.closest('[data-t]'); if (!b) return; lib.topic = b.dataset.t; lib.shown = LIB_STEP; $$('#libTopics .chip').forEach(x => x.classList.toggle('on', x === b)); paintLibrary(); });
     $('#libList').addEventListener('click', ev => { if (!ev.target.closest('#libMore')) return; lib.shown += LIB_STEP; paintLibrary(); });
@@ -1303,10 +1308,25 @@
     try { await api('deleteComment', cid); const el = $('#c' + cid); if (el) el.remove(); const n = $('#cmtN'); if (n) n.textContent = $$('#cmts .cmt-item').length; listState.posts = []; toast('댓글을 지웠어요'); }
     catch (e) { fail(e); }
   }
-  async function reportFlow(kind, id) {
-    const reason = window.prompt('무엇이 문제인가요? 운영자가 읽고 판단해요. (아이 개인정보 노출, 비방, 광고 등)', '');
-    if (reason === null) return;
-    try { const r = await api('report', kind, id, reason.trim()); toast(r.already ? '이미 신고했어요' : '신고를 받았어요. 고마워요'); } catch (e) { fail(e); }
+  // 신고(11-05 휴먼쌤 "커뮤니티 신고기능도 넣어주고"): 사유를 고르면 운영자 신고함에 쌓인다. 남의 글·댓글에만 '신고' 버튼이 보인다
+  const REPORT_WHY = ['욕설·비방', '아이 개인정보', '광고·도배', '잘못된 정보', '기타'];
+  function reportFlow(kind, id) {
+    showSheet('<div class="sheet" role="dialog" aria-modal="true" aria-label="신고하기"><div class="grip"></div><h2>' + (kind === 'comment' ? '댓글' : '글') + ' 신고하기</h2><p>운영자가 읽고 판단해요.</p>'
+      + '<div class="catpick" id="repWhy" style="margin-top:14px">' + REPORT_WHY.map(w => '<button type="button" class="chip" data-w="' + w + '">' + w + '</button>').join('') + '</div>'
+      + '<textarea class="inp" id="repMore" rows="2" maxlength="200" style="min-height:64px;margin-top:12px" placeholder="더 적을 말이 있으면 (없어도 돼요)" aria-label="더 적을 말"></textarea>'
+      + '<div class="err" id="repErr" hidden></div>'
+      + '<button type="button" class="btn primary" id="repGo">신고하기</button><button type="button" class="btn ghost" id="repNo">취소</button></div>');
+    let why = '';
+    $('#repWhy').addEventListener('click', ev => { const b = ev.target.closest('[data-w]'); if (!b) return; why = b.dataset.w; $$('#repWhy .chip').forEach(x => x.classList.toggle('on', x === b)); $('#repErr').hidden = true; });
+    $('#repNo').addEventListener('click', closeSheet);
+    $('#repGo').addEventListener('click', async ev => {
+      const err = $('#repErr');
+      if (!why) { err.hidden = false; err.textContent = '사유를 골라 주세요'; return; }
+      const more = $('#repMore').value.trim();
+      ev.target.disabled = true;
+      try { const r = await api('report', kind, id, more ? why + ': ' + more : why); closeSheet(); toast(r.already ? '이미 신고했어요' : '신고를 받았어요. 고마워요'); }
+      catch (e) { err.hidden = false; err.textContent = errText(e); ev.target.disabled = false; }
+    });
   }
   function autosize(ta) { const fit = () => { ta.style.height = 'auto'; ta.style.height = Math.min(ta.scrollHeight, 120) + 'px'; }; ta.addEventListener('input', fit); fit(); }
 
@@ -1410,7 +1430,74 @@
       : '<p class="rknext" style="margin-top:0">운영 계정은 계급 없이 표시돼요.</p>';
     return '<section class="rkbox" id="rankBox">' + head
       + '<ol class="rkladder">' + RANKS.map((x, i) => '<li class="' + (i === lv ? 'me' : cur && i < lv ? 'done' : 'todo') + '"' + (i === lv ? ' aria-current="true"' : '') + '>' + (i === lv ? '<em>나</em>' : '') + rankMark(i) + '<b>' + x.name + '</b><small>' + x.at + '점</small></li>').join('') + '</ol>'
-      + '<details class="rkhow"><summary>점수 얻는 법</summary><ul><li>다른 아빠 글에 댓글 <b>2점</b> (글마다 1번)</li><li>글쓰기 <b>3점</b> (하루 2개까지)</li><li>내 글에 다른 아빠 댓글 <b>1점</b> (글마다 사람당 1번)</li><li>지운 글·댓글은 빠져요</li></ul></details></section>';
+      + (cur && cur.pass ? '<button type="button" class="btn line passbtn" id="passBtn">아내에게 보낼 외출증 받기 (' + cur.pass + ')</button>' : cur ? '<p class="rknext" style="margin-top:12px">일병이 되면 아내에게 보낼 외출증이 나와요</p>' : '')
+      + '<details class="rkhow"><summary>점수 얻는 법</summary><ul><li>다른 아빠 글에 댓글 <b>2점</b> (글마다 1번)</li><li>글쓰기 <b>3점</b> (하루 2개까지)</li><li>내 글에 다른 아빠 댓글 <b>1점</b> (글마다 사람당 1번)</li><li>지운 글·댓글은 빠져요</li><li>외출증: 일병 <b>30분</b> · 상병 <b>1시간</b> · 병장 <b>2시간</b> · 예비군 <b>반나절</b> · 민방위 <b>하루</b></li></ul></details></section>';
+  }
+  // 외출증 카드(11-05 휴먼쌤 "아내한테 보내는 장난카드 컨셉 좋은거 같아"). 장난이라 권한과 상관없다. 닉네임의 거주지·아이 출생연도는 넣지 않고 별명만 쓴다. 그림 파일은 이 기기에서 만들고 서버로 보내지 않는다
+  function drawRank(c, i, x, y, s) {
+    const box = col => { c.fillStyle = col; c.beginPath(); if (c.roundRect) c.roundRect(0, 0, 20, 20, 4); else c.rect(0, 0, 20, 20); c.fill(); };
+    c.save(); c.translate(x, y); c.scale(s / 20, s / 20);
+    if (i < 4) { box('#3F5232'); const n = i + 1, top = (20 - (n * 2.4 + (n - 1) * 1.6)) / 2; c.fillStyle = '#FFF6D6'; for (let k = 0; k < n; k++) c.fillRect(4, top + k * 4, 12, 2.4); }
+    else if (i === 4) { box('#5F6F3E'); RANK_CAMO.forEach(p => { c.fillStyle = p[1]; c.fill(new Path2D(p[0])); }); }
+    else { box('#FFC914'); c.fillStyle = '#14213D'; c.fill(new Path2D(RANK_TRI)); }
+    c.restore();
+  }
+  function drawPass(cv, lv, name) {
+    const W = 1080, H = 1350, r = RANKS[lv], c = cv.getContext('2d'), ff = getComputedStyle(document.body).fontFamily, ink = '#1B1F2A', olive = '#3F5232', red = '#C8321F';
+    const font = (w, px) => w + ' ' + px + 'px ' + ff;
+    const text = (s, x, y, f, col, align) => { c.font = f; c.fillStyle = col; c.textAlign = align || 'left'; c.fillText(s, x, y); };
+    const wrap = (s, x, y, max, lh, f, col) => { c.font = f; c.fillStyle = col; c.textAlign = 'left'; let line = '', yy = y; Array.from(s).forEach(ch => { if (c.measureText(line + ch).width > max) { c.fillText(line, x, yy); line = ch.trim(); yy += lh; } else line += ch; }); c.fillText(line, x, yy); return yy; };
+    c.fillStyle = '#F4EFDF'; c.fillRect(0, 0, W, H);
+    c.fillStyle = olive; c.fillRect(0, 0, W, 150);
+    text('육아맨 사령부', W / 2, 96, font(800, 46), '#FFF6D6', 'center');
+    text('외 출 증', W / 2, 310, font(900, 128), ink, 'center');
+    c.strokeStyle = ink; c.lineWidth = 4;
+    const col1 = 90, col2 = 320, right = W - 90, row = (y, label) => { c.beginPath(); c.moveTo(col1, y); c.lineTo(right, y); c.stroke(); text(label, col1, y + 66, font(700, 38), '#5F6675'); };
+    row(370, '계급·성명');
+    drawRank(c, lv, col2, 390, 72);
+    let nameSize = 52; c.font = font(800, nameSize);
+    while (nameSize > 30 && c.measureText(r.name + ' ' + name).width > right - col2 - 92) { nameSize -= 2; c.font = font(800, nameSize); }   // 별명이 길면 줄여서 칸 안에
+    text(r.name + ' ' + name, col2 + 92, 444, font(800, nameSize), ink);
+    row(482, '외출 시간');
+    text(r.pass, col2, 556, font(900, 64), red);
+    row(594, '복무 평가');
+    const after = wrap(r.line, col2, 660, right - col2, 56, font(700, 42), ink);
+    const y4 = Math.max(after + 44, 706);
+    row(y4, '신청 사유');
+    wrap('육아 전선에서 성실히 복무하여 잠시 숨을 돌리고자 함', col2, y4 + 66, right - col2, 56, font(700, 42), ink);
+    const y5 = y4 + 172;
+    c.beginPath(); c.moveTo(col1, y5); c.lineTo(right, y5); c.stroke();
+    text('승인권자: 아내', col1, y5 + 76, font(800, 46), ink);
+    const check = (x, label) => { c.lineWidth = 5; c.strokeRect(x, y5 + 38, 44, 44); c.lineWidth = 4; text(label, x + 60, y5 + 76, font(800, 46), ink); };
+    check(560, '승인'); check(780, '반려');
+    text('이 외출증의 효력은 아내가 승인할 때만 발생합니다.', W / 2, y5 + 160, font(700, 36), '#5F6675', 'center');
+    const d = new Date();
+    text(d.getFullYear() + '. ' + String(d.getMonth() + 1).padStart(2, '0') + '. ' + String(d.getDate()).padStart(2, '0') + '.', col1, H - 76, font(700, 38), ink);
+    // 직인
+    c.save(); c.translate(W - 190, H - 118); c.rotate(-0.2); c.strokeStyle = red; c.lineWidth = 7; c.beginPath(); c.arc(0, 0, 82, 0, Math.PI * 2); c.stroke();
+    text('육아맨', 0, -8, font(900, 40), red, 'center'); text('사령부', 0, 42, font(900, 40), red, 'center'); c.restore();
+  }
+  function openPass(lv) {
+    const r = RANKS[lv], name = nickParts(me && me.nick).name || (me ? me.nick : '');
+    showSheet('<div class="sheet" role="dialog" aria-modal="true" aria-label="외출증"><div class="grip"></div><h2>' + r.name + ' 외출증</h2>'
+      + '<canvas id="passCv" class="passcv" width="1080" height="1350" role="img" aria-label="' + r.name + ' ' + esc(name) + ' 외출증 ' + r.pass + '. 승인권자 아내"></canvas>'
+      + '<button type="button" class="btn primary" id="passSend">아내에게 보내기</button><button type="button" class="btn line" id="passSave">그림 저장</button><button type="button" class="btn ghost" id="passNo">닫기</button></div>');
+    const cv = $('#passCv');
+    let blob = null;     // 누르는 즉시 공유 창을 열어야 해서 그림 파일을 미리 만들어 둔다
+    const paint = () => { if (!$('#passCv')) return; drawPass(cv, lv, name); cv.toBlob(b => { blob = b; }, 'image/png'); };
+    paint();
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(paint);
+    const save = () => { if (!blob) return; const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'yukaman-pass.png'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 5000); };
+    $('#passNo').addEventListener('click', closeSheet);
+    $('#passSave').addEventListener('click', () => { save(); toast('그림을 저장했어요'); });
+    $('#passSend').addEventListener('click', async () => {
+      if (!blob) return;
+      const file = new File([blob], 'yukaman-pass.png', { type: 'image/png' });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        try { await navigator.share({ files: [file], text: '충성! ' + r.name + ' ' + name + ', 외출 ' + r.pass + ' 결재 올립니다.' }); toast('결재 올렸습니다. 승인을 기다리세요'); }
+        catch (e) { if (!e || e.name !== 'AbortError') { save(); toast('그림을 저장했어요. 카톡으로 아내에게 보내 주세요'); } }
+      } else { save(); toast('그림을 저장했어요. 카톡으로 아내에게 보내 주세요'); }
+    });
   }
   async function renderMe() {
     setTab('me');
@@ -1461,6 +1548,7 @@
     if (ib) ib.addEventListener('click', ev => { const b = ev.target.closest('[data-share]'); if (b) shareInvite(b.dataset.share); });
     bindAccount();
     bindInstall(); window.scrollTo(0, 0);
+    const pb = $('#passBtn'); if (pb) pb.addEventListener('click', () => openPass(r.rank));
     noteRank(r.rank);
     if (pendingInvite && canWrite()) {        // 이미 인증했어도 관리자 코드는 쓸 수 있다(서버가 아빠 코드는 쓰지 않고 넘긴다)
       const c = pendingInvite; clearInvite();
@@ -1524,19 +1612,20 @@
     };
     // Q&A 질문 · 글 제보 · 올라간 Q&A · 최신화 점검(11-05 휴먼쌤)
     const qaAll = r.qna || [], qaQ = qaAll.filter(x => x.kind !== 'fix'), qaFix = qaAll.filter(x => x.kind === 'fix'), qaPub = r.qna_published || [];
-    const guideTitle = id => { const g = GD.items.find(x => x.id === id); return g ? g.title : ''; };
+    const guideTitle = id => { if (id === 'faq') return 'Q&A'; if (id === 'library') return '자료실'; if (/^calc-/.test(id || '')) return '계산기'; const g = GD.items.find(x => x.id === id); return g ? g.title : ''; };
+    const fixHref = id => (id === 'faq' ? '#/guide/faq' : id === 'library' ? '#/library' : /^calc-/.test(id) ? '#/calc/' + id.slice(5) : '#/g/' + id);
     const qaCard = x => '<div class="appl" data-qa="' + x.id + '"><div class="meta"><b>질문</b><span class="time">' + ago(x.created) + '</span></div>'
       + '<textarea class="inp" data-f="q" rows="2" maxlength="300" style="min-height:64px;margin-top:6px" aria-label="질문">' + esc(x.question) + '</textarea>'
       + '<textarea class="inp" data-f="a" rows="4" maxlength="1000" style="min-height:96px;margin-top:8px" aria-label="답변" placeholder="답을 적어 올리면 Q&amp;A에 바로 보여요. 근거 법령도 함께 적어 주세요."></textarea>'
       + '<div class="two" style="margin-top:8px"><button type="button" class="btn primary small" data-qaa="answer">답변 올리기</button><button type="button" class="btn line small" data-qaa="delete">지우기</button></div></div>';
     const fixCard = x => '<div class="appl" data-qa="' + x.id + '"><div class="meta"><b>' + esc(guideTitle(x.ref) || '일반') + '</b><span class="time">' + ago(x.created) + '</span></div><p>' + esc(x.question) + '</p>'
-      + '<div class="two" style="margin-top:8px">' + (x.ref ? '<a class="btn line small" href="#/g/' + esc(x.ref) + '" style="text-align:center">글 열기</a>' : '') + '<button type="button" class="btn primary small" data-qaa="delete">처리 완료</button></div></div>';
+      + '<div class="two" style="margin-top:8px">' + (x.ref ? '<a class="btn line small" href="' + esc(fixHref(x.ref)) + '" style="text-align:center">열어 보기</a>' : '') + '<button type="button" class="btn primary small" data-qaa="delete">처리 완료</button></div></div>';
     const pubCard = x => '<div class="appl" data-qa="' + x.id + '"><div class="meta"><b>' + esc(x.question) + '</b><span class="time">' + ago(x.answered_at) + '</span></div><p>' + esc(x.answer) + '</p><button type="button" class="btn line small" data-qaa="delete">내리기</button></div>';
     const oldDocs = GD.items.filter(g => g.status !== '일반 조언' && g.updated && daysAgo(g.updated) > 90);
     const upcoming = LAW_DATA.items.filter(l => l.upcoming).map(l => esc(l.name) + ' ' + dotd(l.upcoming));
     view.innerHTML = '<section class="pad">'
       + '<div class="sec"><h2>Q&amp;A 질문</h2><span>' + qaQ.length + '건</span></div>' + (qaQ.length ? qaQ.map(qaCard).join('') : '<div class="about">대기 중인 질문이 없어요.</div>')
-      + '<div class="sec"><h2>글 제보</h2><span>' + qaFix.length + '건</span></div>' + (qaFix.length ? qaFix.map(fixCard).join('') : '<div class="about">대기 중인 제보가 없어요.</div>')
+      + '<div class="sec"><h2>자료 오류 제보</h2><span>' + qaFix.length + '건</span></div>' + (qaFix.length ? qaFix.map(fixCard).join('') : '<div class="about">대기 중인 제보가 없어요.</div>')
       + (qaPub.length ? '<div class="sec"><h2>올라간 Q&amp;A</h2><span>' + qaPub.length + '건</span></div>' + qaPub.map(pubCard).join('') : '')
       + '<div class="sec"><h2>최신화 점검</h2></div><div class="about">' + notes(['법령 표 확인: ' + dotd(LAW_DATA.checked) + ' (' + daysAgo(LAW_DATA.checked) + '일 전)', '예고된 개정: ' + (upcoming.join(', ') || '없음'), '확인한 지 90일 넘은 글: ' + oldDocs.length + '편'])
       + oldDocs.slice(0, 20).map(g => '<a class="lk2" style="display:block" href="#/g/' + esc(g.id) + '">' + esc(g.title) + '</a>').join('') + '</div>'
@@ -1787,9 +1876,9 @@
   // 질문하기 · 글 제보(서버에 쌓이고 관리자가 본다. 쓴 사람은 저장하지 않는다)
   function openAsk(kind, ref) {
     const fix = kind === 'fix';
-    showSheet('<div class="sheet" role="dialog" aria-modal="true" aria-label="' + (fix ? '내용 알려 주기' : '질문하기') + '"><div class="grip"></div><h2>' + (fix ? '내용이 달라졌나요?' : '질문하기') + '</h2>'
-      + '<p>' + (fix ? '바뀐 내용이나 틀린 곳을 적어 주세요. 확인해서 고칠게요.' : '운영자가 확인해서 답을 Q&amp;A에 올려요.') + '</p>'
-      + '<label class="lbl" for="askIn">' + (fix ? '무엇이 다른가요' : '궁금한 것') + '</label><textarea class="inp" id="askIn" rows="4" maxlength="300" style="min-height:112px" placeholder="' + (fix ? '예: 상한액이 바뀌었어요' : '예: 육아휴직 중에 이사해도 되나요?') + '"></textarea>'
+    showSheet('<div class="sheet" role="dialog" aria-modal="true" aria-label="' + (fix ? '자료 오류 제보' : '질문하기') + '"><div class="grip"></div><h2>' + (fix ? '자료 오류 제보' : '질문하기') + '</h2>'
+      + '<p>' + (fix ? '틀리거나 바뀐 곳을 적어 주세요. 확인해서 고칠게요.' : '운영자가 확인해서 답을 Q&amp;A에 올려요.') + '</p>'
+      + '<label class="lbl" for="askIn">' + (fix ? '어디가 틀렸나요' : '궁금한 것') + '</label><textarea class="inp" id="askIn" rows="4" maxlength="300" style="min-height:112px" placeholder="' + (fix ? '예: 상한액이 바뀌었어요, 링크가 안 열려요' : '예: 육아휴직 중에 이사해도 되나요?') + '"></textarea>'
       + '<small class="hint">아이 이름·회사 이름은 적지 말아 주세요.</small><div class="err" id="askErr" hidden></div>'
       + '<button type="button" class="btn primary" id="askGo">보내기</button><button type="button" class="btn ghost" id="askNo">취소</button></div>');
     $('#askNo').addEventListener('click', closeSheet);

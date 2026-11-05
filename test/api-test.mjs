@@ -429,6 +429,19 @@ r = await call('POST', '/posts', ADMIN, { cat: 'tip', title: '운영 글 계급'
 ok(r.data.post.rank === null, '운영 글에 계급 없음');
 await call('DELETE', `/posts/${r.data.id}`, ADMIN);
 
+// 비속어: 글·댓글·닉네임을 서버에서 막고, 육아 글에 흔한 말은 통과시킨다(자세한 목록은 test/badwords-test.mjs)
+r = await call('POST', '/posts', R1, { cat: 'tip', title: '시1발 제목입니다', body: '내용입니다' });
+ok(r.status === 400 && r.data.error === 'bad_word' && r.data.word, '제목 욕설 막기');
+r = await call('POST', '/posts', R1, { cat: 'tip', title: '평범한 제목', body: '진짜 ㅅㅂ 힘들어요' });
+ok(r.status === 400 && r.data.error === 'bad_word', '본문 욕설 막기');
+r = await call('POST', `/posts/${rp1}/comments`, R2, { body: '이 새끼 뭐야' });
+ok(r.status === 400 && r.data.error === 'bad_word', '댓글 욕설 막기');
+r = await call('POST', '/join', rnd(), { nick: N('병신아빠') });
+ok(r.data.error === 'nick_bad', '닉네임 욕설 막기');
+r = await call('POST', `/posts/${rp1}/comments`, R2, { body: '이유식 씹는 연습은 오후 3시 발표 뒤에 해요. 내 새끼 자지 않아요.' });
+ok(r.status === 200 && r.data.ok, '육아 글에 흔한 말은 통과');
+await call('DELETE', `/comments/${r.data.comment.id}`, R2);
+
 // 본인인증: 가짜 포트원(.dev.vars PORTONE_API_BASE)에 물어본다. 내 컴퓨터에서만
 const K = { male: { status: 'VERIFIED', verifiedCustomer: { name: '시험', gender: 'MALE', birthDate: '1985-03-01', di: 'di-male-' + stamp } },
   dup: { status: 'VERIFIED', verifiedCustomer: { name: '시험', gender: 'MALE', birthDate: '1985-03-01', di: 'di-male-' + stamp } },

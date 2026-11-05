@@ -113,6 +113,8 @@ svg { display: block; }
 .rkladder li.todo b { color: var(--mute); }
 .rkladder li.me { background: var(--but-l); box-shadow: inset 0 0 0 2px var(--but); }
 .rkladder em { position: absolute; top: -9px; left: 50%; transform: translateX(-50%); padding: 0 7px; border-radius: 999px; background: var(--ink); color: var(--card); font-size: 11px; line-height: 18px; font-style: normal; font-weight: 800; white-space: nowrap; }
+.passbtn { margin-top: 12px; }
+.passcv { display: block; width: auto; height: auto; max-width: 100%; max-height: 50dvh; margin: 12px auto 4px; border-radius: 6px; box-shadow: 0 2px 10px rgba(27,31,42,.18); }
 .rkhow { margin-top: 8px; font-size: 13.5px; color: var(--sub); }
 .rkhow summary { padding: 6px 0; font-weight: 800; cursor: pointer; }
 .rkhow ul { margin: 2px 0 6px; padding-left: 18px; line-height: 1.7; font-weight: 600; }
