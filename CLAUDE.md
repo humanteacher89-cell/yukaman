@@ -14,7 +14,7 @@
 
 ## 돌리기
 - 미리 보기: `python -X utf8 deploy.py dev --fresh` → http://127.0.0.1:8799 (가짜 D1, 시험 코드는 `test/seed-local.sql`).
-- 시험: `node test/calc-test.js` · `node test/badwords-test.mjs`(비속어, 서버 없이) · `python -X utf8 test/watch-test.py`(자동 점검, 인터넷 없이) · `node test/api-test.mjs`(미리 보기를 --fresh로 띄운 뒤, 내 컴퓨터 주소에만). 본인인증 시험은 가짜 포트원(8798)에 묻는다. 저장소 뿌리의 `.dev.vars`(gitignore)에 `PORTONE_API_SECRET=test-secret`과 `PORTONE_API_BASE=http://127.0.0.1:8798`을 두고 미리 보기를 띄운다. 심사 입구 시험은 같은 파일의 `REVIEW_CODE=REVW-2345-TEST`(시험 값)를 쓴다.
+- 시험: `node test/calc-test.js` · `node test/badwords-test.mjs`(비속어, 서버 없이) · `python -X utf8 test/watch-test.py`(자동 점검, 인터넷 없이) · `node test/api-test.mjs`(미리 보기를 --fresh로 띄운 뒤, 내 컴퓨터 주소에만) · `node test/naver-only-test.mjs`(그 뒤에, 가짜 D1을 함께 쓰는 서버를 `LOGIN_METHOD=naver`로 하나 더 띄워 돌아갈 길이 닫혔는지 본다). 네이버 시험은 `.dev.vars`에 `NAVER_CLIENT_ID=test-naver` · `NAVER_CLIENT_SECRET=test-naver-secret` · `NAVER_AUTH_BASE`와 `NAVER_API_BASE=http://127.0.0.1:8798` · `LOGIN_METHOD=kakao`를 둔다. 본인인증 시험은 가짜 포트원(8798)에 묻는다. 저장소 뿌리의 `.dev.vars`(gitignore)에 `PORTONE_API_SECRET=test-secret`과 `PORTONE_API_BASE=http://127.0.0.1:8798`을 두고 미리 보기를 띄운다. 심사 입구 시험은 같은 파일의 `REVIEW_CODE=REVW-2345-TEST`(시험 값)를 쓴다.
 - 내 컴퓨터(localhost)에서 정적 서버로 `public/`만 열면 `/api`가 없어 화면이 알아서 **시험 모드**(견본 글 + 그 기기 localStorage)로 돈다. 운영 주소에서는 바꾸지 않는다 — 서버가 JSON이 아닌 것을 돌려주면 "서버에 연결할 수 없어요"만 보인다.
 - 처음 한 번: `deploy.py setup` → `deploy.py deploy` → `deploy.py admin-code`(첫 관리자 코드, 저장소에 남기지 않음). 공개 반영은 휴먼쌤이 시킨 때만.
 - 올릴 때: 저장소와 Cloudflare는 자동으로 연결하지 않았다(push가 곧 공개 반영이 되지 않게). 커밋한 뒤 `git push`와 `deploy.py deploy`를 함께 돌려 둘이 갈라지지 않게 한다. 표가 바뀌었으면 `deploy.py migrate`, 자료실 글이 바뀌었으면 `deploy.py seed`를 먼저.
@@ -39,6 +39,15 @@
 3. 비밀 값은 저장소에 두지 않는다: `wrangler pages secret put KAKAO_CLIENT_SECRET --project-name humanssaem-yukaman`(토큰 요청에 쓴다, 콘솔 기본값이 켜짐), 같은 명령으로 `KAKAO_ADMIN_KEY`(대표 어드민 키, 웹훅 확인에 쓴다). 넣은 뒤 deploy해야 적용된다.
 4. backup → migrate → deploy(`users.kakao_hash`·`kakao_pending`이 늘어난다). 실제 폰으로 가입·다른 기기 로그인·탈퇴까지 시험한다. 지금까지는 가짜 카카오(`test/mock-kakao.mjs`)로만 시험했다.
 가입은 '카카오 → 닉네임'이고 그 자리에서 인증된다. 신청서·초대 코드 화면은 숨고, 관리자 코드 링크(`#/join/코드`)만 남는다. 카카오 없이 가입한 옛 회원은 MY에서 카카오를 이으면 인증되고, 복구 코드 입구도 남는다. 저장은 회원번호의 해시뿐이고 프로필·이메일·전화번호·카카오 토큰은 저장하지 않는다. 닉네임을 정하지 않은 대기 기록은 30분 뒤 다음 요청 때 지운다(카카오 운영정책은 24시간). 다른 기기에서 로그인하면 이전 기기는 끊긴다. 탈퇴는 카카오를 한 번 거쳐 연결을 끊은 뒤 지운다(카카오 정책). 사용자가 카카오 쪽에서 끊으면 연결 해제 웹훅으로 탈퇴와 같게 지운다(막힌 계정은 줄을 남기고, 관리자는 연결만 푼다). 성별·연령대는 카카오 동의항목에 있지만 지금은 받지 못한다(콘솔 상태 '권한 없음', 카카오 데브톡 답변 2026-01·04: 추가 개인정보 동의항목은 사업자만 신청). 공식 문서는 그 값이 본인인증된 것인지 밝히지 않는다.
+
+## 네이버 로그인 켜기(2026-11-05 휴먼쌤 "네이버로 진행", 코드는 있고 꺼져 있다)
+맘카페처럼 계정 성별이 남성인 회원만 새로 받는다. 받는 것은 회원번호와 성별뿐이고, 저장은 회원번호의 해시뿐이다. 성별과 네이버 토큰은 판단한 뒤 버리고, 거절한 사람은 네이버 연동도 끊는다. 남성 여부만 알 뿐 아빠인지는 가리지 못한다. 공식 문서(developers.naver.com)가 작업 도구에서 막혀 토큰 요청과 프로필 응답은 공개 자료를 보고 만들었고, 실제 네이버와는 아직 맞춰 보지 않았다.
+1. 콘솔(휴먼쌤): 네이버 개발자센터 애플리케이션 등록. 사용 API 네이버 로그인, 제공 정보는 성별만 필수, 서비스 URL `https://humanssaem-yukaman.pages.dev`, Callback URL `https://humanssaem-yukaman.pages.dev/`(끝의 `/`까지). 검수 전 '개발 중' 상태에서는 앱 소유자와 등록한 아이디만 로그인된다.
+2. 코드: `wrangler.toml` `NAVER_CLIENT_ID`와 `LOGIN_METHOD = "naver"`, `public/config.js` `NAVER_LOGIN: true`. `LOGIN_METHOD`가 `naver`면 카카오 새 가입 · 네이버 없는 가입 · 회원의 초대 코드 만들기 · 신청서 · 아빠 코드 인증이 서버에서 닫힌다. 관리자 코드 · 아빠 초대 링크 · 심사 입구 · 이미 카카오로 가입한 회원의 로그인은 남는다.
+3. 비밀 값은 저장소에 두지 않는다: `wrangler pages secret put NAVER_CLIENT_SECRET --project-name humanssaem-yukaman`. 넣은 뒤 deploy해야 적용된다.
+4. 문서를 같이 고친다: `public/terms.html`(가입 방법, 남성 계정만) · `public/privacy.html` 2 · 6 · 8절(네이버 회원번호 해시, 성별은 확인 뒤 저장 안 함, 처리 업체에 네이버, 탈퇴 안내) · `android/play-console-입력.md`(앱 설명, OAuth, 데이터 보안 표, 심사 안내).
+5. backup → migrate(`users.naver_hash` · `naver_pending`) → deploy. 실제 폰으로 가입 · 거절 · 다른 기기 로그인 · 탈퇴까지 시험한다.
+6. 콘솔에서 검수를 요청한다. 쓰는 항목과 화면이 맞아야 하므로, 성별을 쓰는 이유는 잠금 화면 · MY · 로그인 시트의 문구로 보여 준다.
 
 ## Google Play(2026-11-05 휴먼쌤 결정)
 - 패키지 `com.humanteacher.yukaman`(바꿀 수 없음) · 스토어 이름 '육아맨 - 아빠 육아의 모든 정보' · 운영자 김수현(휴먼쌤) · 무료, 광고·결제 없음, 비판매자 · 만 18세 이상 전용.
@@ -94,5 +103,6 @@
 - 2026-11-05: 0.7.0 Play 등록 준비(휴먼쌤 승인). 약관 동의 · 사용자 차단 · 심사용 입구 · 별도 약관·처리방침 주소('초안' 표시와 앱 안 사본 뺌, 운영자·문의 메일 넣음) · 탈퇴 때 차단 줄 지우기와 신고자 번호 비우기 · 30일 지난 백업 지우기. 서버 시험 + 44건, 375·320 폭. 약관·처리방침은 법률 검토 전이다. 서버 시험 277건(합친 뒤) · 비속어 시험 89 + 70건 · 계산기 시험 93건 · 자동 점검 시험 61건.
 - 2026-11-05: 0.7.0을 시험 주소에 올림(휴먼쌤 "올려", backup → migrate → 비밀 값 `REVIEW_CODE` → deploy 8ce2dd2c + push). 실제 주소에서 판 번호 · sw v23 · 서비스 워커 등록 · `terms` · `privacy` · `assetlinks.json` · 동의 없는 가입 거절 · 틀린 심사 코드 거절 · 비로그인 글·MY 401 · 웹훅 키 없이 403 · 잠금 화면 · 가이드 글 · 가로 넘침 없음 확인. 운영 D1 줄 수 그대로, 심사용 계정은 만들지 않음(회원 2 · 글 25). 로그인 뒤 화면은 내 컴퓨터에서만 확인했고 실제 폰 앱은 아직. 다음은 Play Console 앱 만들기(`android/play-console-입력.md`).
 - 2026-11-05: 0.7.1(아직 시험 주소에 안 올림, sw v24). 휴먼쌤 "다른 아빠들을 초대하면 진급 포인트가 올라가는 제도" · "진급 조건을 조금 까다롭게" · "글쓸때 아예 기본 포맷으로". 진급은 점수와 복무일(가입한 날부터)을 둘 다 채운다: 0 / 20 / 60 / 150 / 400 / 1000점, 0 / 7 / 30 / 90 / 180 / 365일(서버 `RANK_AT`·`RANK_DAYS`, 화면 `RANKS`). 남의 글 댓글 점수는 하루 5개 글까지. 아빠 초대 링크는 `invites` kind = ref: 한 사람당 하나, 여러 번 쓰고, 새 가입자의 `invited_by`만 적으며 인증은 하지 않는다. 후임이 인증됐고 막히지 않았고 글이나 댓글이 남아 있으면 10점, 10명까지(`INVITE_ACTIVE`). 칸 변경은 없고 색인 `users_invited`만 더해 올릴 때 migrate를 돌린다. 글쓰기 양식 7개(`POST_TPLS`): 빈칸과 고르기로 제목·내용을 만들고, 손으로 고치면 그 뒤로 덮어쓰지 않는다. 처리방침 목적에 '초대 점수 계산'을 더함. 서버 시험 305건. 못 본 것: 실제 폰 공유 창과 카톡. Play에서 앱만 설치한 사람은 초대 링크가 이어지지 않는다.
+- 2026-11-05: 0.7.2(아직 시험 주소에 안 올림, sw v25). 네이버 로그인 코드를 넣고 꺼 둠(위 '네이버 로그인 켜기'). 꺼진 동안 화면은 카카오 그대로다. 서버 시험 338건 · 네이버 전용 시험 18건, 가짜 네이버로 폰 폭 375에서 거절 · 동의 다시 받기 · 가입 · 재로그인 · 탈퇴 · 옛 카카오 회원 입구 확인. 못 본 것: 실제 네이버, 검수, 사업자 없이 되는지.
 - 제도 문장을 쓸 때 조문만 보지 말고 담당 부처 답변·FAQ를 함께 본다(공개 빠른상담 답변이 조문 문구와 반대로 운영되는 경우가 있었다).
 - 남은 일(코드로 못 하는 것): 첫 아빠 열 명 모집, 이름 반응 조사, 약관·처리방침 법률 검토, 공개 결정. 작은 것: 읽기·검색 횟수 제한, IP 해시 소금, 관리자 코드 만료, 푸시 알림, 경로 주소·사전 렌더링.

@@ -400,6 +400,9 @@ button.notice.vcta { display: flex; width: 100%; text-align: left; font: inherit
 .btn.kakao { display: flex; align-items: center; justify-content: center; gap: 8px; background: #FEE500; color: rgba(0,0,0,.85); }
 .btn.kakao svg { flex: none; width: 20px; height: 20px; fill: #000; }
 .btn.kakao:disabled { opacity: .6; }
+.btn.naver { display: flex; align-items: center; justify-content: center; gap: 10px; background: #03C75A; color: #fff; }
+.btn.naver svg { flex: none; width: 16px; height: 16px; fill: #fff; }
+.btn.naver:disabled { opacity: .6; }
 /* 닉네임 세 칸(11-05 휴먼쌤) */
 .nick3 { display: grid; grid-template-columns: 1.1fr 1fr 1.05fr; gap: 8px; align-items: end; }   /* 칸 이름이 두 줄이 되어도 입력칸 높이를 맞춘다 */
 .nick3 label { display: block; min-width: 0; font-size: 12.5px; font-weight: 800; color: var(--sub); }

@@ -19,6 +19,7 @@ CREATE TABLE IF NOT EXISTS users (
   comments_seen TEXT,                          -- 내 글의 새 댓글을 마지막으로 본 시각(MY 배지, 검수 22). 기존 표에는 MIGRATIONS로 더함
   identity_hash TEXT,                          -- SHA-256('id|' + 본인인증 DI 또는 CI). 1인 1계정 확인용, 이름·전화번호는 저장하지 않는다(11-05). 기존 표에는 MIGRATIONS로 더함. 색인도 MIGRATIONS에
   kakao_hash   TEXT,                           -- SHA-256('kakao|' + 카카오 회원번호). 프로필·이메일·전화번호는 받지 않는다(11-05). 기존 표에는 MIGRATIONS로 더함. 색인도 MIGRATIONS에
+  naver_hash   TEXT,                           -- SHA-256('naver|' + 네이버 회원번호). 성별은 가입 판단에만 쓰고 저장하지 않는다(11-05). 기존 표에는 MIGRATIONS로 더함. 색인도 MIGRATIONS에
   terms_at     TEXT                            -- 약관 동의 시각. 비어 있으면 글·댓글 전에 동의를 받는다(11-05 Play 등록). 기존 표에는 MIGRATIONS로 더함
 );
 
@@ -34,6 +35,13 @@ CREATE TABLE IF NOT EXISTS user_blocks (
 CREATE TABLE IF NOT EXISTS kakao_pending (
   token_hash TEXT PRIMARY KEY,
   kakao_hash TEXT NOT NULL,
+  created    TEXT NOT NULL
+);
+
+-- 네이버를 마치고(남성 확인 끝) 닉네임을 정하기 전의 기기(30분). 가입하면 줄을 지운다
+CREATE TABLE IF NOT EXISTS naver_pending (
+  token_hash TEXT PRIMARY KEY,
+  naver_hash TEXT NOT NULL,
   created    TEXT NOT NULL
 );
 

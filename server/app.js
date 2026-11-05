@@ -38,6 +38,9 @@
 //  GET    /api/login/kakao/start               카카오 동의 화면 주소(화면이 redirect_uri와 state를 붙여 이동). KAKAO_REST_KEY가 없으면 kakao_off
 //  POST   /api/login/kakao {code, redirect_uri}  카카오 로그인: 있던 회원이면 이 기기를 그 계정에 붙이고, 처음이면 need_nick(이어서 /join으로 닉네임). 인증 전 계정이면 카카오를 연결해 인증
 //  POST   /api/me/leave-kakao {code, redirect_uri}  카카오 회원 탈퇴: 같은 카카오 계정인지 확인하고 연결을 끊은 뒤 지운다(카카오 정책)
+//  GET    /api/login/naver/start               네이버 동의 화면 주소(화면이 redirect_uri와 state를 붙여 이동). NAVER_CLIENT_ID가 없으면 naver_off
+//  POST   /api/login/naver {code, state, redirect_uri}  네이버 로그인: 있던 회원이면 이 기기를 그 계정에 붙이고, 처음이면 남성인지 보고 need_nick. 남성이 아니면 naver_not_dad, 성별을 못 받으면 naver_gender
+//  POST   /api/me/leave-naver {code, state, redirect_uri}  네이버 회원 탈퇴: 같은 네이버 계정인지 확인하고 연동을 끊은 뒤 지운다
 //  GET·POST /api/kakao/unlink?user_id=…        카카오 연결 해제 웹훅(사용자가 카카오 쪽에서 끊었을 때 카카오가 부른다. 머리글 Authorization: KakaoAK <대표 어드민 키>). 탈퇴와 같게 지운다
 //  GET    /api/health                          살아 있나
 // 저장하는 개인정보: 닉네임 · 기기 토큰 해시 · 복구 코드 해시 · 쓴 글·댓글 · 대기 중인 신청 답변(결정 뒤 지움) · 누가 초대했는지 · 마지막 접속 시각.
@@ -51,7 +54,7 @@ const STAGES = ['raising', 'expecting'];
 const LIM = { title: [2, 60], body: [1, 3000], comment: [1, 1000], answer: [20, 500], ask: [5, 300], qa: [2, 1000], list: 20, listMax: 50 };
 const RATE = {                                        // [횟수, 기간 ms]
   join: [20, 600000], post: [10, 3600000], comment: [60, 3600000], nick: [1, 7 * 86400000],   // 닉네임은 7일에 1번(사칭 방어, 검수 16)
-  code: [10, 600000], apply: [3, 86400000], invite: [10, 86400000], recover: [10, 600000], report: [10, 86400000], ask: [5, 86400000], identity: [10, 600000], kakao: [30, 600000], block: [60, 86400000], review: [10, 600000]
+  code: [10, 600000], apply: [3, 86400000], invite: [10, 86400000], recover: [10, 600000], report: [10, 86400000], ask: [5, 86400000], identity: [10, 600000], kakao: [30, 600000], naver: [30, 600000], block: [60, 86400000], review: [10, 600000]
 };
 const INVITE_MAX = 3;                                 // 인증 아빠 한 사람이 만들 수 있는 초대 코드
 // 운영진처럼 보이는 이름 막기(검수 16). 띄어쓰기·특수문자를 지우고 닮은 글자(0→o, 1→i, 3→e, 5→s)를 접은 뒤 본다.
@@ -119,6 +122,9 @@ export async function handleApi(request, env) {
     if (seg[0] === 'login' && seg[1] === 'kakao' && seg[2] === 'start' && !seg[3] && m === 'GET') return kakaoStart(env);
     if (seg[0] === 'login' && seg[1] === 'kakao' && !seg[2] && m === 'POST') return kakaoLogin(request, env);
     if (seg[0] === 'me' && seg[1] === 'leave-kakao' && !seg[2] && m === 'POST') return kakaoLeave(request, env);
+    if (seg[0] === 'login' && seg[1] === 'naver' && seg[2] === 'start' && !seg[3] && m === 'GET') return naverStart(env);
+    if (seg[0] === 'login' && seg[1] === 'naver' && !seg[2] && m === 'POST') return naverLogin(request, env);
+    if (seg[0] === 'me' && seg[1] === 'leave-naver' && !seg[2] && m === 'POST') return naverLeave(request, env);
     if (seg[0] === 'join' && !seg[1] && m === 'POST') return join(request, env);
     if (seg[0] === 'recover' && !seg[1] && m === 'POST') return recover(request, env);
     if (seg[0] === 'recovery' && seg[1] === 'new' && !seg[2] && m === 'POST') return recoveryNew(request, env);
@@ -147,7 +153,7 @@ function bearer(request) {
   return h.startsWith('Bearer ') ? h.slice(7).trim() : '';
 }
 
-const USER_COLS = 'id, nick, created, role, verified, verified_how, blocked, recovery_hash, comments_seen, kakao_hash, terms_at';
+const USER_COLS = 'id, nick, created, role, verified, verified_how, blocked, recovery_hash, comments_seen, kakao_hash, naver_hash, terms_at';
 async function auth(request, db) {
   const token = bearer(request);
   if (!tokenOk(token)) return { err: no('login', 401) };
@@ -177,6 +183,7 @@ async function allow(db, who, kind) {
   const t = Date.now();
   await db.prepare('DELETE FROM acts WHERE who = ?1 AND kind = ?2 AND at < ?3').bind(who, kind, t - win).run();
   await db.prepare('DELETE FROM kakao_pending WHERE created < ?1').bind(new Date(t - KAKAO_PENDING_MS).toISOString()).run();   // 가입을 마치지 않은 사람의 정보는 남기지 않는다(카카오 운영정책은 24시간)
+  await db.prepare('DELETE FROM naver_pending WHERE created < ?1').bind(new Date(t - KAKAO_PENDING_MS).toISOString()).run();
   // 다시 오지 않는 기기의 기록도 남지 않게 가끔 통째로 비운다(가장 긴 제한이 하루)
   if (Math.random() < 0.02) await db.prepare('DELETE FROM acts WHERE at < ?1').bind(t - 2 * 86400000).run();
   const c = await db.prepare('SELECT COUNT(*) AS n FROM acts WHERE who = ?1 AND kind = ?2').bind(who, kind).first();
@@ -189,7 +196,7 @@ const ipKey = async request => 'ip:' + (await sha256('ip|' + (request.headers.ge
 const BADGE = "CASE WHEN u.role = 'official' THEN 'official' WHEN u.role = 'admin' THEN 'admin' WHEN u.verified = 1 THEN 'dad' ELSE '' END AS badge";
 const badgeOf = u => (u.role === 'official' ? 'official' : u.role === 'admin' ? 'admin' : u.verified === 1 ? 'dad' : '');
 const rowPost = r => ({ id: r.id, cat: r.cat, age: r.age || '', title: r.title, preview: r.preview, created: r.created, comments: r.comment_count, nick: r.nick, uid: r.uid, badge: r.badge || '', rank: r.rank == null ? null : r.rank });
-const pubUser = u => ({ id: u.id, nick: u.nick, created: u.created, verified: u.verified === 1 && !u.blocked, role: u.role, how: u.verified_how || '', blocked: !!u.blocked, kakao: !!u.kakao_hash, terms: !!u.terms_at });
+const pubUser = u => ({ id: u.id, nick: u.nick, created: u.created, verified: u.verified === 1 && !u.blocked, role: u.role, how: u.verified_how || '', blocked: !!u.blocked, kakao: !!u.kakao_hash, naver: !!u.naver_hash, terms: !!u.terms_at });
 
 // ----- 계급(11-05 휴먼쌤 "1안 좋아 … 짝대기부터해서"): 이병·일병·상병·병장·예비군·민방위. 재미로만 쓰고 권한 차이는 없다 -----
 // public/app.js RANKS의 at·days와 같게. 자료실·운영 계정은 계급이 없다(rank = null). 남에게는 계급만, 점수는 /api/me로 본인에게만 준다
@@ -489,10 +496,10 @@ async function verifyCode(request, env) {
   if (a.user.blocked) return no('blocked', 403);
   if (!(await allow(env.DB, await ipKey(request), 'code'))) return no('limit', 429);
   const b = await readJson(request);
-  // 이미 인증한 사람도 관리자 코드는 쓸 수 있게 코드를 먼저 본다(아빠 코드를 낭비하지 않게 kind를 확인)
-  if (a.user.verified === 1) {
+  // 이미 인증한 사람도 관리자 코드는 쓸 수 있게 코드를 먼저 본다(아빠 코드를 낭비하지 않게 kind를 확인). 네이버로 바꾼 뒤에는 아빠 코드로 성별 확인을 돌아가지 못한다
+  if (a.user.verified === 1 || naverOnly(env)) {
     const inv = await env.DB.prepare('SELECT kind FROM invites WHERE code = ?1').bind(normCode(b && b.code)).first();
-    if (!inv || inv.kind !== 'admin') return json({ ok: true, user: pubUser(a.user), already: true });
+    if (!inv || inv.kind !== 'admin') return a.user.verified === 1 ? json({ ok: true, user: pubUser(a.user), already: true }) : no('naver_required', 403);
   }
   const r = await useInvite(env.DB, a.user, b && b.code);
   if (r.error) return no(r.error);
@@ -505,6 +512,7 @@ async function verifyApply(request, env) {
   if (a.err) return a.err;
   if (a.user.blocked) return no('blocked', 403);
   if (a.user.verified === 1) return json({ ok: true, user: pubUser(a.user), already: true });
+  if (naverOnly(env)) return no('naver_required', 403);
   const b = await readJson(request);
   if (!b) return no('bad_json');
   const stage = str(b.stage, 20), answer = str(b.answer, 1000);
@@ -600,6 +608,7 @@ async function kakaoLogin(request, env) {
     await db.prepare('UPDATE users SET token_hash = ?1, last_seen = ?2 WHERE id = ?3').bind(hash, at, owner.id).run();   // 새 기기면 이 기기로 옮긴다(이전 기기는 끊김)
     return json({ ok: true, user: pubUser(owner) });
   }
+  if (naverOnly(env)) return no('kakao_closed', 403);   // 네이버로 바꾼 뒤에는 이미 카카오로 가입한 회원만 카카오로 들어온다
   if (here) {                    // 카카오 없이 가입한 계정: 카카오를 이어 붙이고 인증한다
     if (here.kakao_hash) return no('kakao_taken', 409);
     if (here.blocked) return no('blocked', 403);
@@ -647,6 +656,96 @@ async function kakaoLeave(request, env) {
   return json({ ok: true });
 }
 
+// 네이버 로그인(11-05 휴먼쌤 "맘카페는 어떻게 엄마들만 받고있어? 그 방식을 차용하고 싶어" · "네이버로 진행"): 계정의 성별이 남성인 회원만 새로 받는다.
+// 받는 것은 회원번호와 성별뿐이다. 저장은 회원번호의 해시뿐이고, 성별과 네이버 토큰은 판단한 뒤 버린다. 남성 여부만 알 뿐 아빠인지는 가리지 못한다.
+// 아이디는 wrangler.toml [vars] NAVER_CLIENT_ID, 비밀 코드는 wrangler pages secret NAVER_CLIENT_SECRET.
+// LOGIN_METHOD = 'naver'면 성별 확인을 돌아갈 길을 닫는다: 카카오 새 가입 · 네이버 없는 가입 · 회원의 초대 코드 만들기 · 신청서 · 아빠 초대 코드로 인증(관리자 코드와 아빠 초대 링크는 남는다)
+const naverAuthBase = env => env.NAVER_AUTH_BASE || 'https://nid.naver.com';
+const naverApiBase = env => env.NAVER_API_BASE || 'https://openapi.naver.com';
+const FORM = { 'Content-Type': 'application/x-www-form-urlencoded;charset=utf-8' };
+const naverOnly = env => env.LOGIN_METHOD === 'naver';
+
+function naverStart(env) {
+  if (!env.NAVER_CLIENT_ID) return no('naver_off', 503);
+  return json({ ok: true, url: naverAuthBase(env) + '/oauth2.0/authorize?response_type=code&client_id=' + encodeURIComponent(env.NAVER_CLIENT_ID) });
+}
+// 인가 코드 → 토큰 → 회원번호 + 성별. 네이버는 실패해도 200으로 {error}를 주므로 값으로 본다. state는 네이버 토큰 요청에 꼭 들어가야 한다
+async function naverIdentify(request, env, b) {
+  const code = str(b && b.code, 600), state = str(b && b.state, 100), redirect = str(b && b.redirect_uri, 300);
+  let same = false;
+  try { same = new URL(redirect).origin === new URL(request.url).origin; } catch (e) { same = false; }
+  if (!code || !state || !same) return { err: no('naver_bad') };
+  try {
+    const form = new URLSearchParams({ grant_type: 'authorization_code', client_id: env.NAVER_CLIENT_ID, client_secret: env.NAVER_CLIENT_SECRET || '', code, state });
+    const t = await fetch(naverAuthBase(env) + '/oauth2.0/token', { method: 'POST', headers: FORM, body: form.toString() });
+    if (!t.ok) { console.error('naver token', t.status); return { err: no('naver_bad') }; }
+    const token = (await t.json()).access_token;
+    if (!token) return { err: no('naver_bad') };
+    const u = await fetch(naverApiBase(env) + '/v1/nid/me', { headers: { Authorization: 'Bearer ' + token } });
+    if (!u.ok) { console.error('naver me', u.status); return { err: no('naver_bad') }; }
+    const j = await u.json(), p = j && j.resultcode === '00' && j.response;
+    if (!p || !p.id) return { err: no('naver_bad') };
+    return { token, gender: p.gender === 'M' || p.gender === 'F' ? p.gender : '', hash: await sha256('naver|' + p.id) };
+  } catch (e) { console.error('naver', e && e.message); return { err: no('naver_bad', 502) }; }
+}
+// 연동 끊기. 끊겼으면 true
+async function naverUnlink(env, token) {
+  try {
+    const form = new URLSearchParams({ grant_type: 'delete', client_id: env.NAVER_CLIENT_ID, client_secret: env.NAVER_CLIENT_SECRET || '', access_token: token, service_provider: 'NAVER' });
+    const r = await fetch(naverAuthBase(env) + '/oauth2.0/token', { method: 'POST', headers: FORM, body: form.toString() });
+    if (!r.ok) { console.error('naver unlink', r.status); return false; }
+    return !(await r.json()).error;
+  } catch (e) { console.error('naver unlink', e && e.message); return false; }
+}
+async function naverLogin(request, env) {
+  if (!env.NAVER_CLIENT_ID) return no('naver_off', 503);
+  const db = env.DB, token = bearer(request);
+  if (!tokenOk(token)) return no('login', 401);
+  if (!(await allow(db, await ipKey(request), 'naver'))) return no('limit', 429);
+  const k = await naverIdentify(request, env, await readJson(request));
+  if (k.err) return k.err;
+  const hash = await sha256('tok|' + token), at = nowIso();
+  const owner = await db.prepare('SELECT ' + USER_COLS + ' FROM users WHERE naver_hash = ?1').bind(k.hash).first();
+  const here = await db.prepare('SELECT ' + USER_COLS + ' FROM users WHERE token_hash = ?1').bind(hash).first();
+  if (owner) {
+    if (here && here.id !== owner.id) return no('naver_taken', 409);
+    await db.prepare('UPDATE users SET token_hash = ?1, last_seen = ?2 WHERE id = ?3').bind(hash, at, owner.id).run();   // 새 기기면 이 기기로 옮긴다(이전 기기는 끊김)
+    return json({ ok: true, user: pubUser(owner) });
+  }
+  if (here && (here.naver_hash || here.kakao_hash)) return no('naver_taken', 409);   // 카카오 회원은 이어 붙이지 않는다(탈퇴 때 양쪽을 다 끊을 토큰이 없다)
+  if (here && here.blocked) return no('blocked', 403);
+  // 여기부터 새로 받는 사람. 남성이 아니면 받지 않고, 네이버 쪽 연동도 끊어 아무것도 남기지 않는다(실패해도 받지 않는 것은 같다)
+  if (k.gender !== 'M') {
+    await naverUnlink(env, k.token);
+    return no(k.gender === 'F' ? 'naver_not_dad' : 'naver_gender', 403);
+  }
+  if (here) {                    // 네이버 없이 가입한 계정: 네이버를 이어 붙이고 인증한다
+    await db.batch([
+      db.prepare("UPDATE users SET naver_hash = ?1, verified = 1, verified_how = CASE WHEN verified = 1 THEN verified_how ELSE 'naver' END, verified_at = COALESCE(verified_at, ?2) WHERE id = ?3").bind(k.hash, at, here.id),
+      db.prepare("UPDATE applications SET status = 'approved', answer = '', decided_at = ?1 WHERE user_id = ?2 AND status = 'pending'").bind(at, here.id)
+    ]);
+    const u = await db.prepare('SELECT ' + USER_COLS + ' FROM users WHERE id = ?1').bind(here.id).first();
+    return json({ ok: true, user: pubUser(u), linked: true });
+  }
+  // 처음 온 사람: 닉네임을 받을 때까지 이 기기와 묶어 둔다
+  await db.prepare('INSERT OR REPLACE INTO naver_pending (token_hash, naver_hash, created) VALUES (?1, ?2, ?3)').bind(hash, k.hash, at).run();
+  return json({ ok: true, need_nick: true });
+}
+// 탈퇴: 회원번호를 저장하지 않으므로 다시 로그인해서 받은 토큰으로 연동을 끊는다. 막힌 계정은 내용만 지우고 재가입을 막도록 줄을 남긴다
+async function naverLeave(request, env) {
+  if (!env.NAVER_CLIENT_ID) return no('naver_off', 503);
+  const a = await auth(request, env.DB);
+  if (a.err) return a.err;
+  if (a.user.role !== 'user' || !a.user.naver_hash) return no('forbidden', 403);
+  if (!(await allow(env.DB, await ipKey(request), 'naver'))) return no('limit', 429);
+  const k = await naverIdentify(request, env, await readJson(request));
+  if (k.err) return k.err;
+  if (k.hash !== a.user.naver_hash) return no('naver_mismatch', 403);
+  if (!(await naverUnlink(env, k.token))) return no('naver_bad', 502);
+  await eraseUser(env.DB, a.user.id, !!a.user.blocked);
+  return json({ ok: true });
+}
+
 const ALPHA = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';       // 헷갈리는 글자(I·O·0·1) 뺌
 function newCode() {
   const a = new Uint8Array(8);
@@ -670,6 +769,7 @@ async function createInvite(request, env) {
   if (a.err) return a.err;
   if (!canWrite(a.user)) return no(a.user.blocked ? 'blocked' : 'verify', 403);
   if (!isAdmin(a.user)) {
+    if (naverOnly(env)) return no('naver_required', 403);
     const c = await env.DB.prepare("SELECT COUNT(*) AS n FROM invites WHERE owner_id = ?1 AND revoked = 0 AND kind != 'ref'").bind(a.user.id).first();
     if (c && c.n >= INVITE_MAX) return no('invite_max');
     if (!(await allow(env.DB, 'u:' + a.user.id, 'invite'))) return no('limit', 429);
@@ -722,18 +822,29 @@ async function join(request, env) {
   const ip = await ipKey(request);
   if (!(await allow(db, ip, 'join'))) return no('limit', 429);
   const created = nowIso();
+  // 네이버를 마치고 온 기기면 바로 인증(11-05 휴먼쌤). 성별은 naverLogin에서 이미 봤다. 복구 코드는 필요 없다
+  const since = new Date(Date.now() - KAKAO_PENDING_MS).toISOString();
+  const npend = await db.prepare('SELECT naver_hash FROM naver_pending WHERE token_hash = ?1 AND created >= ?2').bind(hash, since).first();
+  if (npend && await db.prepare('SELECT 1 AS x FROM users WHERE naver_hash = ?1').bind(npend.naver_hash).first()) {   // 같은 네이버로 다른 기기에서 먼저 가입을 마쳤다
+    await db.prepare('DELETE FROM naver_pending WHERE token_hash = ?1').bind(hash).run();
+    return no('naver_used', 409);
+  }
+  if (naverOnly(env) && !npend) return no('naver_required', 403);
   // 카카오를 마치고 온 기기면 바로 인증(11-05 휴먼쌤). 복구 코드는 필요 없다(카카오로 다시 들어오면 된다)
-  const pend = await db.prepare('SELECT kakao_hash FROM kakao_pending WHERE token_hash = ?1 AND created >= ?2').bind(hash, new Date(Date.now() - KAKAO_PENDING_MS).toISOString()).first();
+  const pend = npend ? null : await db.prepare('SELECT kakao_hash FROM kakao_pending WHERE token_hash = ?1 AND created >= ?2').bind(hash, since).first();
   if (pend && await db.prepare('SELECT 1 AS x FROM users WHERE kakao_hash = ?1').bind(pend.kakao_hash).first()) {   // 같은 카카오로 다른 기기에서 먼저 가입을 마쳤다
     await db.prepare('DELETE FROM kakao_pending WHERE token_hash = ?1').bind(hash).run();
     return no('kakao_used', 409);
   }
   let uid;
   try {
-    const r = await (pend
+    const r = await (npend
+      ? db.prepare("INSERT INTO users (nick, nick_key, token_hash, created, last_seen, terms_at, naver_hash, verified, verified_how, verified_at) VALUES (?1, ?2, ?3, ?4, ?4, ?4, ?5, 1, 'naver', ?4)").bind(nick, nickKey(nick), hash, created, npend.naver_hash)
+      : pend
       ? db.prepare("INSERT INTO users (nick, nick_key, token_hash, created, last_seen, terms_at, kakao_hash, verified, verified_how, verified_at) VALUES (?1, ?2, ?3, ?4, ?4, ?4, ?5, 1, 'kakao', ?4)").bind(nick, nickKey(nick), hash, created, pend.kakao_hash)
       : db.prepare('INSERT INTO users (nick, nick_key, token_hash, created, last_seen, terms_at) VALUES (?1, ?2, ?3, ?4, ?4, ?4)').bind(nick, nickKey(nick), hash, created)).run();
     uid = r.meta && r.meta.last_row_id;
+    if (npend) await db.prepare('DELETE FROM naver_pending WHERE token_hash = ?1').bind(hash).run();
     if (pend) await db.prepare('DELETE FROM kakao_pending WHERE token_hash = ?1').bind(hash).run();
   } catch (e) {
     if (/UNIQUE/i.test(String(e && e.message))) return no('nick_taken', 409);
@@ -746,7 +857,7 @@ async function join(request, env) {
       inviteError = res.error || '';
     } else inviteError = 'limit';
   }
-  const recovery = pend ? undefined : await setRecovery(db, uid);
+  const recovery = pend || npend ? undefined : await setRecovery(db, uid);
   const u = await db.prepare('SELECT ' + USER_COLS + ' FROM users WHERE id = ?1').bind(uid).first();
   return json({ ok: true, user: pubUser(u), invite_error: inviteError, recovery });
 }
@@ -831,6 +942,7 @@ async function deleteMe(request, env) {
   const a = await auth(request, env.DB);
   if (a.err) return a.err;
   if (a.user.role !== 'user') return no('forbidden', 403);          // 관리자는 먼저 넘겨 주고, 자료실 계정은 로그인이 없다
+  if (a.user.naver_hash && env.NAVER_CLIENT_ID) return no('naver_leave');   // 네이버로 들어온 사람은 네이버 연동도 끊는다(/api/me/leave-naver)
   if (a.user.kakao_hash && env.KAKAO_REST_KEY) return no('kakao_leave');   // 카카오로 들어온 사람은 카카오 연결도 끊어야 한다(/api/me/leave-kakao)
   const b = await readJson(request);
   if (!b || b.confirm !== true) return no('bad_json');
