@@ -42,6 +42,7 @@
 
 ## Google Play(2026-11-05 휴먼쌤 결정)
 - 패키지 `com.humanteacher.yukaman`(바꿀 수 없음) · 스토어 이름 '육아맨 - 아빠 육아의 모든 정보' · 운영자 김수현(휴먼쌤) · 무료, 광고·결제 없음, 비판매자 · 만 18세 이상 전용.
+- 안드로이드 앱(TWA, Bubblewrap 1.27, API 36, 최소 API 24)의 설정 사본·스토어 이미지·Play Console 입력표는 `android/`. 앱과 주소를 잇는 서명 지문은 `public/.well-known/assetlinks.json`. 서명 키와 빌드 폴더는 저장소 밖.
 - 약관·처리방침 정본은 `public/terms.html` · `public/privacy.html`(앱 안 사본 없음). 계정 삭제 안내는 `privacy#delete`. 서버가 저장하는 항목을 바꾸면 함께 고치고 Play 데이터 보안도 맞춘다. `deploy.py backup`은 처리방침 약속대로 30일 지난 백업을 지운다.
 - 약관 동의: 새 가입은 `/join`의 `terms`, 그 전 계정은 첫 글·댓글 때 `terms` 403 → 동의 창(`users.terms_at`). 사용자 차단: `user_blocks`, 글·댓글의 차단 단추, MY에서 풀기. 내 화면에서만 숨기고 운영·자료실 계정은 차단할 수 없다.
 - 앱 심사용 입구: 로그인 전 MY 맨 아래. 코드는 Pages 비밀 값 `REVIEW_CODE`에만 있고 저장소·노션·대화에 적지 않는다. 심사용 계정(`verified_how = 'review'`)은 심사자가 탈퇴해도 다음 입장 때 다시 만들어진다. 비밀 값을 지우면 입구가 닫힌다(`review_off`).

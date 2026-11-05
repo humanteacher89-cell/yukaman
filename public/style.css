@@ -456,6 +456,7 @@ input[type=date].inp { -webkit-appearance: none; appearance: none; min-height: 4
 .garticle a { color: var(--pri); text-decoration: underline; }
 .tipbox { margin-top: 12px; padding: 12px 14px; border-radius: 12px; background: #FFF7E6; color: #7C4A00; font-size: 14.5px; line-height: 1.55; font-weight: 600; }
 .tpl { margin: 10px 0 0; padding: 12px 14px; border-radius: 12px; background: var(--bg); border: 1.5px dashed var(--line); font: inherit; font-size: 14.5px; line-height: 1.65; white-space: pre-wrap; overflow-wrap: anywhere; }
+.draft { display: flex; gap: 8px; align-items: flex-start; margin-top: 16px; color: var(--sub); font-size: 13px; font-weight: 600; line-height: 1.5; }
 .srcs { margin-top: 24px; padding-top: 12px; border-top: 1px solid var(--line); font-size: 13px; color: var(--sub); line-height: 1.6; }
 .srcs b { display: block; color: var(--ink); margin-bottom: 4px; }
 .srcs a { color: var(--pri); text-decoration: none; }

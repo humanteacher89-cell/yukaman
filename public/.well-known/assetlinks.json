@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.humanteacher.yukaman",
+      "sha256_cert_fingerprints": [
+        "77:71:A6:86:46:48:DF:1B:8B:58:AB:83:1C:88:A0:B6:FE:8F:82:1D:97:C3:E7:B5:F5:01:ED:9B:77:C9:20:78"
+      ]
+    }
+  }
+]
