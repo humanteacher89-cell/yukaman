@@ -16,6 +16,6 @@ database_id = "323f60e6-a5ba-4199-87d0-a7e206d73c22"
 # 카카오 로그인 REST API 키(동의 화면 주소에 어차피 보이는 값). 비어 있으면 꺼진다. 함께 켤 것: public/config.js KAKAO_LOGIN, wrangler pages secret KAKAO_CLIENT_SECRET · KAKAO_ADMIN_KEY
 KAKAO_REST_KEY = "76e4e194abc83fefff0ea8f820c16316"
 # 네이버 로그인 Client ID(동의 화면 주소에 어차피 보이는 값). 비어 있으면 꺼진다. 함께 켤 것: public/config.js NAVER_LOGIN, wrangler pages secret NAVER_CLIENT_SECRET, 아래 LOGIN_METHOD. 순서는 저장소 CLAUDE.md '네이버 로그인 켜기'
-NAVER_CLIENT_ID = "4Do6ODRfU9PyoraLIX7e"
+NAVER_CLIENT_ID = "4AeVBH5OeqXac3TWACk9"
 # "naver"면 성별 확인을 돌아갈 길을 닫는다(카카오 새 가입 · 네이버 없는 가입 · 회원의 초대 코드 만들기 · 신청서). "kakao"면 지금까지와 같다
 LOGIN_METHOD = "naver"
