@@ -231,6 +231,17 @@ textarea.inp { min-height: 180px; resize: none; line-height: 1.6; }
 .agesel select { display: block; width: 100%; -webkit-appearance: none; appearance: none; border: 1.5px solid var(--line); border-radius: 14px; background: var(--card); color: var(--ink); padding: 11px 40px 11px 14px; font: inherit; font-size: 16px; font-weight: 700; outline: none; }
 .agesel select:focus { border-color: var(--pri); }
 .agesel::after { content: ""; position: absolute; right: 17px; top: 50%; width: 8px; height: 8px; border: solid var(--sub); border-width: 0 2px 2px 0; transform: translateY(-70%) rotate(45deg); pointer-events: none; }
+/* 커뮤니티: 나이와 검색을 한 줄에 절반씩(11-05) */
+.findrow { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; margin-top: 4px; }
+.findrow .agesel { margin: 0; min-width: 0; }
+.findrow .agesel select { height: 100%; padding: 8px 28px 8px 12px; text-overflow: ellipsis; }
+.findrow .agesel::after { right: 12px; }
+.findrow .searchbar { margin: 0; min-width: 0; gap: 4px; padding: 3px 4px 3px 11px; }
+.findrow .searchbar input { width: 100%; }
+.findrow .searchbar input::placeholder { font-size: 14.5px; }
+.findrow .searchbar input::-webkit-search-cancel-button { display: none; }
+.findrow .searchbar .sx { flex: none; width: 24px; height: 24px; font-size: 11px; }
+.findrow .searchbar .sgo { padding: 8px 9px; }
 [data-theme=dark] .agesel select { color-scheme: dark; }
 .searchbar .sgo { flex: none; border: 0; border-radius: 10px; background: var(--pri); color: #fff; font-weight: 800; font-size: 14px; padding: 8px 12px; }
 
@@ -565,6 +576,13 @@ html[data-theme=dark] { background: #0D1119; }
 .seg.kidseg { margin: 0 0 8px; padding: 3px; }
 .kidrow .seg.kidseg { margin: 0; }
 .seg.kidseg button { min-width: 0; padding: 8px 2px; font-size: 14px; white-space: nowrap; }
+/* 가이드 '정책·정보·자료실' 안의 칸 */
+.seg.guideseg { margin: 2px 0 4px; }
+.seg.guideseg a { flex: 1; min-width: 0; padding: 9px 2px; border-radius: 11px; text-align: center; font-size: 14.5px; font-weight: 800; color: var(--sub); }
+.seg.guideseg a.on { background: #fff; color: var(--ink); box-shadow: 0 1px 3px rgba(28,35,51,.08); }
+[data-theme=dark] .seg.guideseg a.on { background: #3A4458; }
+/* 잠금 화면 타일이 홀수면 마지막은 한 줄 전체 */
+.tiles.center .tile:last-child:nth-child(odd) { grid-column: 1 / -1; }
 .kidadd { flex: none; border: 1.5px solid var(--line-s); background: var(--card); color: var(--ink); border-radius: 12px; padding: 9px 12px; font-size: 13.5px; font-weight: 800; white-space: nowrap; }
 .ages { display: flex; gap: 6px; margin: 10px -16px 0; padding: 2px 16px 6px; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
 .ages::-webkit-scrollbar { display: none; }

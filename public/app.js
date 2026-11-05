@@ -561,8 +561,12 @@
   const KID_NAMES = ['첫째', '둘째', '셋째', '넷째', '다섯째', '여섯째'];
   // 아이 고르기. 계산기의 날짜 칸 위에는 둘 이상일 때만, 홈에는 늘 둔다(always)
   const kidSeg = always => (always || calcS.kids.length > 1 ? '<div class="seg kidseg" role="group" aria-label="아이 고르기">' + calcS.kids.map((_, i) => '<button type="button" class="' + (i === calcS.kid ? 'on' : '') + '" data-kid="' + i + '" aria-pressed="' + (i === calcS.kid) + '">' + KID_NAMES[i] + '</button>').join('') + '</div>' : '');
-  // 홈: 기본은 '첫째' 칸 하나, 둘째부터는 '아이 추가'로(11-05 휴먼쌤 "기본적으로 '첫째'만 ㅎ해두고, 둘째부터는 아이추가로")
-  const kidsRow = () => '<div class="kidrow">' + kidSeg(true) + (calcS.kids.length < KID_NAMES.length ? '<button type="button" class="kidadd" id="kidAdd">+ 아이 추가</button>' : '') + '</div>';
+  // 홈: 날짜를 넣으면 그 아래에 '첫째' 칸과 '아이 추가'가 뜬다(11-05 휴먼쌤 "'우리아이'에 날짜를 넣으면 그 아래 '아이추가'가 뜨도록"). 둘째부터는 추가로
+  function kidsRow() {
+    const k = kidDates();
+    if (calcS.kids.length < 2 && !k.birth && !k.due) return '';
+    return '<div class="kidrow">' + kidSeg(true) + (calcS.kids.length < KID_NAMES.length ? '<button type="button" class="kidadd" id="kidAdd">+ 아이 추가</button>' : '') + '</div>';
+  }
   function pickKid(i) {
     if (!calcS.kids[i] || i === calcS.kid) return;
     const y = window.scrollY;
@@ -659,12 +663,7 @@
   }
   function bindHomeAge() {
     const e = $('#kidEdit'); if (e) e.addEventListener('click', () => openKidDates());
-    const ka = $('#kidAdd');
-    if (ka) ka.addEventListener('click', () => {
-      const k = kidDates();
-      if (calcS.kids.length > 1 || k.birth || k.due) { openKidDates(true); return; }
-      openKidDates(); const err = $('#kErr'); err.hidden = false; err.textContent = '첫째 날짜를 먼저 넣어 주세요';      // 빈 첫째가 남아 순서가 꼬이지 않게
-    });
+    const ka = $('#kidAdd'); if (ka) ka.addEventListener('click', () => openKidDates(true));
     const m = $('#tlMore'); if (m) m.addEventListener('click', () => { $$('.tli[hidden]').forEach(x => { x.hidden = false; }); m.remove(); });
     const box = $('#ages'); if (!box) return;
     box.addEventListener('click', ev => { const b = ev.target.closest('[data-age]'); if (!b) return; store.set('age', store.get('age', '') === b.dataset.age ? '' : b.dataset.age); renderHome(); });
@@ -744,13 +743,22 @@
     return '<a class="grow" href="#/g/' + esc(g.id) + '"><span class="ge">' + esc(g.e) + '</span><span class="tx"><b>' + esc(g.title) + '</b><small>' + esc(g.sub) + '</small></span>'
       + (g.tag ? '<span class="tag ' + tagCls(g.tag) + '">' + esc(g.tag) + '</span>' : '') + '</a>';
   }
-  function guideChips(cur) {
-    const link = (h, e, name, on) => '<a class="chip' + (on ? ' on' : '') + '" href="' + h + '"><span class="e">' + e + '</span>' + esc(name) + '</a>';
-    return '<div class="chips" data-keep="guide">' + GD.cats.map(c => link('#/guide/' + c.key, c.e, c.name, c.key === cur) + (c.key === 'faq' ? link('#/calc', '💰', '계산기', cur === 'calc') : '')).join('')
-      + link('#/library', '🗂️', '자료실', cur === 'library') + '</div>';
-  }
+  // 가이드 상단 버튼(11-05 휴먼쌤 "'계산기' 다음에 '나들이'를 넣어주고 그다음에 '놀이'" · "'정책/정보/자료실'을 하나로 합쳐줘"). 커뮤니티 잠금 화면의 타일도 이 목록을 쓴다
+  const MERGED = [{ key: 'policy', name: '정책', h: '#/guide/policy' }, { key: 'info', name: '정보', h: '#/guide/info' }, { key: 'library', name: '자료실', h: '#/library' }];
+  const GUIDE_BTNS = [
+    { h: '#/guide/leave', e: '💼', name: '육아휴직', on: ['leave'] },
+    { h: '#/guide/faq', e: '🙋', name: 'Q&A', on: ['faq'] },
+    { h: '#/calc', e: '💰', name: '계산기', on: ['calc'] },
+    { h: '#/guide/outing', e: '🎡', name: '나들이', on: ['outing'] },
+    { h: '#/guide/play', e: '🎮', name: '놀이', on: ['play'] },
+    { h: '#/guide/mind', e: '🧠', name: '심리', on: ['mind'] },
+    { h: '#/guide/policy', e: '🗂️', name: '정책·정보·자료실', on: MERGED.map(m => m.key) }
+  ];
+  const guideChips = cur => '<div class="chips" data-keep="guide">' + GUIDE_BTNS.map(b => '<a class="chip' + (b.on.indexOf(cur) >= 0 ? ' on' : '') + '" href="' + b.h + '"><span class="e">' + b.e + '</span>' + esc(b.name) + '</a>').join('') + '</div>';
+  // 합친 버튼 안에서 정책·정보·자료실을 고른다. 주소는 그대로라 글과 안내의 링크가 그대로 맞는다
+  const mergedSeg = cur => (MERGED.some(m => m.key === cur) ? '<div class="seg guideseg">' + MERGED.map(m => '<a class="' + (m.key === cur ? 'on' : '') + '" href="' + m.h + '"' + (m.key === cur ? ' aria-current="page"' : '') + '>' + m.name + '</a>').join('') + '</div>' : '');
   // 가이드 탭은 표지 없이 바로 글로(11-05 휴먼쌤 "네모칸으로 버튼 누르게 하는 표지는 없는게 더 낫고"). 어느 칸이든 제목과 상단 버튼 자리가 같다
-  const guideHead = cur => pageHead('📚', '아빠 가이드') + guideChips(cur);
+  const guideHead = cur => pageHead('📚', '아빠 가이드') + guideChips(cur) + mergedSeg(cur);
   // 근거 법령 표시(11-05 휴먼쌤 "'2026.11.04 법령기준'은 사실이 아니지 … 실제 법령의 명칭과 유효일자를 적어서 신뢰를 확보해"). 표는 law-data.js, 글과는 출처 주소로 잇는다
   const LAW_DATA = window.YK_LAWS || { checked: '', items: [] };
   const lawsFor = list => { const urls = list.reduce((a, g) => a.concat((g.sources || []).map(s => s.u || '')), []); return LAW_DATA.items.filter(l => urls.some(u => l.match.some(m => u.indexOf(m) >= 0))); };
@@ -797,7 +805,8 @@
     view.innerHTML = '<section class="pad">'
       + guideHead(cat)
       + (cat === 'leave' ? calcCard() + '<a class="grow" href="#/calc" style="margin-top:16px"><span class="ge">🧮</span><span class="tx"><b>계산기 모음</b><small>단축근무 · 출산휴가 · 아이 날짜</small></span></a>' : '')
-      + '<div class="glist">' + (items.length ? items.map(grow).join('') : empty('준비 중이에요', '곧 글이 올라와요')) + '</div>'
+      + '<div class="glist">' + (items.length ? items.map(grow).join('') : empty('준비 중이에요', '곧 글이 올라와요'))
+      + (cat === 'outing' ? '<a class="grow" href="#/community/play"><span class="ge">💬</span><span class="tx"><b>아빠들의 나들이 글</b><small>커뮤니티 나들이 칸</small></span></a>' : '') + '</div>'
       + lawBox(lawsFor(items))
       + '</section>';
     window.scrollTo(0, 0);
@@ -1136,7 +1145,8 @@
         : '<div id="lockCta"><button type="button" class="btn primary" id="lockGo">초대 코드가 있어요</button><button type="button" class="btn line" id="lockNo">코드가 없어요 (신청서)</button><small class="hint">서류나 사진은 받지 않아요.</small></div>')
       + '</div>'
       + '<div class="sec"><h2>' + (kakaoOn() ? '가입 전에도' : '인증 전에도') + ' 볼 수 있어요</h2></div>'
-      + '<div class="tiles center" style="margin-top:0">' + tile('📚', '아빠 가이드', '#/guide') + tile('🙋', 'Q&A', '#/guide/faq') + tile('💰', '계산기', '#/calc') + tile('🗂️', '자료실', '#/library') + '</div></section>';
+      // 가이드 상단 버튼을 그대로 나열해 누르면 그 칸으로(11-05 휴먼쌤 "'아빠가이드' 버튼은 빼고 … 전부다 나열")
+      + '<div class="tiles center" style="margin-top:0">' + GUIDE_BTNS.map(b => tile(b.e, b.name, b.h)).join('') + '</div></section>';
     window.scrollTo(0, 0);
     const after = () => render();
     const lk = $('#lockKakao'); if (lk) lk.addEventListener('click', kakaoGo);
@@ -1172,9 +1182,9 @@
     view.innerHTML = '<section class="pad">'
       + pageHead('💬', '커뮤니티')
       + '<div class="chips">' + chip('', '전체', '🏠', cat) + CATS.map(c => chip(c.key, c.name, c.e, cat)).join('') + '</div>'
-      // 나이는 드롭다운, 검색창은 늘 이 자리에(11-05 휴먼쌤 "드롭다운으로" · "지금 위치에 고정")
-      + '<label class="agesel"><select id="ageSel" aria-label="아이 나이로 거르기"><option value="">전체 나이</option>' + AGES.map(x => '<option value="' + x.key + '"' + (x.key === listState.age ? ' selected' : '') + '>' + esc(x.name) + '</option>').join('') + '</select></label>'
-      + '<div class="searchbar" id="searchbar"><input id="q" type="search" placeholder="키워드로 글 찾기 (예: 복직, 이유식)" enterkeyhint="search" autocomplete="off" value="' + esc(q) + '"><button type="button" class="sgo" id="qgo">찾기</button><button type="button" class="sx" id="qx" aria-label="검색 지우기">✕</button></div>'
+      // 나이 드롭다운과 검색창을 한 줄에 절반씩(11-05 휴먼쌤 "2줄로 하지 말고 칸을 절반씩 해서 1줄로"). 칸이 좁아 안내 글자를 줄였다
+      + '<div class="findrow"><label class="agesel"><select id="ageSel" aria-label="아이 나이로 거르기"><option value="">전체 나이</option>' + AGES.map(x => '<option value="' + x.key + '"' + (x.key === listState.age ? ' selected' : '') + '>' + esc(x.name) + '</option>').join('') + '</select></label>'
+      + '<div class="searchbar" id="searchbar"><input id="q" type="search" placeholder="키워드 검색" aria-label="키워드로 글 찾기" enterkeyhint="search" autocomplete="off" value="' + esc(q) + '"><button type="button" class="sx" id="qx" aria-label="검색 지우기">✕</button><button type="button" class="sgo" id="qgo">찾기</button></div></div>'
       + (mode === 'local' ? mockBadge() : '')
       + '<div id="hotBox"></div>'
       + '<div class="list" id="list"></div><button type="button" class="more" id="more" hidden>더 보기</button>'

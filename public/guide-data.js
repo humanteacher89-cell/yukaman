@@ -101,6 +101,7 @@
     cats: [
       { key: 'leave', name: '육아휴직', e: '💼' },
       { key: 'faq', name: 'Q&A', e: '🙋' },       // 11-05 휴먼쌤 "'육아휴직' 오른쪽에 'Q&A'". 글은 official-data.js, 관리자가 답한 질문은 서버에서
+      { key: 'outing', name: '나들이', e: '🎡' },    // 11-05 휴먼쌤 "'계산기' 다음에 '나들이'를 넣어주고 그다음에 '놀이'". 가이드 상단 버튼 순서는 app.js GUIDE_BTNS
       { key: 'play', name: '놀이', e: '🎮' },
       { key: 'mind', name: '심리', e: '🧠' },
       { key: 'policy', name: '정책', e: '📢' },
@@ -404,7 +405,7 @@
           { tip: '아기를 세게 흔드는 놀이는 하지 않아요. 걱정되면 소아청소년과에 물어보세요.' }
         ],
         sources: [] },
-      { id: 'play-weekend', cat: 'play', e: '🎒', tag: '인기', community: 'play', status: '일반 조언', updated: UP,
+      { id: 'play-weekend', cat: 'outing', e: '🎒', tag: '인기', community: 'play', status: '일반 조언', updated: UP,
         title: '주말 나들이 준비물 체크리스트', sub: '두 번 다녀오면 외워지는 목록',
         body: [
           { h: '기본' },
@@ -423,7 +424,7 @@
           { tip: '"이 노래 끝나면 정리"처럼 끝나는 신호를 미리 알려 주면 마무리가 쉬워요.' }
         ],
         sources: [] },
-      { id: 'play-dadcrew', cat: 'play', e: '👨‍👧‍👦', tag: 'NEW', community: 'play', status: '일반 조언', updated: UP,
+      { id: 'play-dadcrew', cat: 'outing', e: '👨‍👧‍👦', tag: 'NEW', community: 'play', status: '일반 조언', updated: UP,
         title: '아빠 모임 찾기·만들기', sub: '100인의 아빠단부터 동네 모임까지',
         body: [
           { h: '있는 모임' },
