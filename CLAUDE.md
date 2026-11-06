@@ -1,11 +1,12 @@
 # 육아맨 (yukaman) — 저장소 안내문
 
-육아하는 아빠들의 휴대폰 앱. **아빠 가이드**(글 + 실제 계산기 + 자료실)와 **커뮤니티**(사진·영상 없이 줄글 + 댓글, 키워드 검색). 커뮤니티는 인증한 아빠만 읽고 쓰고, 가이드·계산기·자료실은 누구나 본다. 홈 화면에 추가하면 앱처럼 열리는 웹 앱(PWA). 휴먼쌤 스튜디오 앱개발부, 2026-11-04 시작.
+육아하는 아빠들의 휴대폰 앱(창 폭 1100px부터는 PC 화면). **아빠 가이드**(글 + 실제 계산기 + 자료실)와 **커뮤니티**(사진·영상 없이 줄글 + 댓글, 키워드 검색). 커뮤니티는 인증한 아빠만 읽고 쓰고, 가이드·계산기·자료실은 누구나 본다. 홈 화면에 추가하면 앱처럼 열리는 웹 앱(PWA). 휴먼쌤 스튜디오 앱개발부, 2026-11-04 시작.
 
 이 파일은 공개 파일이다 — 비밀 값·개인 정보·PC 경로를 적지 않는다. 경로는 모두 이 저장소 루트 기준.
 
 ## 짜임
 - `public/` 화면 그대로 올라간다(만드는 단계 없음). `index.html` 틀 · `style.css` · `app.js`(화면 전부, 해시 주소) · `calc.js`(계산, 법령 기준) · `guide-data.js`(가이드 글) · `official-data.js`(가이드 Q&A와 정보 칸, 만들어지는 파일) · `law-data.js`(근거 법령 표, `tools/check_laws.py --write`가 만듦) · `data/library.json`(자료실, 만들어지는 파일) · `config.js` · `sample-data.js`(서버 없을 때 시험 모드 견본) · `manifest.json` · `sw.js` · `icons/` · `_headers`(보안 응답 머리글: CSP · frame-ancestors · Referrer-Policy).
+- PC 화면(0.8.0): 주소 · 서버 · 계정은 같고 창 폭으로만 갈린다. 1100px부터 왼쪽 메뉴, 1280px부터 오른쪽 칸. `style.css` 끝 'PC 화면' 절(그 미디어 쿼리 안에서만 바꿔 폰 화면을 건드리지 않는다), `app.js` 'PC 왼쪽 메뉴와 오른쪽 칸' 절(`paintShell`)과 `isWide()` · `hasRail()` 분기. 좁은 창에서는 메뉴를 그리지도 서버에 더 묻지도 않는다. 계산기의 날짜 · 안내는 `watchCalcRail`이 오른쪽 칸으로 옮기고, 육아휴직 계산기의 나란히 비교는 `leaveCompare`.
 - `functions/api/[[path]].js` → `server/app.js`: Cloudflare Pages Functions 서버. 맨 위 주석에 API 약속.
 - `schema.sql` D1 표(users · invites · applications · posts · comments · reports · qna · acts). 검색 색인 posts_fts(FTS5 trigram)와 트리거는 MIGRATIONS에. 이미 있는 표에 칸을 더할 때는 `deploy.py` MIGRATIONS에 ALTER 한 줄(`deploy.py migrate`).
 - `seed/official-posts.json` → `tools/build_seed.py` → `seed/official.sql`(자료실 계정의 글 넣기) + `seed/official-update.sql`(이미 있는 글 고치기) + `public/official-data.js`(같은 글을 가이드로, 인증 전에도 보임. 'Q.'으로 시작하는 글은 Q&A 칸, 나머지는 정보 칸). 글을 고치면 `deploy.py seed`로 공개 D1도 맞춘다.
@@ -14,7 +15,7 @@
 
 ## 돌리기
 - 미리 보기: `python -X utf8 deploy.py dev --fresh` → http://127.0.0.1:8799 (가짜 D1, 시험 코드는 `test/seed-local.sql`).
-- 시험: `node test/calc-test.js` · `node test/badwords-test.mjs`(비속어, 서버 없이) · `python -X utf8 test/watch-test.py`(자동 점검, 인터넷 없이) · `node test/api-test.mjs`(미리 보기를 --fresh로 띄운 뒤, 내 컴퓨터 주소에만) · `node test/naver-only-test.mjs`(그 뒤에, 가짜 D1을 함께 쓰는 서버를 `LOGIN_METHOD=naver`로 하나 더 띄워 돌아갈 길이 닫혔는지 본다). 네이버 시험은 `.dev.vars`에 `NAVER_CLIENT_ID=test-naver` · `NAVER_CLIENT_SECRET=test-naver-secret` · `NAVER_AUTH_BASE`와 `NAVER_API_BASE=http://127.0.0.1:8798` · `LOGIN_METHOD=kakao`를 둔다. 본인인증 시험은 가짜 포트원(8798)에 묻는다. 저장소 뿌리의 `.dev.vars`(gitignore)에 `PORTONE_API_SECRET=test-secret`과 `PORTONE_API_BASE=http://127.0.0.1:8798`을 두고 미리 보기를 띄운다. 심사 입구 시험은 같은 파일의 `REVIEW_CODE=REVW-2345-TEST`(시험 값)를 쓴다.
+- 시험: `node test/calc-test.js` · `node test/pc-test.mjs`(PC 화면, 크롬으로 눌러 봄, 서버 없이, 크롬 경로는 환경 변수 CHROME) · `node test/badwords-test.mjs`(비속어, 서버 없이) · `python -X utf8 test/watch-test.py`(자동 점검, 인터넷 없이) · `node test/api-test.mjs`(미리 보기를 --fresh로 띄운 뒤, 내 컴퓨터 주소에만) · `node test/naver-only-test.mjs`(그 뒤에, 가짜 D1을 함께 쓰는 서버를 `LOGIN_METHOD=naver`로 하나 더 띄워 돌아갈 길이 닫혔는지 본다). 네이버 시험은 `.dev.vars`에 `NAVER_CLIENT_ID=test-naver` · `NAVER_CLIENT_SECRET=test-naver-secret` · `NAVER_AUTH_BASE`와 `NAVER_API_BASE=http://127.0.0.1:8798` · `LOGIN_METHOD=kakao`를 둔다. 본인인증 시험은 가짜 포트원(8798)에 묻는다. 저장소 뿌리의 `.dev.vars`(gitignore)에 `PORTONE_API_SECRET=test-secret`과 `PORTONE_API_BASE=http://127.0.0.1:8798`을 두고 미리 보기를 띄운다. 심사 입구 시험은 같은 파일의 `REVIEW_CODE=REVW-2345-TEST`(시험 값)를 쓴다.
 - 내 컴퓨터(localhost)에서 정적 서버로 `public/`만 열면 `/api`가 없어 화면이 알아서 **시험 모드**(견본 글 + 그 기기 localStorage)로 돈다. 운영 주소에서는 바꾸지 않는다 — 서버가 JSON이 아닌 것을 돌려주면 "서버에 연결할 수 없어요"만 보인다.
 - 처음 한 번: `deploy.py setup` → `deploy.py deploy` → `deploy.py admin-code`(첫 관리자 코드, 저장소에 남기지 않음). 공개 반영은 휴먼쌤이 시킨 때만.
 - 올릴 때: 저장소와 Cloudflare는 자동으로 연결하지 않았다(push가 곧 공개 반영이 되지 않게). 커밋한 뒤 `git push`와 `deploy.py deploy`를 함께 돌려 둘이 갈라지지 않게 한다. 표가 바뀌었으면 `deploy.py migrate`, 자료실 글이 바뀌었으면 `deploy.py seed`를 먼저.
@@ -113,5 +114,6 @@
 - 2026-11-05: 휴먼쌤이 네이버 로그인 검수를 요청함. 결과 대기. 통과 전에는 소유자와 멤버관리 아이디만 네이버로 로그인된다. 반려되면 사유를 보고 고쳐 다시 요청한다. 남성만 받는 조건이 통과할지는 아직 모른다.
 - 2026-11-05: Play Console에 앱을 만들고 내부 테스트에 버전 1(1.0.0)을 게시함(휴먼쌤 "너가 직접 해줘" · "문제 없으면 진행해"). 선언 2개가 들어갔고 휴먼쌤이 유지로 확인함. Play 앱 서명 지문을 `assetlinks.json`에 더해 시험 주소에 올림(휴먼쌤 "올려", backup → deploy 2cf33085 + push, 바뀐 공개 파일은 이것 하나, 운영 D1 회원 3 · 글 25). 입력표: 스토어 글(제도 글 근거 문구 · 의료 고지 · 남성 계정 조건) · 심사 안내 · 건강 앱 답을 고치고, 비공개 테스트 제출은 네이버 검수 결과 뒤로 함. 커뮤니티 스크린샷을 네이버 화면으로 바꿈. 못 본 것: 폰 앱에서 주소창 없음 · 네이버 로그인 · 탈퇴 · 심사 입구 실제 입장. 앱 설정과 스토어 등록정보는 아직 안 넣음.
 - 2026-11-06: Play 앱 설정 일부 입력(휴먼쌤 "다른거 할수잇는거먼저 해주고"). 저장: 개인정보처리방침 · 광고 · 광고 ID · 정부 앱 · 금융 · 건강 앱 · 카테고리 · 연락처 · 로그인 세부정보(코드는 휴먼쌤) · 타겟층 18세 이상 · 데이터 보안. 콘텐츠 등급(한국 12세 이상) · 스토어 글과 이미지(아이콘과 그래픽 이미지만 AI 라벨)도 저장. Google 검토는 안 보냄, 비공개 테스트 제출은 네이버 검수 뒤. 내부 테스트는 처음에 폰에서 '항목을 찾을 수 없습니다'였다가 휴먼쌤 폰에 설치됨. 휴먼쌤 폰 확인 끝: 주소창 없음 · 앱 안 네이버 로그인 · 심사 코드 입장 · 탈퇴. 뒤 운영 D1 회원 4(관리자 1 · 카카오 1 · 네이버 2) · 글 25 · 심사 계정 0. 구글 그룹 yukaman-testers를 만들고 모집 글 초안을 입력표 6절에 둠(발송 전). 다음은 네이버 검수 결과 뒤 비공개 테스트 제출, 다른 계정으로 가입부터 설치까지 시험, 모집 글.
+- 2026-11-06: 0.8.0 PC 화면(휴먼쌤 "육아맨 앱의 PC버전을 개발해줘. 먼저 시안보여줘." · "A안으로 제작해줘", 아직 시험 주소에 안 올림, sw v27). 왼쪽 메뉴 + 본문 + 오른쪽 칸. 가이드 · 커뮤니티 분류는 메뉴로, 홈 '지금 챙길 것'은 끝난 것만 빼고 전부, 육아휴직 계산기는 일반과 6+6을 나란히(아이 날짜 없으면 6+6 금액은 폰과 같이 안 보임, 칸을 누르면 상황이 바뀜), 시트는 가운데 창, 다크 모드 포함. 서버 코드와 표는 안 바뀜. 폰 화면은 폭 375 · 320, 로그인 전후, 18개 주소를 고치기 전과 픽셀로 비교. PC 시험은 `test/pc-test.mjs`. 가짜 D1 미리 보기에서 관리자 화면과 CSP 확인. 못 본 것: 실제 네이버 로그인을 PC 화면에서, 터치 태블릿, 사파리 · 파이어폭스. 올릴 때 backup → deploy(표 변경 없어 migrate · seed 안 함) + push. 네이버 검수에 PC 화면 캡처를 냈으니 검수 뒤에 올리는 것을 권함.
 - 제도 문장을 쓸 때 조문만 보지 말고 담당 부처 답변·FAQ를 함께 본다(공개 빠른상담 답변이 조문 문구와 반대로 운영되는 경우가 있었다).
 - 남은 일(코드로 못 하는 것): 첫 아빠 열 명 모집, 이름 반응 조사, 약관·처리방침 법률 검토, 공개 결정. 작은 것: 읽기·검색 횟수 제한, IP 해시 소금, 관리자 코드 만료, 푸시 알림, 경로 주소·사전 렌더링.

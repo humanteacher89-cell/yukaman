@@ -3,7 +3,7 @@
 window.YK_CONFIG = {
   APP_NAME: '육아맨',
   API_URL: '/api',
-  VERSION: '0.7.3',
+  VERSION: '0.8.0',
   // 본인인증(포트원). 비어 있으면 꺼져 있고 초대 코드·신청서가 보인다. 켜는 순서는 저장소 CLAUDE.md '본인인증 켜기'. 둘 다 공개되어도 되는 값이다(비밀 키는 서버의 PORTONE_API_SECRET)
   IDENTITY: { storeId: '', channelKey: '' },
   // 카카오 로그인(11-05). true면 가입·인증이 카카오 + 닉네임이 된다. 켜는 순서는 저장소 CLAUDE.md '카카오 로그인 켜기'
