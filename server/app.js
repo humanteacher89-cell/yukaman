@@ -42,7 +42,7 @@
 //  POST   /api/login/naver {code, state, redirect_uri}  네이버 로그인: 있던 회원이면 이 기기를 그 계정에 붙이고, 처음이면 남성인지 보고 need_nick. 남성이 아니면 naver_not_dad, 성별을 못 받으면 naver_gender
 //  POST   /api/me/leave-naver {code, state, redirect_uri}  네이버 회원 탈퇴: 같은 네이버 계정인지 확인하고 연동을 끊은 뒤 지운다
 //  GET·POST /api/kakao/unlink?user_id=…        카카오 연결 해제 웹훅(사용자가 카카오 쪽에서 끊었을 때 카카오가 부른다. 머리글 Authorization: KakaoAK <대표 어드민 키>). 탈퇴와 같게 지운다
-//  GET    /api/health                          살아 있나
+//  GET    /api/health                          살아 있나 + 회원번호 해시 열쇠 확인값 idk(열쇠가 없으면 '', 열쇠 자체는 드러나지 않는다)
 // 저장하는 개인정보: 닉네임 · 기기 토큰 해시 · 복구 코드 해시 · 쓴 글·댓글 · 대기 중인 신청 답변(결정 뒤 지움) · 누가 초대했는지 · 마지막 접속 시각.
 //   약관 동의 시각 · 차단한 회원 목록도 둔다. 횟수 제한용 기기 주소(IP)는 해시 16자로 짧게(가입·코드·복구 시도에만, 이틀 안에 지움). 지운 글·댓글은 내용을 비우고 시각만 남긴다. 탈퇴하면 계정 줄을 지운다.
 
@@ -79,6 +79,34 @@ const offToken = id => 'off|' + id + '|' + nowIso() + '|' + Math.random().toStri
 async function sha256(s) {
   const d = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s));
   return Array.from(new Uint8Array(d), b => b.toString(16).padStart(2, '0')).join('');
+}
+
+// 회원번호 해시(11-09 보안 보강, 휴먼쌤 "보안 보강해줘"). 네이버·카카오 회원번호와 본인인증 값을 SHA-256만 하면, 표나 백업이 새었을 때
+// 회원번호를 아는 사람이 같은 계산으로 회원을 찾아낼 수 있다. 그래서 Pages 비밀 값 ID_HASH_KEY로 한 번 더 묶는다:
+//   'k1:' + HMAC-SHA256(열쇠, 옛 SHA-256 값). 옛 값 위에 묶으므로 deploy.py rehash가 회원번호 없이도 저장된 줄을 같은 값으로 바꾼다.
+// 옛 값으로 남은 줄은 그 회원이 다시 로그인할 때 findByIdHash가 바꾼다. 비밀 값이 없으면 옛 값 그대로 쓴다(열쇠를 넣기 전과 같다).
+const idKey = env => String(env.ID_HASH_KEY || '').trim();
+async function hmacHex(key, s) {
+  const k = await crypto.subtle.importKey('raw', new TextEncoder().encode(key), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  return Array.from(new Uint8Array(await crypto.subtle.sign('HMAC', k, new TextEncoder().encode(s))), b => b.toString(16).padStart(2, '0')).join('');
+}
+async function idHash(env, kind, id) {
+  const legacy = await sha256(kind + '|' + id), key = idKey(env);
+  return { hash: key ? 'k1:' + await hmacHex(key, legacy) : legacy, legacy };
+}
+// 열쇠 확인값: 정해진 글자의 HMAC 앞 8자. 열쇠를 드러내지 않고 deploy.py가 가진 열쇠와 같은지만 맞춰 본다(rehash 전에)
+const idKeyCheck = async env => (idKey(env) ? (await hmacHex(idKey(env), 'yukaman-key-check')).slice(0, 8) : '');
+// col은 코드 안에서만 넘기는 칸 이름(kakao_hash · naver_hash · identity_hash). 새 값으로 찾고, 없으면 옛 값으로 찾아 그 자리에서 새 값으로 바꾼다
+async function findByIdHash(db, col, h, cols) {
+  const q = 'SELECT ' + cols + ' FROM users WHERE ' + col + ' = ?1';
+  let u = await db.prepare(q).bind(h.hash).first();
+  if (u || h.hash === h.legacy) return u;
+  u = await db.prepare(q).bind(h.legacy).first();
+  if (u) {
+    await db.prepare('UPDATE users SET ' + col + ' = ?1 WHERE id = ?2 AND ' + col + ' = ?3').bind(h.hash, u.id, h.legacy).run();
+    u[col] = h.hash;
+  }
+  return u;
 }
 
 // 닉네임 = 별명/거주지/자녀 출생연도 끝 2자리(11-05 휴먼쌤). 예: 든든이/청주/24. 이미 가입한 사람의 옛 닉네임은 바꿀 때까지 그대로 둔다. public/app.js NICK_RE와 같게
@@ -139,7 +167,7 @@ export async function handleApi(request, env) {
     if (seg[0] === 'verify' && seg[1] === 'identity' && m === 'POST') return verifyIdentity(request, env);
     if (seg[0] === 'invites' && !seg[1] && m === 'POST') return createInvite(request, env);
     if (seg[0] === 'admin') return admin(request, env, seg[1], m);
-    if (seg[0] === 'health' && !seg[1] && m === 'GET') return json({ ok: true, app: 'yukaman', time: nowIso() });
+    if (seg[0] === 'health' && !seg[1] && m === 'GET') return json({ ok: true, app: 'yukaman', time: nowIso(), idk: await idKeyCheck(env) });
     return no('not_found', 404);
   } catch (e) {
     console.error('api', e && e.stack || e);
@@ -551,8 +579,8 @@ async function verifyIdentity(request, env) {
   if (!key || !m) return no('identity_bad');
   const adult = new Date(+m[1] + 19, +m[2] - 1, +m[3]).getTime() <= Date.now();
   if (!adult || String(c.gender || '').toUpperCase() !== 'MALE') return no('identity_denied', 403);
-  const hash = await sha256('id|' + key);
-  const other = await env.DB.prepare('SELECT id FROM users WHERE identity_hash = ?1').bind(hash).first();
+  const h = await idHash(env, 'id', key), hash = h.hash;
+  const other = await findByIdHash(env.DB, 'identity_hash', h, 'id');
   if (other && other.id !== a.user.id) return no('identity_dup', 409);
   const at = nowIso();
   await env.DB.batch([
@@ -590,7 +618,7 @@ async function kakaoIdentify(request, env, b) {
     if (!u.ok) { console.error('kakao me', u.status); return { err: no('kakao_bad') }; }
     const id = (await u.json()).id;
     if (!id) return { err: no('kakao_bad') };
-    return { token, hash: await sha256('kakao|' + id) };
+    return { token, ...(await idHash(env, 'kakao', id)) };
   } catch (e) { console.error('kakao', e && e.message); return { err: no('kakao_bad', 502) }; }
 }
 async function kakaoLogin(request, env) {
@@ -601,7 +629,7 @@ async function kakaoLogin(request, env) {
   const k = await kakaoIdentify(request, env, await readJson(request));
   if (k.err) return k.err;
   const hash = await sha256('tok|' + token), at = nowIso();
-  const owner = await db.prepare('SELECT ' + USER_COLS + ' FROM users WHERE kakao_hash = ?1').bind(k.hash).first();
+  const owner = await findByIdHash(db, 'kakao_hash', k, USER_COLS);
   const here = await db.prepare('SELECT ' + USER_COLS + ' FROM users WHERE token_hash = ?1').bind(hash).first();
   if (owner) {
     if (here && here.id !== owner.id) return no('kakao_taken', 409);
@@ -631,9 +659,9 @@ async function kakaoUnlinked(request, env) {
   let id = new URL(request.url).searchParams.get('user_id');
   if (!id && request.method === 'POST') id = new URLSearchParams(await request.text()).get('user_id');
   if (!id) return json({ ok: true });
-  const db = env.DB, hash = await sha256('kakao|' + id);
-  await db.prepare('DELETE FROM kakao_pending WHERE kakao_hash = ?1').bind(hash).run();
-  const u = await db.prepare('SELECT id, role, blocked FROM users WHERE kakao_hash = ?1').bind(hash).first();
+  const db = env.DB, h = await idHash(env, 'kakao', id);
+  await db.prepare('DELETE FROM kakao_pending WHERE kakao_hash IN (?1, ?2)').bind(h.hash, h.legacy).run();
+  const u = await findByIdHash(db, 'kakao_hash', h, 'id, role, blocked');
   if (u && u.role === 'user') await eraseUser(db, u.id, !!u.blocked);
   else if (u) await db.prepare('UPDATE users SET kakao_hash = NULL WHERE id = ?1').bind(u.id).run();
   return json({ ok: true });
@@ -647,7 +675,7 @@ async function kakaoLeave(request, env) {
   if (!(await allow(env.DB, await ipKey(request), 'kakao'))) return no('limit', 429);
   const k = await kakaoIdentify(request, env, await readJson(request));
   if (k.err) return k.err;
-  if (k.hash !== a.user.kakao_hash) return no('kakao_mismatch', 403);
+  if (a.user.kakao_hash !== k.hash && a.user.kakao_hash !== k.legacy) return no('kakao_mismatch', 403);   // 옛 해시로 남은 회원도 같은 사람
   try {
     const r = await fetch(kakaoApiBase(env) + '/v1/user/unlink', { method: 'POST', headers: { Authorization: 'Bearer ' + k.token } });
     if (!r.ok) { console.error('kakao unlink', r.status); return no('kakao_bad', 502); }
@@ -685,7 +713,7 @@ async function naverIdentify(request, env, b) {
     if (!u.ok) { console.error('naver me', u.status); return { err: no('naver_bad') }; }
     const j = await u.json(), p = j && j.resultcode === '00' && j.response;
     if (!p || !p.id) return { err: no('naver_bad') };
-    return { token, gender: p.gender === 'M' || p.gender === 'F' ? p.gender : '', hash: await sha256('naver|' + p.id) };
+    return { token, gender: p.gender === 'M' || p.gender === 'F' ? p.gender : '', ...(await idHash(env, 'naver', p.id)) };
   } catch (e) { console.error('naver', e && e.message); return { err: no('naver_bad', 502) }; }
 }
 // 연동 끊기. 끊겼으면 true
@@ -705,7 +733,7 @@ async function naverLogin(request, env) {
   const k = await naverIdentify(request, env, await readJson(request));
   if (k.err) return k.err;
   const hash = await sha256('tok|' + token), at = nowIso();
-  const owner = await db.prepare('SELECT ' + USER_COLS + ' FROM users WHERE naver_hash = ?1').bind(k.hash).first();
+  const owner = await findByIdHash(db, 'naver_hash', k, USER_COLS);
   const here = await db.prepare('SELECT ' + USER_COLS + ' FROM users WHERE token_hash = ?1').bind(hash).first();
   if (owner) {
     if (here && here.id !== owner.id) return no('naver_taken', 409);
@@ -740,7 +768,7 @@ async function naverLeave(request, env) {
   if (!(await allow(env.DB, await ipKey(request), 'naver'))) return no('limit', 429);
   const k = await naverIdentify(request, env, await readJson(request));
   if (k.err) return k.err;
-  if (k.hash !== a.user.naver_hash) return no('naver_mismatch', 403);
+  if (a.user.naver_hash !== k.hash && a.user.naver_hash !== k.legacy) return no('naver_mismatch', 403);   // 옛 해시로 남은 회원도 같은 사람
   if (!(await naverUnlink(env, k.token))) return no('naver_bad', 502);
   await eraseUser(env.DB, a.user.id, !!a.user.blocked);
   return json({ ok: true });

@@ -17,9 +17,9 @@ CREATE TABLE IF NOT EXISTS users (
   invited_by   INTEGER,                        -- 초대한 사람(초대 점수를 세고, 문제가 생기면 초대 줄기를 본다)
   blocked      INTEGER NOT NULL DEFAULT 0,     -- 1 = 인증 취소하고 다시 신청 못 함
   comments_seen TEXT,                          -- 내 글의 새 댓글을 마지막으로 본 시각(MY 배지, 검수 22). 기존 표에는 MIGRATIONS로 더함
-  identity_hash TEXT,                          -- SHA-256('id|' + 본인인증 DI 또는 CI). 1인 1계정 확인용, 이름·전화번호는 저장하지 않는다(11-05). 기존 표에는 MIGRATIONS로 더함. 색인도 MIGRATIONS에
-  kakao_hash   TEXT,                           -- SHA-256('kakao|' + 카카오 회원번호). 프로필·이메일·전화번호는 받지 않는다(11-05). 기존 표에는 MIGRATIONS로 더함. 색인도 MIGRATIONS에
-  naver_hash   TEXT,                           -- SHA-256('naver|' + 네이버 회원번호). 성별은 가입 판단에만 쓰고 저장하지 않는다(11-05). 기존 표에는 MIGRATIONS로 더함. 색인도 MIGRATIONS에
+  identity_hash TEXT,                          -- 'k1:' + HMAC(ID_HASH_KEY, SHA-256('id|' + 본인인증 DI 또는 CI)), 열쇠 전 옛 줄은 SHA-256 그대로(11-09 server/app.js idHash). 1인 1계정 확인용, 이름·전화번호는 저장하지 않는다(11-05). 기존 표에는 MIGRATIONS로 더함. 색인도 MIGRATIONS에
+  kakao_hash   TEXT,                           -- 'k1:' + HMAC(ID_HASH_KEY, SHA-256('kakao|' + 카카오 회원번호)), 옛 줄은 SHA-256(11-09). 프로필·이메일·전화번호는 받지 않는다(11-05). 기존 표에는 MIGRATIONS로 더함. 색인도 MIGRATIONS에
+  naver_hash   TEXT,                           -- 'k1:' + HMAC(ID_HASH_KEY, SHA-256('naver|' + 네이버 회원번호)), 옛 줄은 SHA-256(11-09). 성별은 가입 판단에만 쓰고 저장하지 않는다(11-05). 기존 표에는 MIGRATIONS로 더함. 색인도 MIGRATIONS에
   terms_at     TEXT                            -- 약관 동의 시각. 비어 있으면 글·댓글 전에 동의를 받는다(11-05 Play 등록). 기존 표에는 MIGRATIONS로 더함
 );
 

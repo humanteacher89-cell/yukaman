@@ -14,15 +14,22 @@
 
 ## 돌리기
 - 미리 보기: `python -X utf8 deploy.py dev --fresh` → http://127.0.0.1:8799 (가짜 D1, 시험 코드는 `test/seed-local.sql`).
-- 시험: `node test/calc-test.js` · `node test/badwords-test.mjs`(비속어, 서버 없이) · `python -X utf8 test/watch-test.py`(자동 점검, 인터넷 없이) · `node test/api-test.mjs`(미리 보기를 --fresh로 띄운 뒤, 내 컴퓨터 주소에만) · `node test/naver-only-test.mjs`(그 뒤에, 가짜 D1을 함께 쓰는 서버를 `LOGIN_METHOD=naver`로 하나 더 띄워 돌아갈 길이 닫혔는지 본다). 네이버 시험은 `.dev.vars`에 `NAVER_CLIENT_ID=test-naver` · `NAVER_CLIENT_SECRET=test-naver-secret` · `NAVER_AUTH_BASE`와 `NAVER_API_BASE=http://127.0.0.1:8798` · `LOGIN_METHOD=kakao`를 둔다. 본인인증 시험은 가짜 포트원(8798)에 묻는다. 저장소 뿌리의 `.dev.vars`(gitignore)에 `PORTONE_API_SECRET=test-secret`과 `PORTONE_API_BASE=http://127.0.0.1:8798`을 두고 미리 보기를 띄운다. 심사 입구 시험은 같은 파일의 `REVIEW_CODE=REVW-2345-TEST`(시험 값)를 쓴다.
+- 시험: `node test/calc-test.js` · `node test/badwords-test.mjs`(비속어, 서버 없이) · `python -X utf8 test/watch-test.py`(자동 점검, 인터넷 없이) · `node test/api-test.mjs`(미리 보기를 --fresh로 띄운 뒤, 내 컴퓨터 주소에만) · `node test/naver-only-test.mjs`(그 뒤에, 가짜 D1을 함께 쓰는 서버를 `LOGIN_METHOD=naver`로 하나 더 띄워 돌아갈 길이 닫혔는지 본다). 네이버 시험은 `.dev.vars`에 `NAVER_CLIENT_ID=test-naver` · `NAVER_CLIENT_SECRET=test-naver-secret` · `NAVER_AUTH_BASE`와 `NAVER_API_BASE=http://127.0.0.1:8798` · `LOGIN_METHOD=kakao`를 둔다. 본인인증 시험은 가짜 포트원(8798)에 묻는다. 저장소 뿌리의 `.dev.vars`(gitignore)에 `PORTONE_API_SECRET=test-secret`과 `PORTONE_API_BASE=http://127.0.0.1:8798`을 두고 미리 보기를 띄운다. 심사 입구 시험은 같은 파일의 `REVIEW_CODE=REVW-2345-TEST`(시험 값)를 쓴다. 회원번호 해시 열쇠 시험은 같은 파일의 `ID_HASH_KEY=test-id-hash-key`(시험 값, 네이버 전용 시험이 rehash까지 본다). 백업 암호화 도구는 `node test/backup-crypt-test.mjs`(서버 없이).
 - 내 컴퓨터(localhost)에서 정적 서버로 `public/`만 열면 `/api`가 없어 화면이 알아서 **시험 모드**(견본 글 + 그 기기 localStorage)로 돈다. 운영 주소에서는 바꾸지 않는다 — 서버가 JSON이 아닌 것을 돌려주면 "서버에 연결할 수 없어요"만 보인다.
 - 처음 한 번: `deploy.py setup` → `deploy.py deploy` → `deploy.py admin-code`(첫 관리자 코드, 저장소에 남기지 않음). 공개 반영은 휴먼쌤이 시킨 때만.
 - 올릴 때: 저장소와 Cloudflare는 자동으로 연결하지 않았다(push가 곧 공개 반영이 되지 않게). 커밋한 뒤 `git push`와 `deploy.py deploy`를 함께 돌려 둘이 갈라지지 않게 한다. 표가 바뀌었으면 `deploy.py migrate`, 자료실 글이 바뀌었으면 `deploy.py seed`를 먼저.
 - 계정 복구·끊기: 가입 때 복구 코드 12자를 한 번 보여 준다(서버는 해시만). 폰을 바꾸면 MY → "복구 코드로 이어 쓰기". 관리자 폰을 잃으면 새 폰에서 복구 코드로 들어오면 옛 폰이 끊기고, 복구 코드도 없으면 `deploy.py logout-user <회원 번호>`로 끊은 뒤 `deploy.py admin-code`로 새 관리자 코드를 만든다.
 
-- 운영: 오류 로그 `deploy.py logs`(Pages 실시간 tail). 백업 `deploy.py backup`(표마다 JSON, backups/는 gitignore. 검색 색인 때문에 `wrangler d1 export`는 안 된다). 시점 되돌리기 `wrangler d1 time-travel restore yukaman --timestamp=<시각>`. 표를 바꾸거나 크게 지우기 전에 backup.
+- 운영: 오류 로그 `deploy.py logs`(Pages 실시간 tail). 백업 `deploy.py backup`(표마다 받아 암호화한 `.json.enc`, backups/는 gitignore, 아래 '회원번호 해시 열쇠와 백업 암호화'. 검색 색인 때문에 `wrangler d1 export`는 안 된다). 시점 되돌리기 `wrangler d1 time-travel restore yukaman --timestamp=<시각>`. 표를 바꾸거나 크게 지우기 전에 backup.
 - 화면을 고쳐 올릴 때 `public/sw.js` CACHE 숫자를 하나 올린다.
 - 로고(2026-11-04 확정 '띠 로고 1'): 남색 타일 + '육아맨'(Gasoek One, OFL) + 노란 밑줄 띠. 글꼴 파일은 저장소에 없고, `tools/make_logo.py <GasoekOne-Regular.ttf>`가 글자를 선(path)으로 구워 `public/icons/logo.svg`·`wordmark.svg`·`tools/logo-paths.json`을 만든다(줄기 두께의 10%를 바탕색 선으로 깎아 가늘게). `app.js`의 LOGO·WORDMARK 문자열은 그 선을 그대로 넣은 것. 아이콘·OG 그림은 `python -X utf8 tools/build_icons.py`(크롬 headless, 환경 변수 CHROME).
+
+## 회원번호 해시 열쇠와 백업 암호화(2026-11-09 휴먼쌤 "보안 보강해줘")
+- 네이버·카카오 회원번호와 본인인증 값은 `'k1:' + HMAC-SHA256(ID_HASH_KEY, SHA-256('naver|' + 번호))`로 저장한다(`server/app.js` idHash). 표나 백업이 새어도 열쇠 없이는 회원번호로 회원을 찾아낼 수 없다. 열쇠(Pages 비밀 값 `ID_HASH_KEY`)가 없으면 예전 SHA-256 그대로다.
+- 예전 값으로 남은 줄은 그 회원이 로그인할 때 바뀌고(findByIdHash), `deploy.py rehash`가 한꺼번에 바꾼다. rehash는 서버 `/api/health`의 `idk`(열쇠 확인값, 열쇠는 드러나지 않음)가 이 PC 열쇠와 같을 때만 돌고, 몇 번 돌려도 그대로다. 탈퇴 확인도 옛 값과 새 값을 둘 다 받는다.
+- 백업은 `backups/yukaman-*.json.enc`(AES-256-GCM, `tools/backup-crypt.mjs`, Node 기본 crypto). 평문 파일을 만들지 않는다. 열기는 `deploy.py backup-open <파일> <저장할 곳>`(다 쓰면 지운다). 예전 평문 백업은 `deploy.py backup-seal`로 바꾼다.
+- 열쇠 두 개(`yukaman-id-hash-key.txt` · `yukaman-backup-key.txt`)는 `deploy.py keys`가 회사 PC의 비밀 값 폴더(tools/secrets)에 만들고, 저장소와 드라이브 백업에 올라가지 않는다. 휴먼쌤 비밀번호 관리자에 사본을 둔다. 백업 열쇠를 잃으면 백업을 못 푼다(시점 되돌리기는 D1 time-travel로 따로 된다). 회원번호 열쇠는 바꾸지 않는다(바꾸려면 'k2:'와 옮기는 코드가 먼저다).
+- 처음 켤 때(휴먼쌤 "올려" 뒤): `backup` → `put-id-key` → `deploy` → `rehash` → 남은 옛 해시 0 확인.
 
 ## 본인인증 켜기(코드는 있고 꺼져 있다)
 1. 포트원 가입과 다날 또는 KCP 본인인증 채널 신청(사업자 정보·계약은 휴먼쌤). 다날·KCP는 성별을 항상 준다.
@@ -114,5 +121,6 @@
 - 2026-11-05: Play Console에 앱을 만들고 내부 테스트에 버전 1(1.0.0)을 게시함(휴먼쌤 "너가 직접 해줘" · "문제 없으면 진행해"). 선언 2개가 들어갔고 휴먼쌤이 유지로 확인함. Play 앱 서명 지문을 `assetlinks.json`에 더해 시험 주소에 올림(휴먼쌤 "올려", backup → deploy 2cf33085 + push, 바뀐 공개 파일은 이것 하나, 운영 D1 회원 3 · 글 25). 입력표: 스토어 글(제도 글 근거 문구 · 의료 고지 · 남성 계정 조건) · 심사 안내 · 건강 앱 답을 고치고, 비공개 테스트 제출은 네이버 검수 결과 뒤로 함. 커뮤니티 스크린샷을 네이버 화면으로 바꿈. 못 본 것: 폰 앱에서 주소창 없음 · 네이버 로그인 · 탈퇴 · 심사 입구 실제 입장. 앱 설정과 스토어 등록정보는 아직 안 넣음.
 - 2026-11-06: Play 앱 설정 일부 입력(휴먼쌤 "다른거 할수잇는거먼저 해주고"). 저장: 개인정보처리방침 · 광고 · 광고 ID · 정부 앱 · 금융 · 건강 앱 · 카테고리 · 연락처 · 로그인 세부정보(코드는 휴먼쌤) · 타겟층 18세 이상 · 데이터 보안. 콘텐츠 등급(한국 12세 이상) · 스토어 글과 이미지(아이콘과 그래픽 이미지만 AI 라벨)도 저장. Google 검토는 안 보냄, 비공개 테스트 제출은 네이버 검수 뒤. 내부 테스트는 처음에 폰에서 '항목을 찾을 수 없습니다'였다가 휴먼쌤 폰에 설치됨. 휴먼쌤 폰 확인 끝: 주소창 없음 · 앱 안 네이버 로그인 · 심사 코드 입장 · 탈퇴. 뒤 운영 D1 회원 4(관리자 1 · 카카오 1 · 네이버 2) · 글 25 · 심사 계정 0. 구글 그룹 yukaman-testers를 만들고 모집 글 초안을 입력표 6절에 둠(발송 전). 다음은 네이버 검수 결과 뒤 비공개 테스트 제출, 다른 계정으로 가입부터 설치까지 시험, 모집 글.
 - 2026-11-09: 네이버 로그인 검수 통과(휴먼쌤 화면, 개발 상태 '서비스 적용'). 1차는 11-06 승인거부였다(비실명 회원은 성별이 실제와 다르게 등록돼 있을 수 있다는 사유). 비실명 정보로도 특이사항이 없다는 소명을 붙여 재요청해 통과했다. 이제 멤버관리에 없는 네이버 아이디도 로그인된다. 남성만 받는 조건은 '네이버 계정에 등록된 성별' 기준이고 실제 성별 확인은 아니다. 못 본 것: 멤버관리에 없는 아이디로 실제 가입.
+- 2026-11-09: 보안 보강(휴먼쌤 "보안 보강해줘", 아직 시험 주소에 안 올림). 네이버·카카오 회원번호와 본인인증 값의 해시를 Pages 비밀 값 ID_HASH_KEY로 묶음('k1:' + HMAC, 옛 줄은 로그인 때와 `deploy.py rehash`로 바뀜, 탈퇴 확인은 옛 값도 받음) · `/api/health`에 열쇠 확인값 idk · 백업 암호화(`.json.enc`, AES-256-GCM, `tools/backup-crypt.mjs`) · 예전 평문 백업 12개를 암호화하고 평문을 지움(`backup-seal`, 풀어 본 내용 대조) · 열쇠 두 개는 회사 PC 비밀 값 폴더에만. 서버 시험 338건 · 네이버 전용 시험 30건(옛 해시 회원의 로그인 · 탈퇴, rehash, 열쇠가 다르면 멈춤) · 백업 암호화 시험 10건 · 계산기 93건 · 비속어 89 + 70건 · 자동 점검 61건. 올릴 때: backup → put-id-key → deploy → rehash → 남은 옛 해시 0 확인.
 - 제도 문장을 쓸 때 조문만 보지 말고 담당 부처 답변·FAQ를 함께 본다(공개 빠른상담 답변이 조문 문구와 반대로 운영되는 경우가 있었다).
 - 남은 일(코드로 못 하는 것): 첫 아빠 열 명 모집, 이름 반응 조사, 약관·처리방침 법률 검토, 공개 결정. 작은 것: 읽기·검색 횟수 제한, IP 해시 소금, 관리자 코드 만료, 푸시 알림, 경로 주소·사전 렌더링.
