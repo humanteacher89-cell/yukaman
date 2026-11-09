@@ -37,8 +37,11 @@
 </head>
 <body>
 <div class="app" id="app">
+  <!-- PC 왼쪽 메뉴와 오른쪽 칸: 창이 넓을 때만 app.js가 그린다 -->
+  <nav class="side" id="side" aria-label="메뉴" hidden></nav>
   <header class="appbar" id="appbar"></header>
   <main id="view" class="view" aria-live="polite"></main>
+  <aside class="rail" id="rail" aria-label="함께 보기" hidden></aside>
   <a href="#/write" class="fab" id="fab" hidden aria-label="글쓰기">
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4l10-10-4-4L4 16z"/><path d="m13 7 4 4"/></svg><span>글쓰기</span>
   </a>
